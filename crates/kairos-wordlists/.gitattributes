@@ -1,0 +1,3 @@
+* text eol=lf
+data/upstream/** -text
+*.gz binary
