@@ -17,9 +17,10 @@ const focused = new Input();
 const document = { visibilityState: 'visible', hasFocus: () => pageFocused, activeElement: focused,
     addEventListener: (type, fn) => events.set(type, fn) };
 const hooks = {};
+const scriptCrypto = { subtle: webcrypto.subtle, getRandomValues: bytes => webcrypto.getRandomValues(bytes) };
 runInNewContext(script.replace('})();', 'testHooks.send = send; testHooks.hmac = hmac; testHooks.busy = () => inFlight; })();'), {
     testHooks: hooks,
-    crypto: webcrypto, URL, Uint8Array, TextEncoder, Date: { now: () => now }, Promise, Error, Array,
+    crypto: scriptCrypto, URL, Uint8Array, TextEncoder, Date: { now: () => now }, Promise, Error, Array,
     btoa: text => Buffer.from(text, 'binary').toString('base64'),
     atob: text => Buffer.from(text, 'base64').toString('binary'),
     HTMLInputElement: Input, HTMLTextAreaElement: class {},
@@ -108,6 +109,11 @@ const trigger = type => { now += 600; events.get(type)({isTrusted:true, target:f
     assert.equal(sent.at(-1).data, vector.body);
     assert.equal(sent.at(-1).headers['X-Kairos-HMAC'], vector.hmac);
     assert.equal(createHash('sha256').update(vector.body).digest('hex'), vector.body_sha256);
+    scriptCrypto.subtle = undefined;
+    const beforeMissingCrypto = sent.length;
+    await assert.rejects(hooks.send('/v2/probe', vector.secret), /WebCrypto nicht verfügbar/);
+    await assert.rejects(hooks.hmac(vector.secret, 'kairos-bridge-v2-client-key'), /WebCrypto nicht verfügbar/);
+    assert.equal(sent.length, beforeMissingCrypto, 'missing WebCrypto must not send a request');
     console.log('HMAC Rust=WebCrypto=Node vector: ' + vector.hmac);
     console.log('Userscript: protocol/privacy assertions passed (HMAC, no transmitted secret, pairing separation, username race).');
 })().catch(error => { console.error(error); process.exitCode = 1; });

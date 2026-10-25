@@ -32,22 +32,27 @@
 
     const hex = bytes => Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('');
     const encode = text => new TextEncoder().encode(text);
-    async function hmac(secret, data) {
+    function requireSubtle() {
         if (!crypto.subtle) throw new Error('WebCrypto nicht verfügbar. Kopplung auf einer vertrauenswürdigen HTTPS-Seite ausführen.');
+        return crypto.subtle;
+    }
+    async function hmac(secret, data) {
+        const subtle = requireSubtle();
         if (!/^[A-Za-z0-9_-]{43}$/.test(secret)) throw new Error('Ungültiger Kairos-Schlüssel.');
         const raw = Uint8Array.from(atob(secret.replaceAll('-', '+').replaceAll('_', '/') + '='), c => c.charCodeAt(0));
         if (btoa(String.fromCharCode(...raw)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '') !== secret) {
             raw.fill(0); throw new Error('Nichtkanonischer Kairos-Schlüssel.');
         }
         try {
-            const imported = await crypto.subtle.importKey('raw', raw, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-            return await crypto.subtle.sign('HMAC', imported, encode(data));
+            const imported = await subtle.importKey('raw', raw, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+            return await subtle.sign('HMAC', imported, encode(data));
         } finally { raw.fill(0); }
     }
     async function send(path, secret, fields = {}, timeout = 1500) {
+        const subtle = requireSubtle();
         const message = { timestamp: Math.floor(Date.now() / 1000), nonce: nonce(), ...fields };
         const data = JSON.stringify(message);
-        const digest = hex(await crypto.subtle.digest('SHA-256', encode(data)));
+        const digest = hex(await subtle.digest('SHA-256', encode(data)));
         const canonical = ['kairos-bridge-v2', 'POST', path, '127.0.0.1:19471', String(message.timestamp), message.nonce, digest].join('\n');
         const signature = hex(await hmac(secret, canonical));
         return new Promise((resolve, reject) => {

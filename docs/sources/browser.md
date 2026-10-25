@@ -55,6 +55,12 @@ Malware im selben Konto und manipulierte Scripts bleiben außerhalb der Grenze.
 Native Messaging bleibt der Zielpfad. Keine CORS-/normalen Origins, exakter Host;
 Kontextvorschläge bleiben ausdrücklich zu bestätigen.
 
+Speicherhygiene: Rohe Schlüsselbytes werden mit `Zeroizing` gepuffert. Die
+internen schlüsselabgeleiteten ipad/opad-Zustände von `hmac` 0.12 werden beim
+Drop nicht garantiert gelöscht. JavaScript-/CryptoKey-Kopien besitzen ebenfalls
+keine zugesagte Speicherlöschung; Prozessspeicherzugriff bleibt außerhalb der
+geschützten Grenze.
+
 Review-Nachbesserung: Winsock-Sockets vor Timeout-I/O explizit blockierend;
 verzögerte Header/Body als echter TCP-Regressionstest. Kanonische Extension-
 Origins zusätzlich zur HMAC-Prüfung zulässig, normale Origins weiter verboten;

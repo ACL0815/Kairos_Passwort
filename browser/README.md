@@ -125,6 +125,12 @@ seinen Relay-Kanal. Deren Transport-/Identitätsgarantien werden hier nicht
 behauptet. Für diese Stufe genügt der manuell übertragene hochentropische Code
 als Besitznachweis; Native Messaging bleibt der spätere Zielpfad.
 
+Jeder lokale Prozess mit Portzugriff, auch aus einem anderen Windows-Konto,
+kann durch fünf falsche Pairing-HMACs das offene Pairing abbrechen. Der Nutzer
+muss dann einen neuen Code erzeugen. Das Versuchslimit bleibt vor der HMAC-
+Prüfung, damit falsche Besitznachweise ebenfalls gezählt werden. Lokale
+Verfügbarkeit wird durch dieses Protokoll nicht garantiert.
+
 Zeitfenster ±30 Sekunden. Nonces 61 Sekunden im laufenden Server, maximal 1024;
 bei vollem Cache ablehnen statt vorzeitig entfernen. Neustart setzt den Cache
 zurück; Replay-Abwehr über Neustarts hinaus ist keine Zusage. Maximal 12 KiB
