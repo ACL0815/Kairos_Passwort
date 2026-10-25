@@ -149,7 +149,7 @@ fn clipboard_flags_ownership_and_timeout() {
     assert_eq!(replacement.clear_if_current(), Ok(ClearOutcome::Cleared));
     let expiring = copy_secret("DUMMY-timeout", Some(Duration::from_millis(50))).unwrap();
     thread::sleep(Duration::from_millis(300));
-    assert_eq!(expiring.clear_if_current(), Ok(ClearOutcome::Replaced));
+    assert_eq!(expiring.clear_if_current(), Ok(ClearOutcome::NotPresent));
     assert_eq!(unsafe { IsClipboardFormatAvailable(13) }, 0);
 }
 
@@ -185,6 +185,21 @@ fn autotype_unicode_and_changed_control() {
         Err(PlatformError::InvalidText)
     );
     target.restore().unwrap();
+}
+
+#[test]
+#[ignore = "activates two native dummy windows to exercise real foreground restoration"]
+fn restore_from_another_own_window() {
+    let original = TestWindow::new();
+    unsafe {
+        SetFocus(original.window);
+    }
+    let target = FocusTarget::capture().unwrap();
+    let popup = TestWindow::new();
+    assert_eq!(unsafe { GetForegroundWindow() }, popup.window);
+    // Restore before destroying the popup, while our app still owns foreground.
+    target.restore().unwrap();
+    assert_eq!(unsafe { GetForegroundWindow() }, original.window);
 }
 
 #[test]
@@ -277,7 +292,7 @@ fn hotkey_channel_captures_the_original_field() {
         thread::sleep(Duration::from_millis(5));
     };
     assert_eq!(event.action, Action::OpenEditor);
-    event.target.type_text("DUMMY-channel").unwrap();
+    event.target.unwrap().type_text("DUMMY-channel").unwrap();
     let started = Instant::now();
     while started.elapsed() < Duration::from_secs(2)
         && control_text(window.first) != "DUMMY-channel"

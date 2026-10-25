@@ -1,19 +1,19 @@
-//! The global-hotkey manager and message pump always live on the same thread.
+//! The global-hotkey manager and blocking message pump share one thread.
 //!
 //! Modelled after: global-hotkey <https://github.com/tauri-apps/global-hotkey/blob/b4185ab2f37b62e4d1bd2b8410fcf93e338f55fc/src/platform_impl/windows/mod.rs>.
 
-use crate::{FocusTarget, HotkeyBinding, HotkeyEvent, PlatformError};
+use crate::{hotkeys::EventSlot, FocusTarget, HotkeyBinding, HotkeyEvent, PlatformError};
 use global_hotkey::{hotkey::HotKey, GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use std::{
     ptr,
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc,
+        mpsc, Arc,
     },
     thread,
-    time::Duration,
+    time::Instant,
 };
-use windows_sys::Win32::UI::WindowsAndMessaging::*;
+use windows_sys::Win32::{System::Threading::GetCurrentThreadId, UI::WindowsAndMessaging::*};
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 struct RunningGuard;
@@ -24,8 +24,8 @@ impl Drop for RunningGuard {
 }
 
 pub(crate) struct Service {
-    receiver: mpsc::Receiver<Result<HotkeyEvent, PlatformError>>,
-    stop: mpsc::Sender<()>,
+    events: Arc<EventSlot>,
+    thread_id: u32,
     worker: Option<thread::JoinHandle<()>>,
 }
 
@@ -39,8 +39,8 @@ impl Service {
             .map_err(|_| PlatformError::HotkeysAlreadyRunning)?;
         let guard = RunningGuard;
         let bindings = bindings.to_vec();
-        let (sender, receiver) = mpsc::sync_channel(1);
-        let (stop, stopped) = mpsc::channel();
+        let events = Arc::new(EventSlot::new());
+        let output = Arc::clone(&events);
         let (ready, started) = mpsc::sync_channel(1);
         let worker = thread::Builder::new()
             .name("kairos-hotkeys".into())
@@ -66,43 +66,41 @@ impl Service {
                         return;
                     }
                 }
-                // Drain release events from an earlier service instance.
                 while GlobalHotKeyEvent::receiver().try_recv().is_ok() {}
-                if ready.send(Ok(())).is_err() {
+                // Manager creation has already created this thread's message queue.
+                if ready.send(Ok(unsafe { GetCurrentThreadId() })).is_err() {
                     return;
                 }
-                'messages: loop {
-                    let mut message = MSG::default();
-                    while unsafe { PeekMessageW(&mut message, ptr::null_mut(), 0, 0, PM_REMOVE) }
-                        != 0
-                    {
-                        if message.message == WM_QUIT {
-                            break 'messages;
-                        }
-                        unsafe {
-                            TranslateMessage(&message);
-                            DispatchMessageW(&message);
-                        }
-                        while let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
-                            if event.state != HotKeyState::Pressed {
-                                continue;
-                            }
-                            if let Some(index) =
-                                chords.iter().position(|chord| chord.id() == event.id)
-                            {
-                                let event = FocusTarget::capture().map(|target| HotkeyEvent {
-                                    action: bindings[index].action,
-                                    target,
-                                });
-                                if sender.try_send(event).is_ok() {
-                                    wakeup();
-                                }
-                            }
-                        }
+                let mut message = MSG::default();
+                while unsafe { GetMessageW(&mut message, ptr::null_mut(), 0, 0) } > 0 {
+                    unsafe {
+                        TranslateMessage(&message);
+                        DispatchMessageW(&message);
                     }
-                    match stopped.recv_timeout(Duration::from_millis(5)) {
-                        Err(mpsc::RecvTimeoutError::Timeout) => {}
-                        _ => break,
+                    while let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
+                        if event.state != HotKeyState::Pressed {
+                            continue;
+                        }
+                        if let Some(index) = chords.iter().position(|chord| chord.id() == event.id)
+                        {
+                            let target = FocusTarget::capture().and_then(|mut target| {
+                                target.snapshot.trigger_key = Some(
+                                    bindings[index]
+                                        .hotkey
+                                        .virtual_key()
+                                        .ok_or(PlatformError::InvalidHotkey)?,
+                                );
+                                Ok(target)
+                            });
+                            let event = HotkeyEvent {
+                                action: bindings[index].action,
+                                target,
+                                queued: Instant::now(),
+                            };
+                            if output.push(event).is_ok() {
+                                wakeup();
+                            }
+                        }
                     }
                 }
                 for chord in chords {
@@ -111,9 +109,9 @@ impl Service {
             })
             .map_err(|_| PlatformError::WorkerUnavailable)?;
         match started.recv() {
-            Ok(Ok(())) => Ok(Self {
-                receiver,
-                stop,
+            Ok(Ok(thread_id)) => Ok(Self {
+                events,
+                thread_id,
                 worker: Some(worker),
             }),
             Ok(Err(error)) => {
@@ -128,17 +126,24 @@ impl Service {
     }
 
     pub(crate) fn try_recv(&self) -> Result<Option<HotkeyEvent>, PlatformError> {
-        match self.receiver.try_recv() {
-            Ok(event) => event.map(Some),
-            Err(mpsc::TryRecvError::Empty) => Ok(None),
-            Err(mpsc::TryRecvError::Disconnected) => Err(PlatformError::WorkerUnavailable),
+        let event = self.events.take()?;
+        if event.is_none()
+            && self
+                .worker
+                .as_ref()
+                .is_some_and(|worker| worker.is_finished())
+        {
+            return Err(PlatformError::WorkerUnavailable);
         }
+        Ok(event)
     }
 }
 
 impl Drop for Service {
     fn drop(&mut self) {
-        let _ = self.stop.send(());
+        unsafe {
+            PostThreadMessageW(self.thread_id, WM_QUIT, 0, 0);
+        }
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }

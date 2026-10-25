@@ -8,10 +8,10 @@ use std::{
     ptr,
     sync::{
         atomic::{AtomicU64, Ordering},
-        mpsc, Mutex, OnceLock,
+        Arc, Condvar, Mutex,
     },
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
 use windows_sys::{
     core::w,
@@ -26,53 +26,87 @@ use zeroize::Zeroize;
 const CF_UNICODETEXT: u32 = 13;
 static OPERATIONS: Mutex<()> = Mutex::new(());
 static NEXT_MARKER: AtomicU64 = AtomicU64::new(1);
-static TIMER: OnceLock<Result<mpsc::SyncSender<Schedule>, PlatformError>> = OnceLock::new();
+static TIMER: Mutex<Option<Arc<Timer>>> = Mutex::new(None);
 
 struct Schedule {
     receipt: ClipboardReceipt,
     deadline: Instant,
+    wall: SystemTime,
+    retries: u8,
+}
+struct Timer {
+    pending: Mutex<Option<Schedule>>,
+    changed: Condvar,
 }
 
-fn timer() -> Result<&'static mpsc::SyncSender<Schedule>, PlatformError> {
-    TIMER
-        .get_or_init(|| {
-            let (sender, receiver) = mpsc::sync_channel::<Schedule>(1);
-            thread::Builder::new()
-                .name("kairos-clipboard-timeout".into())
-                .spawn(move || {
-                    let mut pending: Option<Schedule> = None;
-                    loop {
-                        let message = match &pending {
-                            Some(item) => receiver.recv_timeout(
-                                item.deadline.saturating_duration_since(Instant::now()),
-                            ),
-                            None => receiver
-                                .recv()
-                                .map_err(|_| mpsc::RecvTimeoutError::Disconnected),
+fn retryable(error: PlatformError, retries: u8) -> bool {
+    error == PlatformError::ClipboardUnavailable && retries < 50
+}
+
+fn timer() -> Result<Arc<Timer>, PlatformError> {
+    let mut shared = TIMER.lock().map_err(|_| PlatformError::WorkerUnavailable)?;
+    if let Some(timer) = shared.as_ref() {
+        return Ok(Arc::clone(timer));
+    }
+    let timer = Arc::new(Timer {
+        pending: Mutex::new(None),
+        changed: Condvar::new(),
+    });
+    let worker = Arc::clone(&timer);
+    thread::Builder::new()
+        .name("kairos-clipboard-timeout".into())
+        .spawn(move || {
+            loop {
+                let Ok(mut pending) = worker.pending.lock() else {
+                    return;
+                };
+                let job = loop {
+                    let wait = match pending.as_ref() {
+                        Some(job)
+                            if Instant::now() >= job.deadline || SystemTime::now() >= job.wall =>
+                        {
+                            break pending.take().unwrap()
+                        }
+                        Some(job) => job
+                            .deadline
+                            .saturating_duration_since(Instant::now())
+                            .min(Duration::from_secs(1)),
+                        None => {
+                            pending = match worker.changed.wait(pending) {
+                                Ok(guard) => guard,
+                                Err(_) => return,
+                            };
+                            continue;
+                        }
+                    };
+                    pending = match worker.changed.wait_timeout(pending, wait) {
+                        Ok((guard, _)) => guard,
+                        Err(_) => return,
+                    };
+                };
+                drop(pending); // Never acquire OPERATIONS while holding the schedule lock.
+                if let Err(error) = clear(job.receipt) {
+                    if retryable(error, job.retries) {
+                        let Ok(mut pending) = worker.pending.lock() else {
+                            return;
                         };
-                        match message {
-                            Ok(item) => pending = Some(item),
-                            Err(mpsc::RecvTimeoutError::Timeout) => {
-                                if let Some(item) = pending.take() {
-                                    // Retry transient clipboard contention; a new request
-                                    // supersedes this receipt without retaining text.
-                                    if clear(item.receipt).is_err() {
-                                        pending = Some(Schedule {
-                                            receipt: item.receipt,
-                                            deadline: Instant::now() + Duration::from_millis(100),
-                                        });
-                                    }
-                                }
-                            }
-                            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                        // A new user copy wins over retrying an older receipt.
+                        if pending.is_none() {
+                            *pending = Some(Schedule {
+                                receipt: job.receipt,
+                                deadline: Instant::now() + Duration::from_millis(100),
+                                wall: SystemTime::now() + Duration::from_millis(100),
+                                retries: job.retries + 1,
+                            });
                         }
                     }
-                })
-                .map_err(|_| PlatformError::WorkerUnavailable)?;
-            Ok(sender)
+                }
+            }
         })
-        .as_ref()
-        .map_err(|e| *e)
+        .map_err(|_| PlatformError::WorkerUnavailable)?;
+    // Failed starts leave None, so a later user action may try again.
+    *shared = Some(Arc::clone(&timer));
+    Ok(timer)
 }
 
 pub(crate) fn copy(
@@ -80,9 +114,6 @@ pub(crate) fn copy(
     clear_after: Option<Duration>,
 ) -> Result<ClipboardReceipt, PlatformError> {
     let deadline = match clear_after {
-        Some(duration) if duration > Duration::from_secs(86_400) => {
-            return Err(PlatformError::InvalidTimeout)
-        }
         Some(duration) => Some(
             Instant::now()
                 .checked_add(duration)
@@ -128,10 +159,22 @@ pub(crate) fn copy(
             return Err(PlatformError::ClipboardUnavailable);
         }
         let receipt = ClipboardReceipt { sequence, marker };
-        if let (Some(sender), Some(deadline)) = (timeout_sender, deadline) {
-            sender
-                .try_send(Schedule { receipt, deadline })
-                .map_err(|_| PlatformError::WorkerUnavailable)?;
+        if let (Some(timer), Some(deadline), Some(duration)) =
+            (timeout_sender, deadline, clear_after)
+        {
+            let wall = SystemTime::now()
+                .checked_add(duration)
+                .ok_or(PlatformError::InvalidTimeout)?;
+            *timer
+                .pending
+                .lock()
+                .map_err(|_| PlatformError::WorkerUnavailable)? = Some(Schedule {
+                receipt,
+                deadline,
+                wall,
+                retries: 0,
+            });
+            timer.changed.notify_one();
         }
         Ok(receipt)
     })();
@@ -149,16 +192,24 @@ pub(crate) fn clear(receipt: ClipboardReceipt) -> Result<ClearOutcome, PlatformE
         .lock()
         .map_err(|_| PlatformError::ClipboardUnavailable)?;
     let _clipboard = OpenClipboardGuard::open()?;
-    let sequence = unsafe { GetClipboardSequenceNumber() };
+    if unsafe { CountClipboardFormats() } == 0 {
+        return Ok(ClearOutcome::NotPresent);
+    }
     let marker_format = registered_formats()?[3];
     let marker = unsafe {
+        if IsClipboardFormatAvailable(marker_format) == 0 {
+            return Ok(ClearOutcome::Replaced);
+        }
         let handle = GetClipboardData(marker_format);
-        if handle.is_null() || GlobalSize(handle) < size_of::<u64>() {
+        if handle.is_null() {
+            return Err(PlatformError::ClipboardUnavailable);
+        }
+        if GlobalSize(handle) < size_of::<u64>() {
             None
         } else {
             let data = GlobalLock(handle);
             if data.is_null() {
-                None
+                return Err(PlatformError::ClipboardUnavailable);
             } else {
                 let value = ptr::read_unaligned(data.cast::<u64>());
                 GlobalUnlock(handle);
@@ -166,7 +217,7 @@ pub(crate) fn clear(receipt: ClipboardReceipt) -> Result<ClearOutcome, PlatformE
             }
         }
     };
-    if !receipt.matches(sequence, marker) {
+    if !receipt.matches(marker) {
         return Ok(ClearOutcome::Replaced);
     }
     if unsafe { EmptyClipboard() } == 0 {
@@ -312,5 +363,17 @@ impl Drop for GlobalBuffer {
                 GlobalFree(self.handle);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn retries_only_transient_failures_with_a_finite_budget() {
+        assert!(retryable(PlatformError::ClipboardUnavailable, 49));
+        assert!(!retryable(PlatformError::ClipboardUnavailable, 50));
+        assert!(!retryable(PlatformError::ClipboardProtectionFailed, 0));
+        assert!(!retryable(PlatformError::WorkerUnavailable, 0));
     }
 }

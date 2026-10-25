@@ -14,7 +14,9 @@ mod hotkeys;
 #[cfg(windows)]
 mod windows;
 
-pub use clipboard::{copy_secret, ClearOutcome, ClipboardReceipt};
+pub use clipboard::{
+    copy_secret, ClearOutcome, ClipboardReceipt, DEFAULT_CLEAR_AFTER, MAX_CLEAR_AFTER,
+};
 pub use focus::FocusTarget;
 pub use hotkeys::{validate_hotkeys, Action, GlobalHotkeys, Hotkey, HotkeyBinding, HotkeyEvent};
 pub use keyboard_types::{Code, Modifiers};
@@ -43,6 +45,7 @@ pub enum PlatformError {
     ForegroundDenied,
     ModifiersHeld,
     InputIncomplete,
+    TargetElevated,
 }
 
 impl fmt::Display for PlatformError {
@@ -60,7 +63,7 @@ impl fmt::Display for PlatformError {
             Self::WorkerUnavailable => "the platform worker is unavailable",
             Self::ClipboardUnavailable => "the clipboard is unavailable",
             Self::ClipboardProtectionFailed => "clipboard protection could not be applied",
-            Self::InvalidTimeout => "the clipboard timeout cannot be represented",
+            Self::InvalidTimeout => "the clipboard timeout must not exceed ten minutes",
             Self::InvalidText => {
                 "the text is empty, too long, or contains unsupported control characters"
             }
@@ -68,7 +71,8 @@ impl fmt::Display for PlatformError {
             Self::TargetChanged => "the foreground window or focused control has changed",
             Self::TargetExpired => "the autotype request has expired; invoke the hotkey again",
             Self::ForegroundDenied => "Windows did not allow foreground restoration",
-            Self::ModifiersHeld => "keyboard modifiers were not released in time",
+            Self::ModifiersHeld => "the hotkey keys were not released in time",
+            Self::TargetElevated => "autotype into a higher-integrity process is refused",
             Self::InputIncomplete => {
                 "Windows did not accept all input; text may be partially entered"
             }

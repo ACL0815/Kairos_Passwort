@@ -3,14 +3,21 @@
 //! Modelled after: KeePassXC <https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/autotype/windows/AutoTypeWindows.cpp>
 //! and enigo <https://github.com/enigo-rs/enigo/blob/v0.6.1/src/win/win_impl.rs>.
 
-use crate::PlatformError;
+use crate::{
+    focus::{allow_integrity, expired, release_index, release_ready, restore_ready},
+    PlatformError,
+};
 use std::{
     ptr, thread,
     time::{Duration, Instant},
 };
 use windows_sys::Win32::{
-    Foundation::HWND,
-    System::Threading::GetCurrentProcessId,
+    Foundation::{CloseHandle, HANDLE, HWND},
+    Security::*,
+    System::Threading::{
+        GetCurrentProcess, GetCurrentProcessId, OpenProcess, OpenProcessToken,
+        PROCESS_QUERY_LIMITED_INFORMATION,
+    },
     UI::{Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
 };
 use zeroize::Zeroize;
@@ -23,6 +30,7 @@ pub(crate) struct Snapshot {
     process: u32,
     thread: u32,
     captured: Instant,
+    pub(crate) trigger_key: Option<u16>,
 }
 
 fn identity(window: HWND) -> (u32, u32) {
@@ -62,6 +70,7 @@ pub(crate) fn capture() -> Result<Snapshot, PlatformError> {
         process,
         thread,
         captured: Instant::now(),
+        trigger_key: None,
     };
     snapshot.check_current(false)?;
     Ok(snapshot)
@@ -82,7 +91,7 @@ impl Snapshot {
     }
 
     fn check_current(&self, expiring: bool) -> Result<(), PlatformError> {
-        if expiring && self.captured.elapsed() > Duration::from_secs(5) {
+        if expiring && expired(self.captured.elapsed()) {
             return Err(PlatformError::TargetExpired);
         }
         self.check_alive()?;
@@ -109,14 +118,95 @@ impl Snapshot {
         }
         // A successful API return alone is insufficient; never use an Alt-key
         // trick, AttachThreadInput, or a foreground-lock timeout override.
-        self.check_current(false)
+        let started = Instant::now();
+        loop {
+            let foreground = unsafe { GetForegroundWindow() };
+            if !foreground.is_null()
+                && foreground as usize != self.window
+                && identity(foreground).0 != unsafe { GetCurrentProcessId() }
+            {
+                return Err(PlatformError::TargetChanged);
+            }
+            if restore_ready(started.elapsed(), self.check_current(false))? {
+                return Ok(());
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
     }
 }
 
-fn modifiers_down() -> bool {
+fn keys_down(trigger_key: Option<u16>) -> bool {
     [VK_SHIFT, VK_CONTROL, VK_MENU, VK_LWIN, VK_RWIN]
         .iter()
-        .any(|key| unsafe { GetAsyncKeyState(*key as i32) } < 0)
+        .copied()
+        .chain(trigger_key)
+        .any(|key| unsafe { GetAsyncKeyState(key as i32) } < 0)
+}
+
+struct OwnedHandle(HANDLE);
+impl Drop for OwnedHandle {
+    fn drop(&mut self) {
+        unsafe {
+            CloseHandle(self.0);
+        }
+    }
+}
+
+fn integrity(process: HANDLE) -> Result<u32, PlatformError> {
+    let mut token = ptr::null_mut();
+    if unsafe { OpenProcessToken(process, TOKEN_QUERY, &mut token) } == 0 {
+        return Err(PlatformError::TargetUnavailable);
+    }
+    let token = OwnedHandle(token);
+    let mut bytes = 0;
+    unsafe {
+        GetTokenInformation(token.0, TokenIntegrityLevel, ptr::null_mut(), 0, &mut bytes);
+    }
+    if bytes < size_of::<TOKEN_MANDATORY_LABEL>() as u32 || bytes > 65_536 {
+        return Err(PlatformError::TargetUnavailable);
+    }
+    // usize alignment covers TOKEN_MANDATORY_LABEL and its SID. No secret data.
+    let mut buffer = vec![0usize; (bytes as usize).div_ceil(size_of::<usize>())];
+    if unsafe {
+        GetTokenInformation(
+            token.0,
+            TokenIntegrityLevel,
+            buffer.as_mut_ptr().cast(),
+            bytes,
+            &mut bytes,
+        )
+    } == 0
+    {
+        return Err(PlatformError::TargetUnavailable);
+    }
+    unsafe {
+        let label = &*buffer.as_ptr().cast::<TOKEN_MANDATORY_LABEL>();
+        let sid = label.Label.Sid;
+        if IsValidSid(sid) == 0 {
+            return Err(PlatformError::TargetUnavailable);
+        }
+        let count = GetSidSubAuthorityCount(sid);
+        if count.is_null() || *count == 0 {
+            return Err(PlatformError::TargetUnavailable);
+        }
+        let rid = GetSidSubAuthority(sid, (*count - 1) as u32);
+        if rid.is_null() {
+            return Err(PlatformError::TargetUnavailable);
+        }
+        Ok(*rid)
+    }
+}
+
+fn check_integrity(target: &Snapshot) -> Result<(), PlatformError> {
+    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, target.process) };
+    if process.is_null() {
+        return Err(PlatformError::TargetUnavailable);
+    }
+    let process = OwnedHandle(process);
+    allow_integrity(
+        integrity(unsafe { GetCurrentProcess() })?,
+        integrity(process.0)?,
+    )
 }
 
 /// Heap copies of scan units are scrubbed even when validation or SendInput fails.
@@ -158,25 +248,24 @@ impl Drop for InputBatch {
 
 pub(crate) fn type_text(target: &Snapshot, text: &str) -> Result<(), PlatformError> {
     target.check_current(true)?;
+    check_integrity(target)?;
     let inputs = InputBatch::new(text);
     let started = Instant::now();
     let mut released_since = None;
     loop {
         target.check_current(true)?;
-        if modifiers_down() {
+        if keys_down(target.trigger_key) {
             released_since = None;
-        } else if released_since.get_or_insert_with(Instant::now).elapsed()
-            >= Duration::from_millis(20)
-        {
-            break;
+        } else {
+            released_since.get_or_insert_with(Instant::now);
         }
-        if started.elapsed() >= Duration::from_secs(2) {
-            return Err(PlatformError::ModifiersHeld);
+        if release_ready(started.elapsed(), released_since.map(|time| time.elapsed()))? {
+            break;
         }
         thread::sleep(Duration::from_millis(5));
     }
     target.check_current(true)?;
-    if modifiers_down() {
+    if keys_down(target.trigger_key) {
         return Err(PlatformError::ModifiersHeld);
     }
     // A single batch prevents interleaving physical keyboard/mouse input. Windows
@@ -190,10 +279,10 @@ pub(crate) fn type_text(target: &Snapshot, text: &str) -> Result<(), PlatformErr
         )
     } as usize;
     if sent != inputs.0.len() {
-        if sent % 2 == 1 && sent < inputs.0.len() {
+        if let Some(index) = release_index(sent, inputs.0.len()) {
             // Release a partially inserted Unicode key-down, never resend text.
             unsafe {
-                SendInput(1, ptr::addr_of!(inputs.0[sent]), size_of::<INPUT>() as i32);
+                SendInput(1, ptr::addr_of!(inputs.0[index]), size_of::<INPUT>() as i32);
             }
         }
         return Err(PlatformError::InputIncomplete);
@@ -204,6 +293,15 @@ pub(crate) fn type_text(target: &Snapshot, text: &str) -> Result<(), PlatformErr
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn queries_real_process_integrity_without_desktop_interaction() {
+        let own = integrity(unsafe { GetCurrentProcess() }).unwrap();
+        let process =
+            unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, GetCurrentProcessId()) };
+        assert!(!process.is_null());
+        let process = OwnedHandle(process);
+        assert_eq!(integrity(process.0).unwrap(), own);
+    }
     #[test]
     fn unicode_input_has_paired_down_up_and_zero_virtual_keys() {
         let batch = InputBatch::new("Ä@🦀");

@@ -5,6 +5,10 @@
 use crate::{FocusTarget, PlatformError};
 use keyboard_types::{Code, Modifiers};
 use std::str::FromStr;
+#[cfg(any(windows, test))]
+use std::sync::Mutex;
+#[cfg(any(windows, test))]
+use std::time::Instant;
 
 /// App-owned actions; this crate neither generates nor contacts KeePassXC.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -58,11 +62,12 @@ impl FromStr for Hotkey {
         }
         let key = key.ok_or(PlatformError::InvalidHotkey)?;
         let name = key.to_string();
-        let printable = name.starts_with("Key") || name.starts_with("Digit");
+        let printable = (name.len() == 4 && name.starts_with("Key"))
+            || (name.len() == 6 && name.starts_with("Digit"));
         let function = name.strip_prefix('F').and_then(|n| n.parse::<u8>().ok());
         if !(printable || function.is_some_and(|n| (1..=24).contains(&n)))
             || key == Code::F12 // Reserved by Windows for a debugger.
-            || !modifiers.intersects(Modifiers::CONTROL | Modifiers::ALT)
+            || modifiers.bits().count_ones() < 2
             || (key == Code::F4 && modifiers == Modifiers::ALT)
         {
             return Err(PlatformError::InvalidHotkey);
@@ -120,7 +125,52 @@ pub fn validate_hotkeys(bindings: &[HotkeyBinding]) -> Result<(), PlatformError>
 /// Captured on the message thread before notifying the GUI.
 pub struct HotkeyEvent {
     pub action: Action,
-    pub target: FocusTarget,
+    /// OpenEditor remains available even when no input target can be captured.
+    pub target: Result<FocusTarget, PlatformError>,
+    #[cfg(any(windows, test))]
+    pub(crate) queued: Instant,
+}
+
+#[cfg(any(windows, test))]
+pub(crate) struct EventSlot(Mutex<Option<HotkeyEvent>>);
+
+#[cfg(any(windows, test))]
+impl EventSlot {
+    pub(crate) fn new() -> Self {
+        Self(Mutex::new(None))
+    }
+    pub(crate) fn push(&self, event: HotkeyEvent) -> Result<(), PlatformError> {
+        *self
+            .0
+            .lock()
+            .map_err(|_| PlatformError::WorkerUnavailable)? = Some(event);
+        Ok(())
+    }
+    pub(crate) fn take(&self) -> Result<Option<HotkeyEvent>, PlatformError> {
+        let event = self
+            .0
+            .lock()
+            .map_err(|_| PlatformError::WorkerUnavailable)?
+            .take();
+        Ok(event.filter(|event| !crate::focus::expired(event.queued.elapsed())))
+    }
+}
+
+impl Hotkey {
+    #[cfg(any(windows, test))]
+    pub(crate) fn virtual_key(self) -> Option<u16> {
+        let name = self.key.to_string();
+        if let Some(letter) = name.strip_prefix("Key").and_then(|s| s.bytes().next()) {
+            return Some(letter as u16);
+        }
+        if let Some(digit) = name.strip_prefix("Digit").and_then(|s| s.bytes().next()) {
+            return Some(digit as u16);
+        }
+        name.strip_prefix('F')
+            .and_then(|s| s.parse::<u16>().ok())
+            .filter(|n| (1..=24).contains(n))
+            .map(|n| 0x70 + n - 1)
+    }
 }
 
 /// Drop unregisters and joins the message thread. Only one instance per process
@@ -138,7 +188,8 @@ impl GlobalHotkeys {
 
     /// Callback runs on the message thread when an event is queued. Eframe can
     /// pass `move || ctx.request_repaint()`. It must not block or panic. At most
-    /// one event is pending; excess presses drop instead of building a backlog.
+    /// one event is pending; the newest press replaces the old event. Events
+    /// older than five seconds are discarded before the UI opens a popup.
     pub fn with_wakeup(
         bindings: &[HotkeyBinding],
         wakeup: impl Fn() + Send + 'static,
@@ -172,10 +223,13 @@ mod tests {
             "Ctrl+Shift+F9".parse::<Hotkey>(),
             "shift + control + F9".parse()
         );
-        assert_eq!("Ctrl+KeyQ".parse::<Hotkey>().unwrap().key(), Code::KeyQ);
         assert_eq!(
-            "Alt+Digit1".parse::<Hotkey>().unwrap().modifiers(),
-            Modifiers::ALT
+            "Ctrl+Shift+KeyQ".parse::<Hotkey>().unwrap().key(),
+            Code::KeyQ
+        );
+        assert_eq!(
+            "Alt+Shift+Digit1".parse::<Hotkey>().unwrap().modifiers(),
+            Modifiers::ALT | Modifiers::SHIFT
         );
     }
     #[test]
@@ -199,6 +253,13 @@ mod tests {
             "Ctrl+F12",
             "Ctrl+Enter",
             "Ctrl+garbage",
+            "Ctrl+Shift+KeyboardLayoutSelect",
+            "Ctrl+KeyC",
+            "Ctrl+KeyV",
+            "Ctrl+KeyX",
+            "Ctrl+KeyZ",
+            "Ctrl+KeyA",
+            "Alt+KeyE",
         ] {
             assert_eq!(
                 chord.parse::<Hotkey>(),
@@ -230,5 +291,48 @@ mod tests {
             Err(PlatformError::DuplicateAction)
         );
         assert_eq!(validate_hotkeys(&[]), Err(PlatformError::InvalidHotkey));
+    }
+
+    #[test]
+    fn maps_configurable_main_keys_for_release_waiting() {
+        for (chord, vk) in [
+            ("Ctrl+Shift+KeyQ", 0x51),
+            ("Ctrl+Shift+Digit9", 0x39),
+            ("Ctrl+Shift+F9", 0x78),
+        ] {
+            assert_eq!(chord.parse::<Hotkey>().unwrap().virtual_key(), Some(vk));
+        }
+    }
+
+    #[test]
+    fn capture_failure_keeps_the_action_and_latest_press_wins() {
+        let slot = EventSlot::new();
+        for action in [Action::GenerateTypeCopy, Action::OpenEditor] {
+            slot.push(HotkeyEvent {
+                action,
+                target: Err(PlatformError::TargetUnavailable),
+                queued: Instant::now(),
+            })
+            .unwrap();
+        }
+        let event = slot.take().unwrap().unwrap();
+        assert_eq!(event.action, Action::OpenEditor);
+        assert!(matches!(
+            event.target,
+            Err(PlatformError::TargetUnavailable)
+        ));
+        assert!(slot.take().unwrap().is_none());
+    }
+
+    #[test]
+    fn stale_events_do_not_open_an_editor_for_an_old_window() {
+        let slot = EventSlot::new();
+        slot.push(HotkeyEvent {
+            action: Action::OpenEditor,
+            target: Err(PlatformError::TargetUnavailable),
+            queued: Instant::now() - std::time::Duration::from_secs(6),
+        })
+        .unwrap();
+        assert!(slot.take().unwrap().is_none());
     }
 }

@@ -19,11 +19,12 @@ if let Some(event) = hotkeys.try_recv()? {
     match event.action {
         Action::OpenEditor => {
             // event.target vor dem Öffnen des Editors in der App behalten.
-            // Nach Kopieren oder Schließen: event.target.restore()?
+            // Auch bei fehlendem Fokusziel darf der Editor öffnen.
+            // Vor Zerstören des App-Fensters bei Ok(target): target.restore()?
         }
         Action::GenerateTypeCopy => {
             let text = "Fester-Dummy+Äpfel7"; // Die App generiert den echten Text.
-            event.target.type_text(text)?;
+            event.target?.type_text(text)?;
             let receipt = copy_secret(text, Some(Duration::from_secs(30)))?;
             // Bei App-Ende optional receipt.clear_if_current()? aufrufen.
             let _ = receipt;
@@ -44,7 +45,12 @@ ein winit-`EventLoopProxy` im Callback benachrichtigen. Die Bibliothek hängt vo
 keinem dieser GUI-Frameworks ab. Der Manager besitzt einen eigenen Win32-Thread
 mit Message-Pump. Drop meldet Hotkeys ab und wartet auf dessen Ende.
 
-Es gibt höchstens ein ausstehendes Ereignis; weitere Tastendrücke werden verworfen.
+Es gibt höchstens ein ausstehendes Ereignis; der neueste Tastendruck ersetzt den
+alten. Ereignisse über fünf Sekunden werden vor Verarbeitung verworfen. Ein
+fehlendes Fokusziel bleibt als `Err` im Ereignis erhalten, die Aktion geht nicht
+verloren: `OpenEditor` kann auch ohne Zielfeld öffnen und kopieren. `try_recv()`
+meldet nur einen ausgefallenen Dienst als Fehler. Die Message-Pump blockiert mit
+`GetMessageW` und benötigt im Leerlauf keine regelmäßigen Aufwachvorgänge.
 Pro Prozess ist ein Dienst erlaubt. Die App muss den prozessglobalen Receiver von
 `global-hotkey` exklusiv diesem Dienst überlassen und darf keinen fremden
 `set_event_handler` installieren. Bei einem Registrierungsfehler werden schon
@@ -61,7 +67,8 @@ registrierte Kombinationen zurückgenommen. Fehler enthalten keine Geheimnisse.
 Kombinationen mit `"Ctrl+Shift+F9".parse()` erstellen und über `HotkeyBinding`
 zuordnen. Ein bis drei unterschiedliche Aktionen sind erlaubt. Der Parser nutzt
 `keyboard-types::Code`, also `KeyQ`/`Digit1` statt lokalisierter Tastennamen.
-Zulässig sind Buchstaben, Ziffern und F1–F24 mit Ctrl oder Alt, optional Shift;
+Zulässig sind Buchstaben, Ziffern und F1–F24 mit mindestens zwei Modifiern aus
+Ctrl, Alt und Shift; bekannte Ctrl+C/V/X/Z/A- und Alt-Menübelegungen bleiben frei.
 F12, Alt+F4, Win-Kombinationen und reine Shift-Kombinationen sind gesperrt.
 
 Die Defaults nutzen Funktionstasten und kein Ctrl+Alt. Windows kann Ctrl+Alt als
@@ -85,13 +92,22 @@ Sperre zurück. Vorherige Zwischenablageinhalte werden dabei nicht wiederhergest
 Eine eigene unsichtbare Message-Only-Window dient als gültiger Clipboard-Owner.
 
 Der Rückgabewert `ClipboardReceipt` hält nur Sequenznummer und Besitzmarke, weder
-Text noch Hash. Der Timeout prüft beides unter der Clipboard-Sperre. Auch eine neue
+Text noch Hash. Der Timeout prüft die pro Schreibvorgang eindeutige Marke unter
+der Clipboard-Sperre. Die beobachtete Sequenznummer dient nur der Diagnose;
+Windows darf nach dem Schreiben Formate synthetisieren. Auch eine neue
 Kopie desselben Textes ist ein fremder Schreibvorgang für den alten Timeout.
 Ein einziger Timerthread verwaltet den aktuellen Auftrag und wiederholt bei
-vorübergehend belegter Zwischenablage den Löschversuch. Seine Warteschlange ist
-auf einen Auftrag begrenzt; bei Überlast scheitert eine neue Kopie sicher und
-meldet `WorkerUnavailable`. `None` deaktiviert den Timeout ausdrücklich,
-`Some(Duration::ZERO)` macht ihn sofort fällig. Maximal 24 Stunden sind erlaubt.
+vorübergehend belegter Zwischenablage den Löschversuch höchstens 50-mal. Ein
+gemeinsamer Auftrag mit Condvar wird durch neue Kopien ersetzt; keine wachsende
+Warteschlange und keine Überlast durch rasches Kopieren. Permanente Fehler werden
+nicht endlos wiederholt. Nach Standby wird spätestens beim nächsten Sekunden-Tick
+auch die Wanduhr geprüft; ein Zurückstellen der Uhr verlängert die monotone Frist
+nicht. `None` deaktiviert den Timeout ausdrücklich, `Some(Duration::ZERO)` macht
+ihn sofort fällig. Die App soll `Some(DEFAULT_CLEAR_AFTER)` (30 Sekunden) verwenden;
+maximal `MAX_CLEAR_AFTER` (zehn Minuten) ist erlaubt. Ein begründet deaktivierter
+Timeout bleibt gemäß dem vorgegebenen `Option<Duration>`-Vertrag möglich.
+`NotPresent` unterscheidet bereits leere Inhalte von `Replaced`; Lesefehler werden
+als Fehler gemeldet und nicht als Besitzerwechsel verschwiegen.
 Der Timer läuft nur, solange der Prozess lebt; die App sollte ihre letzte Receipt
 beim geregelten Beenden explizit leeren.
 
@@ -107,11 +123,12 @@ sie respektiert. Die Zwischenablage ist kein Schutz gegen lokale Schadsoftware.
 Das Ereignis erfasst vor der GUI-Benachrichtigung Vordergrund-HWND, Prozess,
 Thread und fokussiertes natives Control. Für manuelle Aufrufe steht
 `FocusTarget::capture()` bereit. Das Ziel muss vor dem Popup erfasst werden.
-`event.target.type_text(text)` erzwingt die Verwendung dieses Ziels und vermeidet
+`event.target?.type_text(text)` erzwingt die Verwendung dieses Ziels und vermeidet
 eine freistehende Funktion, die nach einem Fensterwechsel still neu erfassen würde.
 
 Autotype prüft das Ziel während des Wartens und unmittelbar vor `SendInput` erneut.
-Ctrl, Alt, Shift und beide Win-Tasten müssen mindestens 20 ms freigegeben sein;
+Ctrl, Alt, Shift, beide Win-Tasten und die Hotkey-Haupttaste müssen mindestens
+20 ms freigegeben sein;
 nach zwei Sekunden wird abgebrochen. Nach fünf Sekunden ist ein Autotype-Ziel
 abgelaufen. Ein Fenster-/Controlwechsel, ein zerstörtes Ziel, aktive Menüs sowie
 unvollständige Eingabe führen zu einem Fehler. Es gibt keine Wiederholung des
@@ -120,9 +137,11 @@ Batch aus Unicode-Down/Up-Paaren, einschließlich UTF-16-Surrogatpaaren, mit
 `KEYEVENTF_UNICODE` und `wVk = 0`, unabhängig vom Tastaturlayout. Tab, Enter und
 andere Steuerzeichen werden abgewiesen. Text ist auf 1024 UTF-16-Einheiten begrenzt.
 
-`restore()` darf das ursprüngliche Fenster aktivieren, wenn aktuell die eigene App
+`restore()` muss vor dem Zerstören des App-Fensters aufgerufen werden. Es darf das
+ursprüngliche Fenster aktivieren, wenn aktuell die eigene App
 im Vordergrund ist oder das Ziel bereits aktiv ist. Windows kann dies verweigern;
-Rückgabewert und tatsächlicher Fokus werden geprüft. Es gibt keine synthetische
+Rückgabewert und tatsächlicher Fokus werden geprüft; die asynchrone Aktivierung
+erhält höchstens 500 ms in 10-ms-Schritten. Es gibt keine synthetische
 Alt-Taste, kein `AttachThreadInput` und keine Änderung des Foreground-Lock-Timeouts.
 Eine andere inzwischen aktive Anwendung wird nicht verdrängt.
 
@@ -130,23 +149,33 @@ Eine andere inzwischen aktive Anwendung wird nicht verdrängt.
 Fokuscheck und der tatsächlichen Zustellung bleibt ein Rennen mit programmatischen
 Fokuswechseln. Mehrere DOM-Felder im Browser oder Controls einer Canvas-App können
 dasselbe native HWND besitzen. Diese API kann dann keinen Feldwechsel erkennen.
-UIPI kann Eingabe in höher privilegierte Apps blockieren. `InputIncomplete` kann
-Teiltext bedeuten; die App darf ihn nicht automatisch erneut senden. Die App muss
+Vor dem Senden werden beide Prozess-Integritätsstufen über deren Token abgefragt.
+Ein höher privilegiertes Ziel wird mit `TargetElevated` abgewiesen; eine nicht
+mögliche Abfrage führt ebenfalls zum Abbruch. Dennoch ist `Ok(())` ausschließlich
+die Annahme der Ereignisse durch Windows, keine geprüfte Zustellung ins Feld.
+Manche RDP-/VM-/Java-/Spiele-Oberflächen verarbeiten `VK_PACKET` nicht.
+`InputIncomplete` kann Teiltext einschließlich eines einzelnen UTF-16-Surrogats
+bedeuten; die App darf ihn nicht automatisch erneut senden oder löschen. Die App muss
 diese Grenzen vor Aktivierung von Autotype verständlich machen; die Browserbrücke
 in PR-6 kann später eine genauere Feldadressierung liefern.
+
+Autotype erzeugt weitere Geheimniskopien in der Windows-Eingabewarteschlange und
+im Zielfeld. Lokale Tastaturhooks können Unicode-Ereignisse mitlesen. Zusammen mit
+Kopieren entsteht zusätzlich der Clipboard-Pfad; `zeroize` beseitigt diese fremden
+Kopien nicht. Autotype ist kein Schutz gegen lokale Schadsoftware.
 
 ## Dummy-Demo und Prüfungen
 
 In jeder PowerShell-Sitzung zuerst die bereitgestellte Build-Umgebung laden:
 
 ```powershell
-. 'C:\Users\Axel_desktop\.t3\projects\kairos-password\target\Enter-KairosBuildEnv.ps1'
+# Im betreuten Build-Setup: . '<Hauptcheckout>\target\Enter-KairosBuildEnv.ps1'
 cargo run -p kairos-platform --example hotkey_demo -- 120
 ```
 
-Ein leeres Testfeld fokussieren. F9 öffnet einen nativen Dummy-Popup; OK kopiert
-geschützt mit 15 Sekunden Timeout, Schließen/Abbrechen springt zurück. F10 tippt
-denselben festen Dummy und kopiert. F11 tippt den Dummy und meldet den erreichten
+Ein leeres Testfeld fokussieren. Ctrl+Shift+F9 öffnet einen nativen Dummy-Popup;
+OK kopiert geschützt mit 15 Sekunden Timeout, Schließen/Abbrechen springt zurück.
+Ctrl+Shift+F10 tippt denselben festen Dummy und kopiert. Ctrl+Shift+F11 tippt den Dummy und meldet den erreichten
 PR-6-Hook; es wird noch keine KeePassXC-Verbindung aufgebaut. Der Demo-Popup ist
 kein Passworteditor; Nachbearbeiten/Neugenerieren wird in der App verdrahtet.
 Die Demo beendet sich nach der angegebenen Sekundenzahl. Kein Generator, kein Enter.
@@ -158,7 +187,9 @@ cargo test --workspace
 ```
 
 Unit-Tests prüfen Parsing, AltGr-/Doppelbelegungen, Löschentscheidung, Eingabegrenzen,
-geheimnisfreie Fehler und Unicode-Input-Paare ohne Desktop-Eingriff. Vier echte
+geheimnisfreie Fehler, Integritätsregeln, Release-/Aktivierungsfristen und
+Unicode-Input-Paare ohne Desktop-Eingriff. Ein OS-Test fragt reale Prozess-Token ab.
+Fünf echte
 Windows-Tests sind mit `#[ignore]` versehen. Sie ersetzen die aktuelle Zwischenablage,
 registrieren globale Hotkeys oder fokussieren eigene native Testfelder und senden
 festen Dummy-Text. Nur auf einem ruhenden interaktiven Testdesktop einzeln ausführen:
@@ -167,12 +198,24 @@ festen Dummy-Text. Nur auf einem ruhenden interaktiven Testdesktop einzeln ausf�
 cargo test -p kairos-platform --test windows_interaction -- --ignored --test-threads=1
 ```
 
+Ein zusätzlicher ignorierter Clipboard-Test kann unabhängig von der aktuellen
+Nutzerzwischenablage laufen: Er erstellt eine private unsichtbare Windowstation
+mit eigenem Desktop, ohne Desktopwechsel oder Eingabeinjektion. Er prüft reale
+Schutzflags, synthetisierte CF_TEXT-/CF_LOCALE-Formate, neue identische Kopien,
+20 rasche Timer-Ersetzungen und tatsächliches Timeout-Leeren. Allein in einem
+eigenen Testprozess starten:
+
+```powershell
+cargo test -p kairos-platform --test isolated_clipboard -- --ignored
+```
+
 Zusätzlich manuell mit deutschem und englischem Layout prüfen: AltGr+Q bleibt `@`,
 die drei Defaults lösen genau ihre Aktion aus, gehaltene Modifier verhindern Text,
 Fensterwechsel bricht ab, nach einer neuen Fremdkopie lässt der alte Timeout sie
 unverändert, Win+V zeigt keinen Dummy-Verlaufseintrag, und Cloud-Sync übernimmt ihn
-nicht. Für ein erhöhtes Ziel muss ein normal gestarteter Prozess kontrolliert
-scheitern. Diese Desktop-/Cloud-Checks sind kein Bestandteil von `cargo test`.
+nicht. Ein höher privilegiertes Ziel muss `TargetElevated` oder bei verweigerter
+Token-Abfrage `TargetUnavailable` ergeben. Diese Desktop-/Cloud-Checks sind kein
+Bestandteil von `cargo test` und noch nicht als ausgeführt belegt.
 
 ## Open-Source-Vorbilder (modellieren, nicht kopieren)
 

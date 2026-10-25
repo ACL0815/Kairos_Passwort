@@ -41,15 +41,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         } else {
                             Ok(())
                         };
-                        let restored = event.target.restore();
+                        let restored = match event.target {
+                            Ok(target) => target.restore(),
+                            Err(_) => Ok(()),
+                        };
                         copied.and(restored)
                     }
-                    Action::GenerateTypeCopy => event.target.type_text(DUMMY).and_then(|_| {
-                        copy_secret(DUMMY, Some(Duration::from_secs(15))).map(|_| ())
-                    }),
-                    Action::GenerateTypeKeePassXC => event.target.type_text(DUMMY).map(|_| {
-                        println!("PR-6-Hook erreicht; diese Demo kontaktiert KeePassXC nicht.");
-                    }),
+                    Action::GenerateTypeCopy => event
+                        .target
+                        .and_then(|target| target.type_text(DUMMY))
+                        .and_then(|_| {
+                            copy_secret(DUMMY, Some(Duration::from_secs(15))).map(|_| ())
+                        }),
+                    Action::GenerateTypeKeePassXC => event
+                        .target
+                        .and_then(|target| target.type_text(DUMMY))
+                        .map(|_| {
+                            println!("PR-6-Hook erreicht; diese Demo kontaktiert KeePassXC nicht.");
+                        }),
                 };
                 if let Err(error) = result {
                     eprintln!("Aktion abgebrochen: {error}");

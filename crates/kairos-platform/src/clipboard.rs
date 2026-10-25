@@ -1,11 +1,25 @@
-//! Clipboard protection and ownership receipts, without retaining a text copy.
+//! Ownership-checked clipboard clearing without a retained text or hash copy.
 //!
 //! Modelled after: KeePassXC <https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/gui/Clipboard.cpp>.
 
 use crate::PlatformError;
 use std::time::Duration;
 
-/// Identifies our clipboard write, without storing the secret or its hash.
+/// Recommended timeout for the application's normal Copy action.
+pub const DEFAULT_CLEAR_AFTER: Duration = Duration::from_secs(30);
+/// Maximum explicitly configured timeout; `None` is an explicit opt-out.
+pub const MAX_CLEAR_AFTER: Duration = Duration::from_secs(600);
+
+#[cfg(any(windows, test))]
+pub(crate) fn validate_timeout(timeout: Option<Duration>) -> Result<(), PlatformError> {
+    if timeout.is_some_and(|value| value > MAX_CLEAR_AFTER) {
+        Err(PlatformError::InvalidTimeout)
+    } else {
+        Ok(())
+    }
+}
+
+/// Identifies our write without retaining the secret or a password hash.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ClipboardReceipt {
     pub(crate) sequence: u32,
@@ -16,13 +30,15 @@ pub struct ClipboardReceipt {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ClearOutcome {
     Cleared,
-    /// Another write occurred, even if it contains identical text.
+    /// A different marker is present, including a new copy of identical text.
     Replaced,
+    /// No clipboard formats remain (for example, the timer already cleared it).
+    NotPresent,
 }
 
 impl ClipboardReceipt {
-    /// Checks sequence and marker under the Windows clipboard lock, leaving
-    /// replaced items untouched.
+    /// Checks the unique write marker under the Windows clipboard lock. This
+    /// does not depend on when Windows finalizes its clipboard sequence number.
     pub fn clear_if_current(self) -> Result<ClearOutcome, PlatformError> {
         #[cfg(windows)]
         return crate::windows::clipboard::clear(self);
@@ -30,24 +46,26 @@ impl ClipboardReceipt {
         Err(PlatformError::UnsupportedPlatform)
     }
 
+    /// Observed during writing, for diagnostics only. Windows may subsequently
+    /// synthesize formats; this number is not used to authorize clearing.
     pub fn sequence_number(self) -> u32 {
         self.sequence
     }
 
     #[cfg(any(windows, test))]
-    pub(crate) fn matches(self, sequence: u32, marker: Option<u64>) -> bool {
-        self.sequence != 0 && self.sequence == sequence && marker == Some(self.marker)
+    pub(crate) fn matches(self, marker: Option<u64>) -> bool {
+        marker == Some(self.marker)
     }
 }
 
-/// Copies on explicit user action, setting all three Windows history/cloud
+/// Copies only on explicit user action, setting all three Windows history/cloud
 /// exclusions before publishing UTF-16 text under the same clipboard lock.
 ///
-/// `Some(Duration::ZERO)` schedules an immediate clear; `None` disables the
-/// timeout. Durations above 24 hours are rejected. The single timeout worker
-/// retains only a receipt and retries contention until cleared or replaced.
-/// Callers can also clear explicitly by receipt, including before app shutdown.
-/// Windows and other applications may retain their own copies.
+/// `Some(Duration::ZERO)` schedules an immediate clear; `None` explicitly disables
+/// the timeout. Prefer `Some(DEFAULT_CLEAR_AFTER)`; at most ten minutes is allowed.
+/// One worker holds only metadata and retries transient contention at most 50
+/// times. Clear the last receipt before app shutdown. Copies held by Windows or
+/// other applications may remain.
 pub fn copy_secret(
     text: &str,
     clear_after: Option<Duration>,
@@ -55,6 +73,7 @@ pub fn copy_secret(
     #[cfg(windows)]
     {
         crate::validate_text(text, false)?;
+        validate_timeout(clear_after)?;
         crate::windows::clipboard::copy(text, clear_after)
     }
     #[cfg(not(windows))]
@@ -67,33 +86,46 @@ pub fn copy_secret(
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn clears_only_the_exact_owned_write() {
         let receipt = ClipboardReceipt {
             sequence: 42,
             marker: 7,
         };
-        assert!(receipt.matches(42, Some(7)));
-        assert!(!receipt.matches(43, Some(7)));
-        assert!(!receipt.matches(42, Some(8)));
-        assert!(!receipt.matches(42, None));
+        assert!(receipt.matches(Some(7)));
+        assert!(!receipt.matches(Some(8)));
+        assert!(!receipt.matches(None));
     }
-
     #[test]
-    fn unknown_or_wrapped_sequence_does_not_authorize_clear() {
-        assert!(!ClipboardReceipt {
-            sequence: 0,
-            marker: 7
+    fn sequence_finalization_and_wrap_do_not_change_write_identity() {
+        for sequence in [0, 1, u32::MAX] {
+            let receipt = ClipboardReceipt {
+                sequence,
+                marker: 7,
+            };
+            assert!(receipt.matches(Some(7)));
+            assert!(!receipt.matches(Some(8)));
         }
-        .matches(0, Some(7)));
-        assert!(!ClipboardReceipt {
-            sequence: u32::MAX,
-            marker: 7
-        }
-        .matches(1, Some(7)));
     }
-
+    #[test]
+    fn bounds_timeouts_and_keeps_the_explicit_opt_out() {
+        for value in [
+            None,
+            Some(Duration::ZERO),
+            Some(DEFAULT_CLEAR_AFTER),
+            Some(MAX_CLEAR_AFTER),
+        ] {
+            assert_eq!(validate_timeout(value), Ok(()));
+        }
+        assert_eq!(
+            validate_timeout(Some(MAX_CLEAR_AFTER + Duration::from_nanos(1))),
+            Err(PlatformError::InvalidTimeout)
+        );
+        assert_eq!(
+            validate_timeout(Some(Duration::MAX)),
+            Err(PlatformError::InvalidTimeout)
+        );
+    }
     #[cfg(not(windows))]
     #[test]
     fn clipboard_stub_is_explicit() {
