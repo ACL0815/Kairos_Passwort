@@ -15,7 +15,7 @@ pub fn generate(
         .iter()
         .find(|character| !config.excluded_chars.contains(character))
         .ok_or(GenerateError::InvalidConfig)?;
-    let text = format!("Ähre{separator}Wolke7{separator}Kiesel{separator}Möwe");
+    let text = format!("Ahorn{separator}Wolke7{separator}Kiesel{separator}Falke");
     let segments = text
         .char_indices()
         .map(|(start, character)| Segment {

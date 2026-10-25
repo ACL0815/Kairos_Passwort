@@ -7,17 +7,23 @@
 compile_error!("The fake-data demo feature must never be used in a release build.");
 
 mod clipboard;
+mod desktop;
 mod model;
+mod source;
 mod theme;
+
+pub use source::german_source;
 
 #[cfg(all(feature = "demo", debug_assertions))]
 mod demo;
 
 use clipboard::{ClipboardAccess, ProtectedClipboard};
+use desktop::{boxed_target, input_error, Destination};
 use eframe::egui::{self, Color32, Key, Modifiers, RichText};
 #[cfg(not(all(feature = "demo", debug_assertions)))]
 use kairos_core::generate;
 use kairos_core::{GeneratorConfig, ProfileId, WordSource};
+use kairos_platform::{Action, FocusTarget, GlobalHotkeys, HotkeyBinding, PlatformError};
 use model::{
     apply_exclusions, password_layout, Assessment, PasswordState, MAX_SECRET_CHARS, SEPARATORS,
 };
@@ -31,11 +37,17 @@ pub struct KairosApp {
     notice: &'static str,
     compact: bool,
     show_licenses: bool,
+    target: Destination,
+    hotkeys: Option<GlobalHotkeys>,
+    hotkey_error: Option<&'static str>,
+    rotate_profiles: bool,
+    rotation_bonus: Option<f64>,
+    copy_on_insert: bool,
 }
 
 impl KairosApp {
     pub fn new(ctx: &egui::Context, source: Box<dyn WordSource>, compact: bool) -> Self {
-        Self::with_clipboard(ctx, source, compact, Box::new(ProtectedClipboard::new()))
+        Self::with_clipboard(ctx, source, compact, Box::<ProtectedClipboard>::default())
     }
 
     fn with_clipboard(
@@ -54,6 +66,12 @@ impl KairosApp {
             notice: "",
             compact,
             show_licenses: false,
+            target: Destination::Unavailable,
+            hotkeys: None,
+            hotkey_error: None,
+            rotate_profiles: false,
+            rotation_bonus: None,
+            copy_on_insert: true,
         };
         #[cfg(all(feature = "demo", debug_assertions))]
         {
@@ -63,20 +81,149 @@ impl KairosApp {
         app
     }
 
-    /// Entry point for the later global-hotkey integration.
+    /// Connects OS services after the destination was captured before run_native.
+    ///
+    /// Modelled after: global-hotkey <https://github.com/tauri-apps/global-hotkey/blob/b4185ab2f37b62e4d1bd2b8410fcf93e338f55fc/examples/egui.rs>.
+    pub fn connect_desktop(
+        &mut self,
+        ctx: &egui::Context,
+        target: Result<FocusTarget, PlatformError>,
+    ) {
+        self.target =
+            boxed_target(target).map_or(Destination::Unavailable, Destination::ReturnOnly);
+        if !self.target.can_restore() {
+            self.notice = "Kein externes Zielfeld gemerkt. Generieren und Kopieren sind verfügbar; für Einfügen F9 im gewünschten Feld auslösen.";
+        }
+        self.register_hotkeys(ctx);
+    }
+
+    fn register_hotkeys(&mut self, ctx: &egui::Context) {
+        if cfg!(feature = "demo") {
+            self.hotkey_error = Some("In der öffentlichen Demo sind globale Hotkeys deaktiviert.");
+            return;
+        }
+        let wakeup = ctx.clone();
+        match GlobalHotkeys::with_wakeup(&HotkeyBinding::defaults(), move || wakeup.request_repaint()) {
+            Ok(hotkeys) => {
+                self.hotkeys = Some(hotkeys);
+                self.hotkey_error = None;
+            }
+            Err(_) => self.hotkey_error = Some("Globale Hotkeys konnten nicht registriert werden. Möglicherweise belegt eine andere Anwendung Strg+Umschalt+F9/F10/F11. Dort freigeben und erneut versuchen."),
+        }
+    }
+
+    fn poll_hotkeys(&mut self, ctx: &egui::Context) {
+        let result = self.hotkeys.as_ref().map(GlobalHotkeys::try_recv);
+        match result {
+            Some(Ok(Some(event))) => {
+                self.handle_action(ctx, event.action, boxed_target(event.target));
+                ctx.request_repaint();
+            }
+            Some(Err(_)) => {
+                self.hotkeys = None;
+                self.hotkey_error =
+                    Some("Der Hotkey-Dienst ist ausgefallen. Bitte erneut registrieren.");
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_action(
+        &mut self,
+        ctx: &egui::Context,
+        action: Action,
+        target: Result<Box<dyn desktop::InputTarget>, PlatformError>,
+    ) {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title("Kairos Passwort".into()));
+        match action {
+            Action::OpenEditor => {
+                self.target = target.map_or(Destination::Unavailable, Destination::Editor);
+                self.regenerate(ctx);
+                if !self.target.can_insert() {
+                    self.notice = "Kein externes Zielfeld gemerkt. Generieren und Kopieren sind verfügbar; für Einfügen F9 im gewünschten Feld auslösen.";
+                }
+                self.show_popup(ctx);
+            }
+            Action::GenerateTypeCopy => {
+                // A background action must not retain a previous editor destination.
+                self.target = Destination::Unavailable;
+                self.regenerate(ctx);
+                if self.password.secret.is_empty() {
+                    self.notice = self.password.message;
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Title(
+                        "Kairos Passwort · Generierung fehlgeschlagen".into(),
+                    ));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                        egui::UserAttentionType::Informational,
+                    ));
+                    return;
+                }
+                match target.and_then(|target| target.type_text(&self.password.secret, false)) {
+                    Ok(()) => {
+                        if !self.copy(ctx, false) {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Title(
+                                "Kairos Passwort · Kopieren fehlgeschlagen, Eingabe erfolgt".into(),
+                            ));
+                            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                                egui::UserAttentionType::Informational,
+                            ));
+                            self.notice = "Eingabe an Windows übergeben, aber Kopieren fehlgeschlagen. Zielfeld prüfen; Hotkey nicht zum Kopieren wiederholen.";
+                        }
+                    }
+                    Err(error) => {
+                        self.notice = input_error(error);
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Title(
+                            "Kairos Passwort · Eingabe abgebrochen".into(),
+                        ));
+                        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                            egui::UserAttentionType::Informational,
+                        ));
+                    }
+                }
+            }
+            Action::GenerateTypeKeePassXC => {
+                self.target = Destination::Unavailable;
+                self.show_popup(ctx);
+                self.notice = "KeePassXC-Anbindung folgt (PR-6)";
+            }
+        }
+    }
+
+    /// Shows the same editor without replacing the destination captured by the caller.
     pub fn show_popup(&mut self, ctx: &egui::Context) {
         self.compact = true;
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(720.0, 560.0)));
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(720.0, 640.0)));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        ctx.memory_mut(|memory| memory.request_focus(egui::Id::unique("password")));
     }
 
     fn regenerate(&mut self, ctx: &egui::Context) {
+        self.rotation_bonus = None;
         #[cfg(all(feature = "demo", debug_assertions))]
         let result = demo::generate(self.source.as_ref(), &self.config);
         #[cfg(not(all(feature = "demo", debug_assertions)))]
-        let result = generate(self.source.as_ref(), &self.config);
+        let result = if self.rotate_profiles {
+            let rotation = kairos_core::ProfileRotation::new(
+                (0..=12)
+                    .map(|id| ProfileId::new(id).expect("built-in profile").into())
+                    .collect(),
+            )
+            .expect("thirteen built-in profiles");
+            kairos_core::generate_rotating(
+                self.source.as_ref(),
+                &rotation,
+                &self.config.excluded_chars,
+                kairos_core::ProfileKnowledge::Unknown,
+            )
+            .map(|result| {
+                self.rotation_bonus = Some(result.rotation_bonus_bits);
+                result.password
+            })
+        } else {
+            generate(self.source.as_ref(), &self.config)
+        };
         self.password.set_result(result);
         self.notice = "";
         ctx.data_mut(|data| {
@@ -84,16 +231,44 @@ impl KairosApp {
         });
     }
 
-    fn copy(&mut self, ctx: &egui::Context, return_to_previous: bool) {
+    fn copy(&mut self, ctx: &egui::Context, return_to_previous: bool) -> bool {
         match self.clipboard.copy(&self.password.secret) {
             Ok(()) => {
-                self.notice = "Kopiert. Zwischenablage wird nach 30 Sekunden geleert, sofern unverändert.";
+                self.notice =
+                    "Kopiert. Zwischenablage wird nach 30 Sekunden geleert, sofern unverändert.";
                 if return_to_previous {
-                    ctx.memory_mut(|memory| memory.surrender_focus(egui::Id::unique("password")));
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                    match self.target.restore() {
+                        Ok(()) => {
+                            ctx.memory_mut(|memory| memory.surrender_focus(egui::Id::unique("password")));
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                        }
+                        Err(_) => self.notice = "Kopiert, aber Fokus-Rücksprung fehlgeschlagen. Bitte Zielfenster selbst aktivieren.",
+                    }
                 }
+                true
             }
-            Err(()) => self.notice = "Sicheres Kopieren fehlgeschlagen. Bitte erneut versuchen. Das Fenster bleibt geöffnet.",
+            Err(()) => {
+                self.notice = "Sicheres Kopieren fehlgeschlagen. Bitte erneut versuchen.";
+                false
+            }
+        }
+    }
+
+    fn insert(&mut self, ctx: &egui::Context) {
+        let Some(target) = self.target.take_editor() else {
+            self.notice = "Kein mit F9 gewähltes Einfügeziel. Passwort bleibt erhalten; Kopieren nutzen oder F9 im Ziel auslösen (erzeugt neu).";
+            return;
+        };
+        match target.type_text(&self.password.secret, true) {
+            Ok(()) => {
+                self.notice = "Eingabe an Windows übergeben. Bitte im Zielfeld prüfen.";
+                if self.copy_on_insert && !self.copy(ctx, false) {
+                    self.notice = "Eingabe an Windows übergeben, aber Kopieren fehlgeschlagen. Zielfeld prüfen; nur Kopieren erneut versuchen.";
+                    return;
+                }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+            }
+            Err(error) => self.notice = input_error(error),
         }
     }
 
@@ -130,23 +305,29 @@ impl KairosApp {
         let previous = self.config.profile;
         ui.horizontal_wrapped(|ui| {
             ui.label("Profil");
-            egui::ComboBox::from_id_salt("profile")
-                .selected_text(format!(
-                    "{} · {}",
-                    self.config.profile.get(),
-                    profile_name(self.config.profile.get())
-                ))
-                .width(if self.compact { 240.0 } else { 300.0 })
-                .show_ui(ui, |ui| {
-                    for value in 0..=12 {
-                        let profile = ProfileId::new(value).expect("built-in profile");
-                        ui.selectable_value(
-                            &mut self.config.profile,
-                            profile,
-                            format!("{value} · {}", profile_name(value)),
-                        );
-                    }
-                });
+            ui.add_enabled_ui(!self.rotate_profiles, |ui| {
+                egui::ComboBox::from_id_salt("profile")
+                    .selected_text(if self.rotate_profiles {
+                        "Zufall aus Profil 0–12".into()
+                    } else {
+                        format!(
+                            "{} · {}",
+                            self.config.profile.get(),
+                            profile_name(self.config.profile.get())
+                        )
+                    })
+                    .width(if self.compact { 240.0 } else { 300.0 })
+                    .show_ui(ui, |ui| {
+                        for value in 0..=12 {
+                            let profile = ProfileId::new(value).expect("built-in profile");
+                            ui.selectable_value(
+                                &mut self.config.profile,
+                                profile,
+                                format!("{value} · {}", profile_name(value)),
+                            );
+                        }
+                    });
+            });
             if ui
                 .button(if self.compact {
                     "Vollansicht"
@@ -158,7 +339,7 @@ impl KairosApp {
                 self.compact = !self.compact;
                 ui.ctx()
                     .send_viewport_cmd(egui::ViewportCommand::InnerSize(if self.compact {
-                        egui::vec2(720.0, 560.0)
+                        egui::vec2(720.0, 640.0)
                     } else {
                         egui::vec2(860.0, 820.0)
                     }));
@@ -167,6 +348,25 @@ impl KairosApp {
         if previous != self.config.profile {
             self.settings_changed(ui.ctx());
         }
+        if ui
+            .checkbox(
+                &mut self.rotate_profiles,
+                "Profil bei jeder Generierung wechseln",
+            )
+            .changed()
+        {
+            self.settings_changed(ui.ctx());
+        }
+        if self.rotate_profiles {
+            ui.label("Zufall aus Profil 0–12; Wiederholungen sind möglich. Stärke richtet sich nach dem schwächsten Profil.");
+            if let Some(bonus) = self
+                .rotation_bonus
+                .filter(|_| matches!(self.password.assessment, Assessment::Generated(_)))
+            {
+                ui.label(format!("Profilbonus: +{bonus:.1} Bit. Bei 0 Bit: Profile überlappen oder sind unterschiedlich stark."));
+            }
+        }
+        ui.label(format!("Wortquelle: {} Einträge", self.source.len()));
     }
 
     fn exclusions(&mut self, ui: &mut egui::Ui) {
@@ -248,6 +448,10 @@ impl KairosApp {
                 if !self.compact { ui.label(RichText::new("Leicht abzuschreiben. Sicher per Zufall.").color(theme::MUTED)); }
                 #[cfg(all(feature = "demo", debug_assertions))]
                 ui.colored_label(Color32::from_rgb(251, 191, 36), "DEMO · Öffentliche Beispieldaten, kein sicheres Passwort");
+                if let Some(error) = self.hotkey_error {
+                    ui.colored_label(model::segment_color(kairos_core::SegmentKind::Separator), error);
+                    if ui.button("Hotkeys erneut registrieren").clicked() { self.register_hotkeys(&ctx); }
+                }
                 ui.add_space(10.0);
                 theme::panel().show(ui, |ui| {
                     self.controls(ui);
@@ -262,6 +466,20 @@ impl KairosApp {
                     ui.label(RichText::new(self.password.message).color(theme::MUTED).size(14.0));
                 });
                 ui.add_space(8.0);
+                if self.target.can_insert() {
+                    ui.label(RichText::new("Einfügen nutzt das vor dem Öffnen gemerkte Fenster. Windows kann Browser-Feldwechsel im selben Fenster nicht erkennen. Zielfeld vorher prüfen; keine automatische Wiederholung.").color(theme::MUTED).size(12.0));
+                    ui.checkbox(&mut self.copy_on_insert, "Beim Einfügen auch kopieren (30 s)");
+                } else {
+                    ui.label(RichText::new("Einfügen mit F9 im gewünschten Zielfeld freigeben. Das Startfenster dient nur dem Fokus-Rücksprung.").color(theme::MUTED).size(12.0));
+                }
+                ui.horizontal_wrapped(|ui| {
+                    if ui.add(egui::Button::new(RichText::new("Neu generieren").strong()).fill(Color32::from_rgb(45, 79, 132))).on_hover_text("Strg+R").clicked() { self.regenerate(&ctx); }
+                    let available = !self.password.secret.is_empty();
+                    if ui.add_enabled(available, egui::Button::new("Kopieren")).on_hover_text("Strg+C kopiert das ganze Passwort").clicked() { self.copy(&ctx, false); }
+                    if ui.add_enabled(available && self.target.can_restore(), egui::Button::new("Kopieren und zurückspringen")).on_disabled_hover_text("Für einen Rücksprung muss zuerst ein externes Fenster gemerkt sein.").clicked() { self.copy(&ctx, true); }
+                    if ui.add_enabled(available && self.target.can_insert(), egui::Button::new("Einfügen")).on_disabled_hover_text("F9 im gewünschten Zielfeld auslösen. Beim App-Start wird kein Einfügeziel freigegeben.").clicked() { self.insert(&ctx); }
+                });
+                if !self.notice.is_empty() { ui.label(RichText::new(self.notice).color(theme::CYAN).size(14.0)); }
                 let bits = match self.password.assessment { Assessment::Generated(bits) => Some(bits), _ => None };
                 let assessment = match self.password.assessment {
                     Assessment::Generated(bits) => format!("{bits:.1} Bit berechnete Entropie"),
@@ -281,26 +499,34 @@ impl KairosApp {
                     });
                 } else { ui.label(assessment); }
                 self.exclusions(ui);
-                ui.horizontal_wrapped(|ui| {
-                    if ui.add(egui::Button::new(RichText::new("Neu generieren").strong()).fill(Color32::from_rgb(45, 79, 132))).on_hover_text("Strg+R").clicked() { self.regenerate(&ctx); }
-                    let available = !self.password.secret.is_empty();
-                    if ui.add_enabled(available, egui::Button::new("Kopieren")).on_hover_text("Strg+C kopiert das ganze Passwort").clicked() { self.copy(&ctx, false); }
-                    if ui.add_enabled(available, egui::Button::new("Kopieren und zurückspringen")).clicked() { self.copy(&ctx, true); }
-                });
-                if !self.notice.is_empty() { ui.label(RichText::new(self.notice).color(theme::CYAN).size(14.0)); }
+                ui.label(RichText::new("Strg+Umschalt+F9: Editor · F10: Tippen + Kopieren · F11: KeePassXC-Hinweis").color(theme::MUTED).size(12.0));
                 if !self.compact {
                     ui.horizontal_wrapped(|ui| {
                         ui.label(RichText::new("Kein Passwortverlauf · Kein Cloud-Sync · Zwischenablage 30 s").color(theme::MUTED).size(12.0));
-                        if ui.small_button(RichText::new("Schriftlizenzen").size(12.0)).clicked() { self.show_licenses = true; }
+                        if ui.small_button(RichText::new("Lizenzen und Wortherkunft").size(12.0)).clicked() { self.show_licenses = true; }
                     });
                 }
             });
         });
-        egui::Window::new("Schriftlizenzen")
+        egui::Window::new("Lizenzen und Wortherkunft")
             .open(&mut self.show_licenses)
             .vscroll(true)
             .show(&ctx, |ui| {
                 for (title, license) in [
+                    (
+                        "Deutsche Wortliste · Herkunft und Änderungen",
+                        include_str!("../../../crates/kairos-wordlists/data/PROVENANCE.md"),
+                    ),
+                    (
+                        "Wortdaten dys2p · CC0-1.0 (gewählte Lizenz)",
+                        include_str!(
+                            "../../../crates/kairos-wordlists/data/upstream/dys2p/LICENSE"
+                        ),
+                    ),
+                    (
+                        "Wortdaten enz/german-wordlist · CC0-1.0",
+                        include_str!("../../../crates/kairos-wordlists/data/upstream/enz/COPYING"),
+                    ),
                     (
                         "JetBrains Mono NL · SIL OFL 1.1",
                         include_str!("../assets/fonts/OFL.txt"),
@@ -337,6 +563,10 @@ impl KairosApp {
 }
 
 impl eframe::App for KairosApp {
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.poll_hotkeys(ctx);
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.draw(ui);
     }
@@ -364,6 +594,7 @@ fn profile_name(profile: u8) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::desktop::InputTarget;
     use kairos_core::{GeneratedPassword, Language};
     use std::{cell::RefCell, rc::Rc};
     use zeroize::Zeroizing;
@@ -377,6 +608,31 @@ mod tests {
     }
 
     struct FakeClipboard(Rc<RefCell<FakeClipboardState>>);
+
+    #[derive(Default)]
+    struct FakeTargetState {
+        restores: usize,
+        typed: Vec<(String, bool)>,
+        error: Option<PlatformError>,
+    }
+
+    struct FakeTarget(Rc<RefCell<FakeTargetState>>);
+
+    impl InputTarget for FakeTarget {
+        fn restore(&self) -> Result<(), PlatformError> {
+            let mut state = self.0.borrow_mut();
+            state.restores += 1;
+            state.error.map_or(Ok(()), Err)
+        }
+        fn type_text(&self, text: &str, from_editor: bool) -> Result<(), PlatformError> {
+            let mut state = self.0.borrow_mut();
+            if let Some(error) = state.error {
+                return Err(error);
+            }
+            state.typed.push((text.into(), from_editor));
+            Ok(())
+        }
+    }
 
     impl ClipboardAccess for FakeClipboard {
         fn copy(&self, text: &str) -> Result<(), ()> {
@@ -506,7 +762,7 @@ mod tests {
 
     #[cfg(not(feature = "demo"))]
     #[test]
-    fn scaffold_error_can_render_full_and_compact_without_entropy_stub() {
+    fn empty_source_error_can_render_full_and_compact() {
         let ctx = egui::Context::default();
         let mut app = KairosApp::new(&ctx, Box::new(EmptySource), false);
         assert!(app.password.secret.is_empty());
@@ -537,9 +793,11 @@ mod tests {
     }
 
     #[test]
-    fn copy_and_return_minimizes_only_after_success() {
+    fn copy_and_return_requires_both_copy_and_real_restore_success() {
         let ctx = egui::Context::default();
         let (mut app, clipboard) = fixture_app(&ctx);
+        let target = Rc::new(RefCell::new(FakeTargetState::default()));
+        app.target = Destination::Editor(Box::new(FakeTarget(target.clone())));
         clipboard.borrow_mut().fail_copy = true;
         app.copy(&ctx, true);
         let output = frame(&ctx, &mut app, vec![]);
@@ -548,6 +806,7 @@ mod tests {
             .iter()
             .any(|command| matches!(command, egui::ViewportCommand::Minimized(true))));
         assert!(app.notice.contains("fehlgeschlagen"));
+        assert_eq!(target.borrow().restores, 0);
         clipboard.borrow_mut().fail_copy = false;
         app.copy(&ctx, true);
         let output = frame(&ctx, &mut app, vec![]);
@@ -556,6 +815,258 @@ mod tests {
             .iter()
             .any(|command| matches!(command, egui::ViewportCommand::Minimized(true))));
         assert_eq!(clipboard.borrow().copied, ["Öl-7Wiese"]);
+        assert_eq!(target.borrow().restores, 1);
+        target.borrow_mut().error = Some(PlatformError::TargetChanged);
+        app.copy(&ctx, true);
+        let output = frame(&ctx, &mut app, vec![]);
+        assert!(!output.viewport_output[&egui::ViewportId::ROOT]
+            .commands
+            .iter()
+            .any(|command| matches!(command, egui::ViewportCommand::Minimized(true))));
+        assert!(app.notice.contains("Fokus-Rücksprung fehlgeschlagen"));
+    }
+
+    #[cfg(not(feature = "demo"))]
+    #[test]
+    fn default_app_generates_from_the_real_embedded_german_source() {
+        let ctx = egui::Context::default();
+        let app = KairosApp::new(&ctx, german_source(), false);
+        let words = kairos_wordlists::german();
+        assert_eq!(app.source.len(), words.len());
+        assert_eq!(app.password.secret.split('-').count(), 4);
+        for word in app.password.secret.split('-') {
+            assert!((0..words.len()).any(|index| words.word(index) == word));
+        }
+        assert!(
+            matches!(app.password.assessment, Assessment::Generated(bits) if (bits - 4.0 * (words.len() as f64).log2()).abs() < 1e-9)
+        );
+    }
+
+    #[test]
+    fn f9_and_f11_open_the_editor_even_without_a_target() {
+        let ctx = egui::Context::default();
+        let (mut app, clipboard) = fixture_app(&ctx);
+        for action in [Action::OpenEditor, Action::GenerateTypeKeePassXC] {
+            app.compact = false;
+            app.handle_action(&ctx, action, Err(PlatformError::TargetUnavailable));
+            assert!(app.compact);
+            assert!(!app.target.can_restore());
+            let output = frame(&ctx, &mut app, vec![]);
+            assert!(output.viewport_output[&egui::ViewportId::ROOT]
+                .commands
+                .iter()
+                .any(|command| matches!(command, egui::ViewportCommand::Focus)));
+        }
+        assert_eq!(app.notice, "KeePassXC-Anbindung folgt (PR-6)");
+        assert!(clipboard.borrow().copied.is_empty());
+    }
+
+    #[cfg(not(feature = "demo"))]
+    #[test]
+    fn f10_generates_types_and_copies_without_requesting_focus() {
+        let ctx = egui::Context::default();
+        let clipboard = Rc::new(RefCell::new(FakeClipboardState::default()));
+        let target = Rc::new(RefCell::new(FakeTargetState::default()));
+        let mut app = KairosApp::with_clipboard(
+            &ctx,
+            german_source(),
+            false,
+            Box::new(FakeClipboard(clipboard.clone())),
+        );
+        app.handle_action(
+            &ctx,
+            Action::GenerateTypeCopy,
+            Ok(Box::new(FakeTarget(target.clone()))),
+        );
+        assert!(target.borrow().typed == [(app.password.secret.to_string(), false)]);
+        assert!(clipboard.borrow().copied == [app.password.secret.to_string()]);
+        assert!(!app.target.can_restore());
+        let output = frame(&ctx, &mut app, vec![]);
+        assert!(!output.viewport_output[&egui::ViewportId::ROOT]
+            .commands
+            .iter()
+            .any(|command| matches!(
+                command,
+                egui::ViewportCommand::Focus
+                    | egui::ViewportCommand::Minimized(false)
+                    | egui::ViewportCommand::Visible(true)
+            )));
+    }
+
+    #[cfg(not(feature = "demo"))]
+    #[test]
+    fn f10_refuses_changed_target_without_copy_or_retry() {
+        let ctx = egui::Context::default();
+        let clipboard = Rc::new(RefCell::new(FakeClipboardState::default()));
+        let target = Rc::new(RefCell::new(FakeTargetState {
+            error: Some(PlatformError::TargetChanged),
+            ..Default::default()
+        }));
+        let mut app = KairosApp::with_clipboard(
+            &ctx,
+            german_source(),
+            false,
+            Box::new(FakeClipboard(clipboard.clone())),
+        );
+        app.handle_action(
+            &ctx,
+            Action::GenerateTypeCopy,
+            Ok(Box::new(FakeTarget(target.clone()))),
+        );
+        assert!(target.borrow().typed.is_empty());
+        assert!(clipboard.borrow().copied.is_empty());
+        assert!(app.notice.contains("gewechselt"));
+        assert!(!app.target.can_restore());
+    }
+
+    #[test]
+    fn editor_insert_uses_and_consumes_the_original_target() {
+        let ctx = egui::Context::default();
+        let (mut app, clipboard) = fixture_app(&ctx);
+        let target = Rc::new(RefCell::new(FakeTargetState::default()));
+        app.target = Destination::Editor(Box::new(FakeTarget(target.clone())));
+        app.password.secret.clear();
+        app.password.secret.push_str("PUBLIC-Ä@#+'!?");
+        app.password.edited();
+        app.insert(&ctx);
+        app.insert(&ctx);
+        assert_eq!(target.borrow().typed, [("PUBLIC-Ä@#+'!?".into(), true)]);
+        assert_eq!(clipboard.borrow().copied, ["PUBLIC-Ä@#+'!?"]);
+        assert!(!app.target.can_restore());
+    }
+
+    #[test]
+    fn startup_destination_can_only_return_focus_even_in_compact_mode() {
+        let ctx = egui::Context::default();
+        for compact in [false, true] {
+            let (mut app, clipboard) = fixture_app(&ctx);
+            let target = Rc::new(RefCell::new(FakeTargetState::default()));
+            app.compact = compact;
+            app.target = Destination::ReturnOnly(Box::new(FakeTarget(target.clone())));
+            assert!(!app.target.can_insert());
+            app.insert(&ctx);
+            assert!(target.borrow().typed.is_empty());
+            assert!(clipboard.borrow().copied.is_empty());
+            assert!(app.target.can_restore());
+            app.copy(&ctx, true);
+            assert_eq!(target.borrow().restores, 1);
+            assert_eq!(clipboard.borrow().copied, ["Öl-7Wiese"]);
+            assert!(target.borrow().typed.is_empty());
+        }
+    }
+
+    #[test]
+    fn f9_explicitly_authorizes_the_destination_across_regeneration() {
+        let ctx = egui::Context::default();
+        let (mut app, clipboard) = fixture_app(&ctx);
+        let target = Rc::new(RefCell::new(FakeTargetState::default()));
+        app.handle_action(
+            &ctx,
+            Action::OpenEditor,
+            Ok(Box::new(FakeTarget(target.clone()))),
+        );
+        assert!(app.target.can_insert());
+        app.regenerate(&ctx);
+        assert!(app.target.can_insert());
+        app.password.secret.clear();
+        app.password.secret.push_str("PUBLIC EDITED FIXTURE");
+        app.password.edited();
+        app.insert(&ctx);
+        assert_eq!(
+            target.borrow().typed,
+            [("PUBLIC EDITED FIXTURE".into(), true)]
+        );
+        assert_eq!(clipboard.borrow().copied, ["PUBLIC EDITED FIXTURE"]);
+        assert!(!app.target.can_restore());
+    }
+
+    #[test]
+    fn f11_keeps_manual_work_and_does_not_authorize_a_new_destination() {
+        let ctx = egui::Context::default();
+        let (mut app, clipboard) = fixture_app(&ctx);
+        app.password.edited();
+        app.handle_action(
+            &ctx,
+            Action::GenerateTypeKeePassXC,
+            Err(PlatformError::TargetUnavailable),
+        );
+        assert_eq!(&**app.password.secret, "Öl-7Wiese");
+        assert!(app.password.assessment == Assessment::Edited);
+        assert!(!app.target.can_insert());
+        assert!(clipboard.borrow().copied.is_empty());
+        assert_eq!(app.notice, "KeePassXC-Anbindung folgt (PR-6)");
+    }
+
+    #[test]
+    fn registration_error_and_retry_control_remain_visible_after_regeneration() {
+        fn has_text(shape: &egui::epaint::Shape, expected: &str) -> bool {
+            match shape {
+                egui::epaint::Shape::Text(text) => text.galley.text().contains(expected),
+                egui::epaint::Shape::Vec(shapes) => {
+                    shapes.iter().any(|shape| has_text(shape, expected))
+                }
+                _ => false,
+            }
+        }
+        let ctx = egui::Context::default();
+        let (mut app, _) = fixture_app(&ctx);
+        app.hotkey_error = Some("PUBLIC HOTKEY REGISTRATION FAILURE");
+        let _ = frame(&ctx, &mut app, vec![]);
+        app.regenerate(&ctx);
+        let output = frame(&ctx, &mut app, vec![]);
+        for expected in [
+            "PUBLIC HOTKEY REGISTRATION FAILURE",
+            "Hotkeys erneut registrieren",
+        ] {
+            assert!(output
+                .shapes
+                .iter()
+                .any(|shape| has_text(&shape.shape, expected)));
+        }
+        assert!(output
+            .shapes
+            .iter()
+            .filter(|shape| has_text(&shape.shape, "PUBLIC HOTKEY REGISTRATION FAILURE"))
+            .all(|shape| shape.shape.visual_bounding_rect().top() < 250.0));
+    }
+
+    #[test]
+    fn editor_failure_does_not_copy_and_copy_opt_out_is_respected() {
+        let ctx = egui::Context::default();
+        let (mut app, clipboard) = fixture_app(&ctx);
+        let target = Rc::new(RefCell::new(FakeTargetState {
+            error: Some(PlatformError::InputIncomplete),
+            ..Default::default()
+        }));
+        app.target = Destination::Editor(Box::new(FakeTarget(target.clone())));
+        app.insert(&ctx);
+        assert!(clipboard.borrow().copied.is_empty());
+        assert!(app.notice.contains("Teil der Eingabe"));
+        assert!(!app.target.can_restore());
+        target.borrow_mut().error = None;
+        app.target = Destination::Editor(Box::new(FakeTarget(target.clone())));
+        app.copy_on_insert = false;
+        app.insert(&ctx);
+        assert_eq!(target.borrow().typed.len(), 1);
+        assert!(clipboard.borrow().copied.is_empty());
+    }
+
+    #[cfg(not(feature = "demo"))]
+    #[test]
+    fn rotation_uses_core_bound_and_never_promises_four_bonus_bits() {
+        let ctx = egui::Context::default();
+        let mut app = KairosApp::new(&ctx, german_source(), false);
+        app.rotate_profiles = true;
+        app.regenerate(&ctx);
+        assert_eq!(app.rotation_bonus, Some(0.0));
+        let minimum =
+            kairos_core::entropy_bits_for(app.source.as_ref(), &GeneratorConfig::default())
+                .unwrap();
+        assert!(app.password.assessment == Assessment::Generated(minimum));
+        app.config.excluded_chars.push('-');
+        app.regenerate(&ctx);
+        assert!(app.password.secret.is_empty());
+        assert_eq!(app.rotation_bonus, None);
     }
 
     #[test]

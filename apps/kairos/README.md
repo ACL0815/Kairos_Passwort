@@ -1,113 +1,143 @@
 # kairos
 
-Native Windows-Oberfläche mit eframe/egui 0.37.0. Das Passwort ist unmittelbar
-bearbeitbar. Ziffern erscheinen in Bernstein, Trenner in Magenta,
-Großbuchstaben in Cyan und Wörter in hellem Blauweiß. Die Core-Segmente
-verwenden UTF-8-Bytebereiche; Umlaute verschieben die Hervorhebung nicht.
-
-Profilwahl 0–12 und die 20 ausschließbaren Trenner werden direkt in
-`GeneratorConfig` übertragen. Bei einem unveränderten Generatorergebnis
-erzeugt eine Einstellungsänderung sofort neu. Manuelle Nacharbeit bleibt
-erhalten; ein Hinweis erklärt, dass neue Einstellungen erst beim nächsten
-„Neu generieren“ gelten.
-Die Bitanzeige und der Stärke-Ring zeigen ausschließlich `GeneratedPassword`-
-Metadaten. Nach manueller Bearbeitung lautet der Status dauerhaft
-„bearbeitet – nicht mehr bewertbar“, bis erneut generiert wird.
-
-Auf der Scaffold-Basis liefert Core noch `NotImplemented`, und die Wortlisten-
-Crate enthält keine Quelle. Die App zeigt das verständlich an und ruft den
-panikenden `entropy_bits`-Stub nicht auf. Es gibt keinen Ersatzgenerator.
-Die spätere Integration reicht die echte Quelle als `Box<dyn WordSource>` an
-`KairosApp::new` und ersetzt `MissingWordSource` im Einstieg. Außer dem
-Core-Vertrag werden keine unveröffentlichten APIs vorausgesetzt.
+Native Windows-App mit eframe/egui 0.37.0. Der normale Einstieg generiert aus
+`kairos_wordlists::german()`, derzeit 7.130 eingebettete ASCII-Wörter mit
+CC0-Datenlizenz. Profil 0 liefert vier Wörter und rund 51,2 Bit. Profil 1
+verwendet dieselbe Quelle; die Empfehlung von 21.000 Wörtern erzeugt keine
+zusätzlichen Auswahlbits. `german_source()` leiht die Liste ohne Wortkopien.
+`KairosApp::new` akzeptiert weiter `Box<dyn WordSource>` für spätere kombinierte
+Quellen oder Store-Snapshots. PR #7 und eine Store-Importoberfläche sind nicht
+Bestandteil dieser Integration. Core-, Plattform- und Quellenverträge bleiben
+getrennt; die KeePassXC-Crate ist noch ein Scaffold.
 
 ## Start und Bedienung
 
-Unter PowerShell vor jedem Cargo-Aufruf die vorgegebene Build-Umgebung laden:
+In PowerShell zuerst die bereitgestellte Build-Umgebung laden:
 
 ```powershell
-. 'C:\Users\Axel_desktop\.t3\projects\kairos-password\target\Enter-KairosBuildEnv.ps1'
+# Den vom Projekt bereitgestellten Enter-KairosBuildEnv.ps1-Helfer laden.
+# Beispiel: . '<Hauptcheckout>\target\Enter-KairosBuildEnv.ps1'
 cargo run -p kairos
 cargo run -p kairos -- --popup
 ```
 
-„Neu generieren“ oder Strg+R erzeugt erneut. Strg+C und „Kopieren“ kopieren
-immer das ganze Passwort. Strg+V fügt Text an der Cursorposition ein.
-„Kopieren und zurückspringen“ minimiert das Fenster erst nach erfolgreichem
-Kopieren. Windows wählt damit wieder das zuvor aktive Fenster; es wird keine
-Eingabe simuliert. Ob Windows tatsächlich das gewünschte Zielfenster aktiviert,
-hängt auch von dessen Fokusregeln ab. `show_popup` ist der Einstieg für die
-spätere Hotkey-Verdrahtung und stellt ein minimiertes Fenster wieder her.
+Profile 0–12 und 20 Trennerausschlüsse werden an Core übergeben. Strg+R oder
+„Neu generieren“ ersetzt das Passwort. Bei sauberem Generatorergebnis erzeugen
+neue Einstellungen sofort neu; manuelle Nacharbeit bleibt bis zur nächsten
+Generierung erhalten. Die GUI zeigt ausschließlich die quellenabhängigen
+Core-Metadaten. Nach Änderungen steht „bearbeitet – nicht mehr bewertbar“.
+
+„Profil bei jeder Generierung wechseln“ zieht bei jeder Generierung erneut
+gleichverteilt aus Profil 0–12. Wiederholungen sind möglich. Die feste Profilwahl
+ist währenddessen deaktiviert. Der Core liefert die konservative Stärke der
+gesamten Rotation und `rotation_bonus_bits`. Hier sind es **+0,0 Bit** wegen
+überlappender Ausgaben und ungleicher Profilstärken. Die Anzeige nennt die
+schwächste Stärke; eine Rotation kann gegenüber einem starken festen Profil
+schwächer sein. Ausschlüsse müssen für alle Profile gelten, deshalb ist ein
+ausgeschlossenes Minuszeichen in dieser Rotation ungültig.
+
+| Aktion | Bedienung und Ergebnis |
+|---|---|
+| Kopieren | Strg+C oder Schaltfläche kopiert das ganze aktuelle Passwort geschützt, auch nach Nacharbeit. |
+| Einfügen in Kairos | Strg+V nur bei Fokus im Passworteditor; Steuerzeichen werden entfernt. |
+| Kopieren und zurückspringen | Kopiert, gibt den Fokus über das vor App-/Popup-Öffnung erfasste Ziel zurück und minimiert erst nach erfolgreicher Rückgabe. Bei Fehler bleibt Kairos offen. |
+| Strg+Umschalt+F9 | Merkt das externe Zielfeld vor dem Wakeup, generiert und zeigt den kompakten Editor. Nachbearbeiten und erneute Generierungen sind möglich. |
+| Einfügen | Erst nach F9 im gewünschten Zielfeld aktiv. Bestätigt dieses Ziel nach der Bearbeitung, gibt Fokus zurück und tippt über die Plattform. Optional auch kopieren, standardmäßig an. Der Auftrag wird verbraucht; kein doppeltes Tippen durch einen zweiten Klick. |
+| Strg+Umschalt+F10 | Generiert, tippt direkt ins erfasste Ziel und kopiert nach angenommener Eingabe. Fordert keinen Fokus für das Hauptfenster an. Fehler stehen im App-Hinweis und gegebenenfalls im Titel/Taskleistenhinweis. |
+| Strg+Umschalt+F11 | Sichtbarer Hinweis „KeePassXC-Anbindung folgt (PR-6)“. Keine Texteingabe, kein Kopieren und kein Tresoreintrag. Das aktuelle Passwort einschließlich Nacharbeit bleibt erhalten; kein Einfügeziel wird freigegeben. |
+
+Der Dienst wird einmal mit `GlobalHotkeys::with_wakeup` gestartet. Der Callback
+fordert nur `request_repaint` an. `eframe::App::logic` verarbeitet das Ereignis
+auch bei verborgenem Fenster. `ui` zeichnet den Editor. Kein zusätzlicher
+Polling-Timer ist nötig. Belegte Hotkeys bzw. Registrierungsfehler erscheinen
+mit einer Schaltfläche zum erneuten Registrieren. Die App akzeptiert kein
+Eingabeziel im eigenen Prozess. Ohne erfassbares Ziel bleibt F9 zum Generieren
+und Kopieren verfügbar. Ein Klick auf das schon offene Taskleistenfenster
+ersetzt das frühere Ziel nicht; für ein neues Ziel F9 dort erneut auslösen.
+Das beim normalen oder kompakten Start gemerkte Fenster berechtigt ausschließlich
+zum Fokus-Rücksprung. „Einfügen“ bleibt dabei deaktiviert, damit ein Start aus
+Terminal oder Explorer keine Eingabe dorthin freigibt. Erst F9 im beabsichtigten
+Zielfeld erzeugt einen Editorauftrag. Ohne gemerktes Ziel bleibt auch „Kopieren
+und zurückspringen“ deaktiviert.
+
+## Fokus und Auto-Type
+
+Das Ziel enthält Fenster-, Prozess-, Thread- und native Control-Identität,
+keinen Text. Die App erfasst nach dem Öffnen des Editors kein neues Ziel.
+Direktes F10 verwendet `FocusTarget::type_text` mit der Fünf-Sekunden-Frist.
+Der ausdrücklich bestätigte Editor-Klick verwendet additiv
+`restore_and_type_text`: Erst das Originalziel zurückgeben und prüfen, dann
+eine frische Eingabefrist starten. So bleibt Nachbearbeitung auch nach mehr als
+fünf Sekunden möglich. Modifier und Hotkey-Haupttaste müssen freigegeben sein;
+höhere Integritätsstufen, zerstörte oder veränderte Ziele werden abgewiesen.
+
+Es gibt keine automatische Wiederholung, keine Eingabe von Tab/Enter und
+keinen Clipboard-Fallback nach Eingabefehlern. Nach angenommener Eingabe und
+fehlgeschlagenem Kopieren erklärt der Hinweis den Teilerfolg; nur Kopieren
+soll erneut versucht werden. Der Nutztext wird nicht in Fehlern ausgegeben.
+Nach einem Einfügefehler bleibt die Nacharbeit erhalten und kann kopiert werden.
+Ein erneutes F9 erzeugt ein neues Passwort; die Fehlermeldungen erklären dies.
+
+**Grenzen:** Windows kann Fokusaktivierung verweigern. `SendInput` hat keinen
+atomaren Zielparameter. Mehrere DOM-Felder können dasselbe native HWND teilen,
+sodass ein Feldwechsel im Browser unbemerkt bleiben kann. Windows-Annahme ist
+keine bestätigte Zustellung; `InputIncomplete` kann Teiltext hinterlassen.
+Lokale Hooks, Eingabequeue und Zielfeld erzeugen weitere Geheimniskopien.
+[MANUAL-TEST.md](../../docs/MANUAL-TEST.md) enthält die Desktop-Abnahme.
 
 ## Geheimnisse und Zwischenablage
 
-Die Anwendung hält ein aktuelles Passwort in `Zeroizing<String>`, ohne Logs,
-Dateispeicherung oder Generatorverlauf. Der Puffer wird vor dem Ersetzen und
-beim Freigeben überschrieben. Der Editor behält seine vorab reservierte
-16-KiB-Allokation auch nach Generierungen. Das Limit von 4096 Unicode-Zeichen
-passt selbst bei vier UTF-8-Bytes pro Zeichen hinein. Überlange oder
-steuerzeichenhaltige Core-Ergebnisse werden abgewiesen. egui-Persistenz ist deaktiviert.
+Ein aktuelles Passwort liegt in `Zeroizing<String>`, ohne Logs, Dateispeicherung
+oder Generatorverlauf. Der Puffer behält seine vorab reservierten 16 KiB und
+wird vor Ersetzen und beim Freigeben überschrieben. Bis 4096 Unicode-Zeichen
+passen ohne Reallokation hinein; Kopieren und Auto-Type akzeptieren höchstens
+1024 UTF-16-Einheiten gemäß Plattformgrenze. Übergroße bzw. steuerzeichenhaltige
+Core-Ergebnisse werden abgewiesen. egui-Persistenz ist deaktiviert.
 
-Das sichtbar farbige Feld nutzt ein einzeiliges `TextEdit::password(true)` mit
-eigenem Layouter und visuellem Zeilenumbruch. Enter fügt keinen Zeilenumbruch
-in das Geheimnis ein. Beim Einfügen werden Steuerzeichen einschließlich
-CR/LF entfernt; der Kopieradapter weist steuerzeichenhaltige Werte ab.
-Dadurch exportiert egui den Feldinhalt nicht über die normale Kopieraktion
-oder eine Textauswahl-Meldung. Der Undoer wird nach **jedem** Frame geleert,
-beim Neugenerieren wird der Editorzustand entfernt. Es gibt absichtlich kein
-Undo/Redo für Passwörter. Der normale eframe-Zwischenablagepfad ist deaktiviert;
-Kopieren und Einfügen laufen über den App-Adapter.
+Das einzeilige `TextEdit::password(true)` nutzt einen sichtbaren farbigen
+Layouter mit visuellem Umbruch. Ziffern sind Bernstein, Trenner Magenta,
+Großbuchstaben Cyan und unterstrichen. Gültige Core-UTF-8-Bytebereiche werden
+nicht als Zeichenindizes interpretiert. Enter fügt keinen Zeilenumbruch ein.
+Undo wird nach jedem Frame geleert, beim Neugenerieren der Editorzustand entfernt.
+Normale eframe-Zwischenablage-Shortcuts sind deaktiviert. `ClipboardAccess`
+ist die mockbare App-Grenze; keine Geheimtextkopie wird zum Worker geschickt.
 
-**Grenzen:** egui erzeugt beim Bearbeiten kurzlebige `String`-Snapshots und
-speichert sichtbaren Text in Layout-/Galley-Daten und Renderdaten. Der Undoer
-wird geleert, seine internen Strings werden durch egui aber nicht sicher
-überschrieben. Auch Einfüge-Ereignisse, frühere String-Allokationen, Glyphen,
-Grafikspeicher, Windows-Zwischenablage, Auslagerung und Dumps lassen sich hier
-nicht vollständig löschen. Diese GUI beansprucht keine vollständige
-Speicherhärtung; dafür ist PR-9 vorgesehen. Accessibility-Anbindung und
-Inspektionsserver sind nicht aktiviert, um keine zusätzliche Klartextausgabe
-des eigenen Layouters zu eröffnen. Konkret erzeugt der Einfügepfad aus einem
-`Zeroizing<String>` einen normalen `Event::Paste(String)`; arboard erzeugt beim
-Schreiben außerdem eine normale UTF-16-Kopie. Diese fremden/intermediären
-Allokationen werden nicht sicher überschrieben. Windows-Fenstervorschauen,
-Alt-Tab und Bildschirmaufnahmen können das sichtbare Passwort zeigen; ein
-Display-Affinity-Schutz gehört in die spätere Plattform-/Schutzintegration.
+Der arboard-Übergangsadapter ist ersetzt. Schreiben erfolgt ausschließlich mit
+`kairos_platform::copy_secret(text, Some(DEFAULT_CLEAR_AFTER))`. Alle drei
+Windows-Ausschlüsse stehen vor dem Text in derselben OS-Transaktion. Der
+Plattform-Timer leert nach 30 Sekunden nur die noch eigene Schreibmarke, auch
+bei minimierter GUI. Der Adapter behält nur die letzte `ClipboardReceipt` und
+versucht beim normalen App-Ende deren bedingte Löschung. Fremde spätere Inhalte
+bleiben erhalten. Es gibt keinen ungeschützten Schreibfallback. Strg+V liest
+über clipboard-win unter RAII-Sperre in einen eigenen Zeroizing-Bytepuffer und
+anschließend einen Zeroizing-String.
 
-Der **Übergangsadapter** in `clipboard.rs` wird im späteren Verdrahtungs-PR
-durch `kairos-platform` ersetzt. Er verwendet arboard 3.7.0 mit Windows-
-Kennzeichnungen gegen Verlauf und Cloud-Sync und prüft beide DWORD-0-Formate
-zur Laufzeit. Zusätzlich wird die Kennzeichnung gegen Clipboard-Monitor-
-Verarbeitung gesetzt. Ein Worker löscht nach 30 s
-auch bei minimiertem Fenster. Die Prüfung von Sequenznummer und eigener Markierung
-sowie das Leeren erfolgen unter derselben Windows-Zwischenablagesperre.
-Spätere Inhalte anderer Anwendungen bleiben erhalten. Bei einer belegten
-Zwischenablage wird die Timeout-Löschung erneut versucht. Beim regulären
-Beenden erfolgt ein letzter Löschversuch. Ein Prozessabsturz beendet den
-Worker und kann den Timeout verhindern. Zwischen arboards Schreiben und dem
-anschließenden erneuten Öffnen liegt eine kurze Lücke. Scheitert der zweite
-Zugriff, kann bereits geschützter Text in der Zwischenablage stehen, ohne
-dass der Timeout registriert wurde. In diesem Fall wird ein Kopierfehler
-gemeldet. `clipboard-win` 5.4.3 pausiert bei seinen Öffnungsversuchen jeweils
-5 ms; die gegenteilige ältere Kommentarstelle in arboard ist hier überholt.
-Kopierfehler lassen das Fenster
-offen; es gibt keinen ungeschützten Fallback. Programme müssen die Windows-
-Kennzeichnungen respektieren; bereits ausgelesene Kopien werden nicht entfernt.
+**Speichergrenzen:** egui erzeugt temporäre `String`-Snapshots, Paste-Ereignisse,
+Layout-/Galley- und Renderdaten. Leeren des Undoers überschreibt nicht dessen
+interne Strings. Windows, Grafikspeicher, Auslagerung, Dumps und fremde Programme
+können weitere Kopien halten. Der Adapter erzeugt für egui ein normales
+`Event::Paste(String)`; der darunterliegende Leser kann eigene Zwischenpuffer
+anlegen. Kein vollständiger Lösch- oder RAM-Härtungsnachweis. Schutzformate
+wirken nur bei beachtender Software. Ein Absturz oder dauerhaft belegtes Clipboard
+kann die Löschung verhindern. Speicherhärtung folgt in PR-9a, Wortlistenschutz
+in PR-9b. Fensterinhalte sind weiterhin in Bildschirmaufnahmen sichtbar;
+PR-11 plant den gesonderten Bildschirmfreigabeschutz.
 
-## Schrift und Gestaltung
+## Schrift, Lizenzen und Wortherkunft
 
-Die Gestaltung folgt verbindlich [UI-STYLE.md](../../docs/design/UI-STYLE.md).
-Das lokale Stock-Referenzbild wird nicht mitgeliefert. Die unveränderte
-**JetBrains Mono NL Regular 2.304** ist eingebettet. Ihre markierte Null,
-unterschiedlichen Formen für `1/l/I` und die Monospace-Abstände helfen beim
-Abschreiben. Die explizite NL-Variante besitzt keine Ligaturen. `5/S` bleiben
-zusätzlich durch die Ziffernfarbe unterscheidbar. Auswahl und Alternativen
-stehen in [gui.md](../../docs/sources/gui.md); der vollständige Lizenztext
-liegt in [assets/fonts/OFL.txt](assets/fonts/OFL.txt).
-Die durch egui eingebetteten Standardschriften für proportionale UI und
-Fallbacks besitzen eigene Lizenztexte. Sie werden mit Herkunft unter
-[assets/fonts/egui-defaults/](assets/fonts/egui-defaults/README.md) mitgeliefert.
-Die verwendeten Schriftlizenztexte sind zusätzlich in die EXE eingebettet und
-in der Vollansicht über „Schriftlizenzen“ lesbar.
+Die Gestaltung folgt [UI-STYLE.md](../../docs/design/UI-STYLE.md). Das lokale
+Stock-Referenzbild wird nicht mitgeliefert. JetBrains Mono NL Regular 2.304 ist
+unverändert mit SIL-OFL-Lizenz eingebettet. Markierte Null, unterschiedliche
+`1/l/I` und fehlende Ligaturen helfen beim Abschreiben. `5/S` unterscheidet
+zusätzlich die Ziffernfarbe. Herkunft, Hash und Lizenz stehen unter
+[assets/fonts/](assets/fonts/README.md). eguis Ubuntu-/Hack-/Icon-Fallbacks
+haben separate beigefügte Lizenztexte unter
+[egui-defaults](assets/fonts/egui-defaults/README.md).
+
+„Lizenzen und Wortherkunft“ zeigt neben den Schriftlizenzen die direkt aus
+kairos-wordlists eingebettete `data/PROVENANCE.md` und die vollständigen
+Original-Lizenzdateien von dys2p und enz/german-wordlist. Kairos wählt für die
+Wortdaten CC0-1.0; Auswahl, Zusammenführung und Filter sind dort dokumentiert.
 
 ## Tests und öffentliche Demo
 
@@ -115,41 +145,49 @@ in der Vollansicht über „Schriftlizenzen“ lesbar.
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-cargo test -p kairos windows_privacy_flags_timeout_and_foreign_replacement -- --ignored --test-threads=1
+cargo build --release -p kairos
+cargo test -p kairos-platform --test isolated_clipboard -- --ignored
+cargo test -p kairos-platform --test windows_interaction -- --ignored --test-threads=1
 ```
 
-Der letzte Test schreibt ausschließlich öffentliche Fixtures in die echte
-Windows-Zwischenablage und ist deshalb im normalen Testlauf ignoriert.
-Er prüft beide Schutzformate, Timeout und den Erhalt späterer Inhalte.
-Unit-Tests prüfen Farbzuteilung, mehrbyteige Segmente, Ausschlüsse, Fehler und
-Entropieentwertung. Ein egui-Frame-Test tippt in das echte TextEdit, kontrolliert
-Undo-Löschung und rendert Vollansicht sowie Popup.
+Die letzten zwei Befehle laufen nur ausdrücklich. Der isolierte Test nutzt eine
+private unsichtbare Windowstation. Interaktionstests fokussieren echte Fenster,
+registrieren Hotkeys und tippen ausschließlich öffentliche Fixtures; auf einem
+ruhenden Testdesktop ausführen. GUI-Tests verwenden mockbare Clipboard- und
+Zielgrenzen. Sie prüfen echte german()-Generierung, Hotkey-Aktionen, fehlende
+Ziele, Abbruch/Teileingabe, Fokus-Rückgabe, Einfüge-Opt-out, Entropieentwertung,
+Rotation, TextEdit-Undo und Ausgabe ohne normalen egui-Clipboard-Export.
 
-Die optionale Debug-Demo ist ausschließlich für UI-Prüfung und Screenshots.
-Sie ist deutlich markiert und enthält das öffentliche Beispiel
-`Ähre-Wolke7-Kiesel-Möwe`. Die 82 Bit sind ein **fiktiver Anzeigewert**.
-Bei `--release --features demo` bricht die Kompilierung absichtlich ab.
+Die Debug-Demo enthält das öffentliche Beispiel `Ahorn-Wolke7-Kiesel-Falke`
+und einen ausdrücklich fiktiven Wert von 82 Bit. `--release --features demo`
+wird durch `compile_error!` abgewiesen. Eine Demo ist kein Zufallsgenerator;
+globale Hotkeys sind darin deaktiviert.
 
 ```powershell
-cargo run -p kairos --features demo
 $env:EFRAME_SCREENSHOT_TO = Join-Path (Get-Location) 'target\gui-evidence\gui-demo.png'
 cargo run -p kairos --features demo
 Remove-Item Env:EFRAME_SCREENSHOT_TO
 ```
 
-Der eframe-Screenshotmodus speichert die tatsächlich gerenderte native App
-nach dem zweiten Frame und beendet sie. Ohne `demo` steht diese Funktion
-nicht zur Verfügung. Screenshots bleiben lokal unter `target/`.
+Der gezeigte Befehl rendert die native Demo, speichert nach dem zweiten Frame
+und beendet sie. Für eine ausdrücklich lokale Aufnahme mit echter Wortquelle
+lässt sich stattdessen `cargo run --release -p kairos --features eframe/__screenshot`
+verwenden. Dieses bestehende eframe-Feature aktiviert den Renderer-Bildexport,
+ohne Kairos' Demo einzuschalten. Der normale Release-Build aktiviert es nicht.
+Screenshots bleiben lokal unter `target/`; verwendete Passwörter gehören nicht
+in Screenshots oder Logs. Bildbelege mit echten Quellen dürfen ausschließlich
+frisch erzeugte, nirgendwo verwendete Testpasswörter zeigen.
 
 ## Open-Source-Vorbilder
 
-- **egui/eframe 0.37.0**, MIT/Apache-2.0. Native Schleife, LayoutJobs und expliziter Widgetzustand.
-- **KeePassXC 2.8.0**, dateibezogen GPL-2.0 OR GPL-3.0. Lesbarkeit und Zwischenablage als eigener Lebenszyklus.
-- **Password Tech**, GPL-2.0-or-later. Unmittelbar erreichbare Generierungs- und Kopieraktionen.
-- **arboard 3.7.0**, MIT/Apache-2.0. Bestehende Windows-Zwischenablageimplementierung als normale Crate-Abhängigkeit.
-- **clipboard-win 5.4.3**, BSL-1.0. Bereits arboards Windows-Abhängigkeit; RAII-Sperre, Sequenznummer und bedingtes Leeren.
-- **JetBrains Mono 2.304**, SIL OFL 1.1. Unverändertes Font-Asset mit mitgeliefertem Lizenztext.
+- egui/eframe 0.37.0 (MIT OR Apache-2.0) liefert Widgets, LayoutJobs, `App::logic` und Wakeup-Vertrag.
+- global-hotkey 0.9.0 (MIT OR Apache-2.0) modelliert das Weiterreichen nativer Ereignisse. Den bestehenden Plattformdienst verwendet die App als Bibliothek.
+- KeePassXC 2.8.0 (verlinkte Dateien GPL-2.0 OR GPL-3.0) liefert Zielidentität vor dem Popup, Abbruch bei Fokuswechsel und separate Clipboard-Lebensdauer als Prinzipien.
+- Password Tech (GPL-2.0-or-later) liefert den kurzen Generierungs-/Bearbeitungsablauf als Prinzip.
+- pwgen-go liefert die Trennung eingebetteter Wortquellen und Generator als Prinzip. Wortdaten und Lizenzen stammen aus kairos-wordlists.
+- clipboard-win 5.4.3 (BSL-1.0) bleibt ausschließlich als normaler lesender Windows-Clipboard-Adapter. arboard ist keine direkte App-Abhängigkeit mehr; eframe kann es transitiv weiterhin einbinden.
+- JetBrains Mono NL 2.304 (SIL OFL 1.1) bleibt das ausdrücklich lizenzierte unveränderte Font-Asset.
 
-Es wurde kein fremder Anwendungscode kopiert. Konkrete Quellstände, Module,
-Lizenzbelege, bewertete Alternativen und die Grenzen der Übertragung sind
-vollständig in [gui.md](../../docs/sources/gui.md) aufgeführt.
+Kein fremder Anwendungscode wurde kopiert. Versionierte Quellen, Lizenzbelege,
+Bewertungen und verworfene Ansätze stehen in [gui.md](../../docs/sources/gui.md)
+und [platform.md](../../docs/sources/platform.md).

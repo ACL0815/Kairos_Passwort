@@ -1,6 +1,6 @@
 # GUI und Passwortdarstellung
 
-Zuständig: **nur PR-3** (`feat/gui`). Verbindlicher visueller Rahmen:
+Zuständig: PR-3 (`feat/gui`) und PR-W (`feat/app-wiring`). Visueller Rahmen:
 [UI-STYLE.md](../design/UI-STYLE.md). Recherche und Abruf **25.10.2026**.
 Passung 1–5 ist die Bewertung für diese GUI. Bewertet werden Prinzipien;
 kein fremder Anwendungscode wurde übernommen. Normale Crate-Abhängigkeiten
@@ -15,7 +15,7 @@ und das ausdrücklich lizenzierte Schrift-Asset sind gesondert genannt.
 | Bitwarden browser-v2026.10.0 | [Farbige Inline-Anzeige](https://github.com/bitwarden/clients/blob/browser-v2026.10.0/apps/browser/src/autofill/overlay/inline-menu/pages/list/autofill-inline-menu-list.ts#L411-L444) | GPL-3.0; verlinkter Pfad außerhalb `bitwarden_license` | `buildColorizedPasswordElement` | Ziffern und Sonderzeichen mit eigenen Klassen darstellen; reine Prinzipienreferenz | 4 |
 | egui 0.37.0 TextEdit | [Builder](https://github.com/emilk/egui/blob/0.37.0/crates/egui/src/widgets/text_edit/builder.rs), [State](https://github.com/emilk/egui/blob/0.37.0/crates/egui/src/widgets/text_edit/state.rs) | MIT OR Apache-2.0 | `password`, `clear_undoer`, `store`, eigener Layouter | Passwortmodus verhindert normales Kopieren; Undo muss separat geleert werden. Ein eigener sichtbarer Layouter erzeugt Klartext-Layouts | 5 |
 | catppuccin-egui | [Commit ffb92d2](https://github.com/catppuccin/egui/blob/ffb92d2da71b72bde41d83bbc0a46917de97b486/src/lib.rs) | MIT | `set_theme`, `make_widget_visual` | Semantische Rollen für Hintergrund, Text, Auswahl und Fokus statt zufälliger Einzelwerte | 2 |
-| arboard 3.7.0 | [Commit 5f5c863](https://github.com/1Password/arboard/blob/5f5c8637911ba219edee619105a19b4f74e66a9f/src/platform/windows.rs) | MIT OR Apache-2.0 | `SetExtWindows`, `Set::text`, `OpenClipboard` | Beide Windows-Ausschlussformate über erprobte Crate setzen; der Windows-Adapter besitzt keinen HWND-Eigentümer | 5 |
+| arboard 3.7.0 | [Commit 5f5c863](https://github.com/1Password/arboard/blob/5f5c8637911ba219edee619105a19b4f74e66a9f/src/platform/windows.rs) | MIT OR Apache-2.0 | `SetExtWindows`, `Set::text`, `OpenClipboard` | Historisches Modell des ersetzten Übergangsadapters; heute keine direkte App-Abhängigkeit, allenfalls transitiv über eframe. Schreiben übernimmt kairos-platform. | 3 |
 | clipboard-win 5.4.3 | [Commit ed27008](https://github.com/DoumanAsh/clipboard-win/tree/ed27008ae5d1f10cfbb266de039f0fb35fd05a56), [Cargo.toml](https://github.com/DoumanAsh/clipboard-win/blob/ed27008ae5d1f10cfbb266de039f0fb35fd05a56/Cargo.toml) | BSL-1.0 (Boost Software License), gegen Cargo-Metadaten geprüft | `Clipboard`, `raw::seq_num`, `get_string`, `get_vec`, `empty` | RAII-Sperre für gemeinsame Prüfung und bedingte Löschung; permissive normale Windows-Abhängigkeit, bereits transitiv von arboard benötigt | 5 |
 
 ## Übertragung und Grenzen
@@ -37,19 +37,16 @@ das Abschreiben nötig, erzeugt aber Klartext in eguis Layout-/Galley-Daten.
 `password(true)` ersetzt keine Speicherhärtung. Der Undoer wird nach jedem Frame
 geleert, seine temporären `String`-Snapshots können wir über die öffentliche API
 nicht sicher überschreiben. Die verbleibenden UI-/OS-Kopien sind im
-[Crate-README](../../apps/kairos/README.md) dokumentiert und PR-9 vorbehalten.
+[Crate-README](../../apps/kairos/README.md) dokumentiert und PR-9a vorbehalten.
 
-Die Übergangs-Zwischenablage nutzt arboard nur für Schreiben mit den beiden
-Windows-Schutzformaten. Unter einer anschließenden OS-Sperre wird der Inhalt
-mit dem gerade kopierten Text verglichen und eine pro Kopie neue Markierung
-gesetzt. Markierung und Sequenznummer begrenzen die spätere Löschung auf
-unveränderte eigene Inhalte. Prüfung und Leeren sind atomar gegenüber fremden
-Clipboard-Schreibern. Ein eigener Worker hält den Timeout unabhängig von der
-Fensterdarstellung. Der Adapter wird später durch `kairos-platform` ersetzt.
-Die beiden Windows-Ausschlussformate werden nach dem Schreiben zur Laufzeit
-auf einen DWORD-Wert 0 geprüft. Zusätzlich wird KeePassXCs Kennzeichnung gegen
-Clipboard-Monitorverarbeitung gesetzt. Die kleine App-Schnittstelle
-`ClipboardAccess` trennt UI-Tests und die spätere Plattformimplementierung.
+PR-W ersetzt den Übergangsadapter durch `kairos_platform::copy_secret`.
+Alle drei Schutzformate werden in derselben OS-Transaktion vor dem Text
+veröffentlicht. Die App behält nur ein Receipt für bedingtes Leeren beim
+normalen Ende; der Plattform-Timer arbeitet unabhängig von der GUI.
+`ClipboardAccess` bleibt die mockbare Grenze. arboard ist keine direkte
+App-Abhängigkeit mehr; eframe kann es transitiv behalten. clipboard-win wird
+nur noch zum Lesen bei Strg+V verwendet. Die früheren arboard-/Lease-Tests sind
+ersetzt, die Plattformtests prüfen die tatsächliche Schutzimplementierung.
 
 Stichproben am Original: Header und Windows-Formate in KeePassXC 2.8.0,
 `PasswBoxChange`/`ShowPasswInfo` und Lizenzheader des gepinnten Password-Tech-
@@ -98,3 +95,33 @@ Die drei Recherche-Aufträge liefen auf `codex/gpt-6-luna`, jeweils mit
 `reasoningEffort=xhigh` und `serviceTier=priority`. Schrift, Generator-UIs und
 egui/Sicherheit wurden unabhängig untersucht. Ihre Ergebnisse wurden nicht
 als Code übernommen; unbelegte Produkteigenschaften wurden verworfen.
+
+## PR-W: Ereignisse, Fokus und Wortquelle
+
+Abrufdatum 25.10.2026. Prinzipien modelliert, kein Anwendungscode kopiert.
+
+| Projekt | Permalink | Lizenz | Datei | Prinzip | Passung + Bewertung |
+|---|---|---|---|---|---|
+| eframe 0.37.0 | [App-Vertrag](https://github.com/emilk/egui/blob/0.37.0/crates/eframe/src/epi.rs), [native Loop](https://github.com/emilk/egui/blob/0.37.0/crates/eframe/src/native/run.rs) | MIT OR Apache-2.0, Workspace-Manifest | App::logic, verborgene Viewports | Wakeup und Zustand ohne sichtbares UI; Root-Fenster nur bei F9/F11 sichtbar machen | 5/5, passt zur verwendeten Version; kein eigener Polling-Timer |
+| global-hotkey 0.9.0 | [eframe-Beispiel](https://github.com/tauri-apps/global-hotkey/blob/b4185ab2f37b62e4d1bd2b8410fcf93e338f55fc/examples/egui.rs), [winit-Beispiel](https://github.com/tauri-apps/global-hotkey/blob/b4185ab2f37b62e4d1bd2b8410fcf93e338f55fc/examples/winit.rs) | MIT OR Apache-2.0 | Ereignisweitergabe, Repaint/Proxy | Betriebssystemereignis vor GUI-Verarbeitung einreihen | 5/5; vorhandenen kairos-platform-Dienst nutzen, dessen exklusiven Receiver nicht umgehen; 100-ms-Polling entfällt |
+| KeePassXC 2.8.0 | [AutoType](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/autotype/AutoType.cpp), [Windows](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/autotype/windows/AutoTypeWindows.cpp) | GPL-2.0 OR GPL-3.0 laut Dateiheader | Ziel vor Auswahlfenster, Vordergrundprüfung | Originalziel behalten, bei Wechsel abbrechen, Unicode paaren | 5/5; Kairos prüft zusätzlich natives Control, keine Sequenzsprache oder automatische Wiederholung |
+| pwgen-go | [Wortquellen](https://github.com/gabe565/pwgen-go/tree/5a53dce1f9cbde823855ee6facf6889eb5275fde/internal/wordlist) | MIT, Projektlizenz | internal/wordlist | Eingebettete Daten vom Generator trennen | 4/5; Kairos leiht german() über WordSource, keine fremde Implementierung übernommen |
+
+Der manuelle Editor bestätigt mit einem neuen Klick die ursprüngliche
+Zielidentität. Er erfasst sie nicht erneut und verbraucht den Auftrag auch bei
+Fehlern. Direkte F10-Ereignisse behalten die Plattform-Frist von fünf Sekunden.
+Ein Startziel dient nur dem Fokus-Rücksprung; ausschließlich F9 im gewünschten
+Zielfeld berechtigt den Editor zur Eingabe. Auch `--popup` allein gibt keine
+Texteingabe in ein Startterminal oder den Explorer frei.
+F10 fordert keinen Fokus für Kairos an. Browser-DOM-Felder können dasselbe HWND
+teilen und sind damit nicht sicher unterscheidbar. Die UI benennt diese Grenze.
+Kopiert wird nach erfolgreicher Windows-Annahme; bei Teileingabe wird weder
+kopiert noch automatisch erneut gesendet. Ein Kopierfehler nach angenommener
+Eingabe wird ausdrücklich als Teilerfolg angezeigt.
+
+Eine Recherche lief auf codex/gpt-6-luna, reasoningEffort=xhigh,
+serviceTier=priority, nur lesend. Der eframe-Vertrag wurde zusätzlich im lokal
+installierten 0.37.0-Quelltext geprüft. Die genaue aktuelle Wortherkunft wird
+nicht dupliziert: Der Lizenzdialog bindet PROVENANCE.md und Original-Lizenztexte
+aus kairos-wordlists ein. Die Wortdaten sind CC0-1.0; die vorhandene
+Font-Asset-Übernahme bleibt davon getrennt.

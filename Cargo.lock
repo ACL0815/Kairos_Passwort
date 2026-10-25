@@ -1131,13 +1131,10 @@ dependencies = [
 name = "kairos"
 version = "0.1.0"
 dependencies = [
- "arboard",
  "clipboard-win",
  "eframe",
  "kairos-core",
- "kairos-keepassxc",
  "kairos-platform",
- "kairos-store",
  "kairos-wordlists",
  "zeroize",
 ]

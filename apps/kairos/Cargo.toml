@@ -13,11 +13,8 @@ demo = ["eframe/__screenshot"]
 [dependencies]
 kairos-core.workspace = true
 kairos-wordlists.workspace = true
-kairos-store.workspace = true
 kairos-platform.workspace = true
-kairos-keepassxc.workspace = true
 eframe = { version = "0.37.0", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
-arboard = { version = "3.7.0", default-features = false }
 zeroize.workspace = true
 
 [target.'cfg(windows)'.dependencies]
