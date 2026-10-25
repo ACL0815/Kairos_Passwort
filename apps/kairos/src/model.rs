@@ -1,0 +1,278 @@
+//! Password state and UTF-8 highlighting, independent of the native window.
+//!
+//! Modelled after: KeePassXC https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/gui/PasswordWidget.cpp
+//! The GUI retains one current result and invalidates its assessment after editing.
+
+use eframe::egui::{text::LayoutJob, Color32, FontId, TextFormat};
+use kairos_core::{GenerateError, GeneratedPassword, GeneratorConfig, Segment, SegmentKind};
+use zeroize::{Zeroize, Zeroizing};
+
+pub const SEPARATORS: [char; 20] = [
+    '-', '+', '.', ',', '#', '*', '!', '?', '_', ':', ';', '/', '(', ')', '\'', '"', '$', '%', '&',
+    '=',
+];
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum Assessment {
+    Unavailable,
+    Generated(f64),
+    Edited,
+}
+
+pub struct PasswordState {
+    pub secret: Zeroizing<String>,
+    pub segments: Vec<Segment>,
+    pub assessment: Assessment,
+    pub message: &'static str,
+}
+
+impl Default for PasswordState {
+    fn default() -> Self {
+        Self {
+            secret: Zeroizing::new(String::with_capacity(512)),
+            segments: Vec::new(),
+            assessment: Assessment::Unavailable,
+            message: "Generator und deutsche Wortliste werden vorbereitet.",
+        }
+    }
+}
+
+impl PasswordState {
+    pub fn set_result(&mut self, result: Result<GeneratedPassword, GenerateError>) {
+        self.clear();
+        match result {
+            Ok(result) => {
+                self.secret = result.secret;
+                self.segments = result.segments;
+                self.assessment = if result.entropy_bits.is_finite() && result.entropy_bits >= 0.0 {
+                    Assessment::Generated(result.entropy_bits)
+                } else {
+                    Assessment::Unavailable
+                };
+                self.message = "Zum Abschreiben farbig hervorgehoben. Direkt im Feld bearbeitbar.";
+            }
+            Err(error) => {
+                self.message = match error {
+                    GenerateError::NotImplemented => "Der Generator ist noch nicht verfügbar. Die Oberfläche ist bereit; Core und Wortliste folgen mit PR-1/PR-2.",
+                    GenerateError::EmptySource => "Noch keine Wörter verfügbar. Bitte zuerst eine Wortliste einbinden.",
+                    GenerateError::InvalidConfig => "Diese Auswahl ist nicht möglich. Bitte weniger Trenner ausschließen.",
+                    GenerateError::RandomSourceUnavailable => "Windows konnte keinen sicheren Zufall liefern. Bitte erneut versuchen.",
+                    _ => "Das Passwort konnte nicht sicher erzeugt werden. Bitte erneut versuchen.",
+                };
+            }
+        }
+    }
+
+    pub fn edited(&mut self) {
+        self.segments.clear();
+        self.assessment = Assessment::Edited;
+        self.message = "bearbeitet – nicht mehr bewertbar";
+    }
+
+    pub fn clear(&mut self) {
+        self.secret.zeroize();
+        self.segments.clear();
+        self.assessment = Assessment::Unavailable;
+    }
+}
+
+pub fn apply_exclusions(config: &mut GeneratorConfig, excluded: &[bool; 20]) {
+    config.excluded_chars = SEPARATORS
+        .iter()
+        .zip(excluded)
+        .filter_map(|(&character, &is_excluded)| is_excluded.then_some(character))
+        .collect();
+}
+
+pub fn segment_color(kind: SegmentKind) -> Color32 {
+    match kind {
+        SegmentKind::Word => Color32::from_rgb(234, 242, 255),
+        SegmentKind::Digit => Color32::from_rgb(251, 191, 36),
+        SegmentKind::Separator => Color32::from_rgb(244, 114, 208),
+        SegmentKind::Uppercase => Color32::from_rgb(103, 232, 249),
+    }
+}
+
+/// Uses core byte ranges without interpreting them as character offsets.
+///
+/// Modelled after: egui https://github.com/emilk/egui/blob/0.37.0/crates/egui_demo_lib/src/demo/code_editor.rs
+pub fn password_layout(text: &str, segments: &[Segment], size: f32) -> LayoutJob {
+    let mut job = LayoutJob::default();
+    let mut offset = 0;
+    let valid = segments.iter().all(|segment| {
+        let valid = segment.range.start >= offset
+            && segment.range.start < segment.range.end
+            && text.get(segment.range.clone()).is_some();
+        offset = segment.range.end;
+        valid
+    });
+    let mut append = |part: &str, kind| {
+        if part.is_empty() {
+            return;
+        }
+        job.append(
+            part,
+            0.0,
+            TextFormat {
+                font_id: FontId::monospace(size),
+                color: segment_color(kind),
+                ..Default::default()
+            },
+        );
+    };
+    offset = 0;
+    if valid && !segments.is_empty() {
+        for segment in segments {
+            append(&text[offset..segment.range.start], SegmentKind::Word);
+            append(&text[segment.range.clone()], segment.kind);
+            offset = segment.range.end;
+        }
+        append(&text[offset..], SegmentKind::Word);
+    } else {
+        for (start, character) in text.char_indices() {
+            let kind = if character.is_ascii_digit() {
+                SegmentKind::Digit
+            } else if character.is_uppercase() {
+                SegmentKind::Uppercase
+            } else if !character.is_alphanumeric() {
+                SegmentKind::Separator
+            } else {
+                SegmentKind::Word
+            };
+            append(&text[start..start + character.len_utf8()], kind);
+        }
+    }
+    job
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    fn generated() -> GeneratedPassword {
+        GeneratedPassword {
+            secret: Zeroizing::new("Ähre-7öl".into()),
+            segments: vec![
+                Segment {
+                    kind: SegmentKind::Uppercase,
+                    range: 0..2,
+                },
+                Segment {
+                    kind: SegmentKind::Word,
+                    range: 2..5,
+                },
+                Segment {
+                    kind: SegmentKind::Separator,
+                    range: 5..6,
+                },
+                Segment {
+                    kind: SegmentKind::Digit,
+                    range: 6..7,
+                },
+                Segment {
+                    kind: SegmentKind::Word,
+                    range: 7..10,
+                },
+            ],
+            entropy_bits: 72.5,
+        }
+    }
+
+    #[test]
+    fn every_semantic_role_has_a_distinct_color() {
+        let colors: HashSet<_> = [
+            SegmentKind::Word,
+            SegmentKind::Digit,
+            SegmentKind::Separator,
+            SegmentKind::Uppercase,
+        ]
+        .map(segment_color)
+        .into_iter()
+        .collect();
+        assert_eq!(colors.len(), 4);
+    }
+
+    #[test]
+    fn utf8_byte_segments_preserve_text_and_colors() {
+        let result = generated();
+        let layout = password_layout(&result.secret, &result.segments, 24.0);
+        assert_eq!(layout.text, "Ähre-7öl");
+        assert_eq!(layout.sections[0].byte_range.start.0, 0);
+        assert_eq!(layout.sections[0].byte_range.end.0, 2);
+        assert_eq!(
+            layout.sections[3].format.color,
+            segment_color(SegmentKind::Digit)
+        );
+    }
+
+    #[test]
+    fn malformed_ranges_fall_back_without_panicking_or_losing_text() {
+        for (start, end) in [(1, 2), (0, 100), (5, 3)] {
+            let range = start..end;
+            let layout = password_layout(
+                "Ähre",
+                &[Segment {
+                    kind: SegmentKind::Digit,
+                    range,
+                }],
+                24.0,
+            );
+            assert_eq!(layout.text, "Ähre");
+            assert_eq!(
+                layout.sections[0].format.color,
+                segment_color(SegmentKind::Uppercase)
+            );
+        }
+    }
+
+    #[test]
+    fn editing_invalidates_entropy_even_if_user_later_restores_text() {
+        let mut state = PasswordState::default();
+        state.set_result(Ok(generated()));
+        assert!(matches!(state.assessment, Assessment::Generated(72.5)));
+        state.edited();
+        assert!(matches!(state.assessment, Assessment::Edited));
+        assert!(state.segments.is_empty());
+        assert_eq!(state.message, "bearbeitet – nicht mehr bewertbar");
+        state.set_result(Ok(generated()));
+        assert!(matches!(state.assessment, Assessment::Generated(72.5)));
+    }
+
+    #[test]
+    fn errors_remove_previous_secret_and_assessment() {
+        let mut state = PasswordState::default();
+        state.set_result(Ok(generated()));
+        state.set_result(Err(GenerateError::NotImplemented));
+        assert!(state.secret.is_empty());
+        assert!(matches!(state.assessment, Assessment::Unavailable));
+        assert!(state.message.contains("noch nicht verfügbar"));
+    }
+
+    #[test]
+    fn nonfinite_entropy_is_never_presented_as_strength() {
+        let mut result = generated();
+        result.entropy_bits = f64::NAN;
+        let mut state = PasswordState::default();
+        state.set_result(Ok(result));
+        assert!(matches!(state.assessment, Assessment::Unavailable));
+    }
+
+    #[test]
+    fn all_twenty_exclusions_map_once_in_canonical_order() {
+        let mut config = GeneratorConfig::default();
+        apply_exclusions(&mut config, &[true; 20]);
+        assert_eq!(config.excluded_chars, SEPARATORS);
+        assert_eq!(
+            config.excluded_chars.iter().collect::<HashSet<_>>().len(),
+            20
+        );
+        let mut excluded = [false; 20];
+        excluded[0] = true;
+        excluded[19] = true;
+        apply_exclusions(&mut config, &excluded);
+        assert_eq!(config.excluded_chars, ['-', '=']);
+        apply_exclusions(&mut config, &[false; 20]);
+        assert!(config.excluded_chars.is_empty());
+    }
+}

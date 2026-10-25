@@ -4,7 +4,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Kairos Passwort Windows application (GUI scaffold)"
+description = "Kairos Passwort Windows application"
+
+[features]
+# Fake data is available only in debug builds, never in a release binary.
+demo = ["eframe/__screenshot"]
 
 [dependencies]
 kairos-core.workspace = true
@@ -12,3 +16,9 @@ kairos-wordlists.workspace = true
 kairos-store.workspace = true
 kairos-platform.workspace = true
 kairos-keepassxc.workspace = true
+eframe = { version = "0.37.0", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+arboard = { version = "3.7.0", default-features = false }
+zeroize.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+clipboard-win = "5.4.3"
