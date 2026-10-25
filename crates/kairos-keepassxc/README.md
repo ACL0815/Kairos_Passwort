@@ -1,8 +1,21 @@
 # kairos-keepassxc
 
+## App-Integration aus PR-6b / PR-10
+
+F11 verwendet jetzt diese API: `test_associate`, bei fehlender Zuordnung eine
+getrennte bewusste `associate`-Aktion, anschließend bestätigtes `set_login`.
+Die API selbst bleibt unverändert. `kairos-bridge` verwendet den vorhandenen
+insert-only `DpapiStore` mit separater `browser-bridge.dpapi` und festem
+Record-Marker; keine Wiederverwendung von KeePassXC-Schlüsseln. Modelled after:
+KeePassXC/2FAS bewusste Association, Syncthing Host-/CSRF-Schichten. Keine
+Codeübernahme. URLs aus VM bleiben manuell bestätigte Vorschläge; Tippen folgt
+erst nach Annahme und neuem Klick. Protokoll-/Persistenzgrenzen unten gelten
+weiter. [Browser-Anleitung/Bedrohungsmodell](../../browser/README.md),
+[Quellenbewertung](../../docs/sources/browser.md).
+
 Eigenständiger synchroner Client für das KeePassXC-Browser-Protokoll, PR-6,
 Priorität 3, Basis `main`. Keine Abhängigkeit von Core, App, Hotkeys oder Store.
-Die spätere App verbindet `GenerateTypeKeePassXC` mit dieser API. Hier werden
+Die App verbindet `GenerateTypeKeePassXC` mit dieser API. In dieser Crate werden
 weder Browser-URLs ermittelt noch Passwörter erzeugt oder ins Zielfeld geschrieben.
 
 ## API und Ablauf

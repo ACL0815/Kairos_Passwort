@@ -1,0 +1,20 @@
+[package]
+name = "kairos-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Paired loopback context bridge for Kairos"
+
+[dependencies]
+kairos-keepassxc.workspace = true
+base64 = "0.22.1"
+getrandom = "0.2.17"
+httparse = "1.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+subtle = "2.6"
+zeroize = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+tempfile = "3.23"

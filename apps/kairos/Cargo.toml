@@ -14,8 +14,11 @@ demo = ["eframe/__screenshot"]
 kairos-core.workspace = true
 kairos-wordlists.workspace = true
 kairos-platform.workspace = true
+kairos-keepassxc.workspace = true
+kairos-bridge.workspace = true
 eframe = { version = "0.37.0", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
 zeroize.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 clipboard-win = "5.4.3"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading"] }
