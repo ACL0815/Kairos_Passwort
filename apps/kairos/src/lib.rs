@@ -510,7 +510,7 @@ mod tests {
         let ctx = egui::Context::default();
         let mut app = KairosApp::new(&ctx, Box::new(EmptySource), false);
         assert!(app.password.secret.is_empty());
-        assert!(app.password.message.contains("noch nicht verfügbar"));
+        assert!(app.password.message.contains("Noch keine Wörter verfügbar"));
         let _ = frame(&ctx, &mut app, vec![]);
         app.compact = true;
         let _ = frame(&ctx, &mut app, vec![]);
