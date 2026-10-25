@@ -1,5 +1,13 @@
 # kairos-wordlists
 
+**Mehrsprachige Erweiterung (PR-7):** `english()`, `latin()` und `combined()`
+ergänzen die unveränderte deutsche Quelle. Je Sprache **7.134 Wörter**,
+zusammen **21.402 eindeutige Wörter** mit Sprachflag. Jede Wortposition kann
+unabhängig aus der Vereinigung gezogen werden. API, Auswahl, disjunkte
+Schnittmengen, Datenlizenzen, Grenzen und Offline-Pipeline stehen im
+[Sprachen-README](data/languages/README.md). Englisch: Mittelwert **6,282**,
+Latein **6,618** Buchstaben.
+
 Die deutsche Wortliste ist mit `include_str!` in die Anwendung eingebettet.
 `german() -> &'static EmbeddedWordList` stellt `kairos_core::WordSource`
 bereit: **7.134 eindeutige Wörter**, je Wort `Language::German`, nur `a`–`z`,
@@ -70,8 +78,8 @@ automatische Tippfehlerkorrektur werden nicht zugesichert. Feste Trenner
 halten die Wortgrenzen eindeutig; dies ist kein direktes Würfelwörterbuch
 mit genau `6^5` Einträgen. Gleichverteilte Indexwahl gehört zu `kairos-core`.
 
-Die Mindestgröße von Profil 0 ist erreicht. Die beispielhaften 21.000 Wörter
-von Profil 1 werden nicht mit ungeprüften Resten aufgefüllt. Vier unabhängig
+Die Mindestgröße von Profil 0 ist erreicht. Die kombinierte Quelle aus PR-7 erreicht Profil 1 mit 21.402 unterschiedlichen
+Wörtern; die folgende Rechnung betrifft die deutsche Einzelquelle. Vier unabhängig
 gleichverteilt gezogene Wörter ergeben bei festem Trenner rund **51,202 Bit**.
 Die durchschnittlichen **6,564 statt sechs Buchstaben** sind eine begründete
 Zielabweichung: unterscheidbare Wörter und Grundformen haben Vorrang vor
@@ -138,7 +146,7 @@ bleibt bewusst erhalten, weil ein Auszug mit Download-Link die vollständige
 Offline-Mitgliedsprüfung nicht leisten würde. `flate2` wird nicht als
 Laufzeitabhängigkeit oder Entpacker in die EXE eingebunden.
 
-## Herkunft und Datenlizenz
+## Herkunft und Datenlizenz der deutschen Liste
 
 Abruf: **25.10.2026**. Original-Lizenzdateien und Projekt-READMEs liegen neben
 den Rohdaten. Crate-Software: MIT OR Apache-2.0. Wortdaten: separat **CC0-1.0**.
@@ -165,8 +173,15 @@ Endungsfilter sind Änderungen des Kairos-Projekts.
   `include_str!` statt generierter Quellcodearrays.
 - **passalong-core 0.3.0:** Text mit `OnceLock` einmal indexieren und
   Wortreferenzen statt einzelner String-Allokationen halten; nur dieses Prinzip.
-- **EFF/Diceware:** Schreibbarkeit und manuelle Prüfung; keine englischen
-  Daten und keine Präfix-/Editierabstandsgarantie übernommen.
+- **EFF/Diceware:** Schreibbarkeit und manuelle Prüfung. PR-7 übernimmt
+  die EFF-Wortdaten direkt unter deren aktueller CC-BY-4.0-Freigabe;
+  Präfix-/Editierabstandsgarantien werden nicht übernommen.
+- **Wordnik (MIT):** nur ausdrückliche kurze Ergänzungen gegen das
+  Originalwörterbuch prüfen, keinen ungeprüften Restpool aufnehmen.
+- **Whitaker's WORDS:** lateinische Grammatik, Frequenz und Bedeutungen als
+  Auswahlsignale; eigener begrenzter Decoder, nur Wortdaten übernommen.
+- **sts10/tidy:** Filter-/Sperrlisten und Deduplizierung vor Zufallsauswahl.
+  Quellenbewertung für diese Erweiterung: [languages.md](../../docs/sources/languages.md).
 
 Feste Quellstände, dateispezifische Lizenzen und Bewertung:
 [`docs/sources/wordlists.md`](../../docs/sources/wordlists.md).
@@ -175,7 +190,7 @@ Werkzeuge und Tests; zur Laufzeit genügen Core und Standardbibliothek.
 
 ## Tests
 
-Zehn Integrationstests und ein Rustdoc-Test prüfen mit
+Die folgenden zehn Integrationstests und ein Rustdoc-Test aus PR-2 prüfen mit
 `cargo test -p kairos-wordlists` Anzahl, Eindeutigkeit, Zeichensatz, Längen,
 Mittelwert, Sprache jedes Eintrags, Leerzeilen, Sortierung, Sperren,
 Indexgrenzen, threadsichere Initialisierung, sortierte/eindeutige
@@ -186,3 +201,8 @@ Pipelinegleichheit, Ergebnis-Hash und sämtliche Rohquellen-Hashes werden
 im Offline-Lauf geprüft. Der Mittelwert darf höchstens 6,6 betragen; die
 engere ±0,5-Spanne um sechs wird zugunsten der erläuterten Grundformauswahl
 nicht erzwungen.
+
+PR-7 ergänzt neun Integrationstests und einen Rustdoc-Test, insgesamt **19 + 2**.
+Sie prüfen die drei disjunkten Sprachmengen, alle Flags, vollständige Union,
+Größen, Interleaving, Prüfsummen und Offline-Reproduktion einschließlich
+Bedeutungsregister. [Details](data/languages/README.md).

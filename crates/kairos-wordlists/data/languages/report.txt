@@ -1,0 +1,16 @@
+German retained: 7134
+English raw rows: 10368
+English eligible distinct: 8301
+English Wordnik selected additions: 1257
+English editorial rejections: 1224
+English overlap removed (German): 383
+English available after curation and overlap removal: 7951
+Latin raw rows: 39335
+Latin eligible distinct (frequency A-D, supported lemma patterns): 11635
+Latin editorial rejections: 2350
+Latin overlap removed (German): 83
+Latin overlap removed (English): 121
+Latin available after curation and overlap removal: 9081
+English final: 7134; mean length: 6.282; sha256: 8531e85df40eac11e40931fe9ef1616d86994671bb1a4f563e71aa9191308a66
+Latin final: 7134; mean length: 6.618; sha256: afd6b6261e895552475eb772617a30121d7ca997c06ff05e3c7cab5bbd1fc35f
+Combined distinct: 21402
