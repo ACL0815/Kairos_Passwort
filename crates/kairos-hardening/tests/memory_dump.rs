@@ -58,7 +58,7 @@ fn contains(path: &Path, marker: &[u8]) -> bool {
 }
 
 #[test]
-#[ignore = "writes two full synthetic-process dumps; run explicitly in release"]
+#[ignore = "writes three full synthetic-process dumps; run explicitly in release"]
 #[allow(
     clippy::assertions_on_constants,
     reason = "manual diagnostic must reject debug runs at runtime"
@@ -85,6 +85,11 @@ fn released_secret_dump_has_positive_control() {
             control16.extend_from_slice(&[control, 0]).unwrap();
         }
         dump(&root.join("positive.dmp"));
+        utf8.clear();
+        utf16.clear();
+        // Both allocations must remain committed in this dump. Testing only
+        // after close() would miss a broken scrub because VirtualFree unmaps.
+        dump(&root.join("cleared.dmp"));
         utf8.close().unwrap();
         utf16.close().unwrap();
         dump(&root.join("released.dmp"));
@@ -118,12 +123,18 @@ fn released_secret_dump_has_positive_control() {
     let control8: Vec<u8> = (0..64).map(|_| next_byte(&mut control_state)).collect();
     let control16: Vec<u8> = control8.iter().flat_map(|b| [*b, 0]).collect();
     for control in [control8, control16] {
-        assert!(
-            contains(&dir.path().join("released.dmp"), &control),
-            "missing live positive control after release"
-        );
+        for phase in ["cleared", "released"] {
+            assert!(
+                contains(&dir.path().join(format!("{phase}.dmp")), &control),
+                "missing live positive control after {phase}"
+            );
+        }
     }
     for (encoding, marker) in [("UTF-8", utf8), ("UTF-16LE", utf16)] {
+        assert!(
+            !contains(&dir.path().join("cleared.dmp"), &marker),
+            "cleared {encoding} marker remains in committed memory"
+        );
         assert!(
             contains(&dir.path().join("positive.dmp"), &marker),
             "missing {encoding} positive control"

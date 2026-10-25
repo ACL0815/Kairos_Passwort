@@ -241,15 +241,15 @@ impl EncryptedStore {
                      );
                      CREATE INDEX words_list ON words(list_id);
                      PRAGMA application_id = 1262573906;
-                     PRAGMA user_version = 1;",
+                     PRAGMA user_version = 2;",
                 )?;
             }
-            (1, 1262573906) => {}
+            (1 | 2, 1262573906) => {}
             _ => return Err(StoreError::UnsupportedSchema),
         }
         let integrity_key = integrity::derive_key(key);
-        integrity::create_table(&tx)?;
         if is_new {
+            integrity::create_table(&tx)?;
             integrity::write_manifest(&tx, integrity_key.as_slice())?;
         }
         tx.commit()?;
@@ -348,8 +348,11 @@ impl EncryptedStore {
         })
     }
 
+    /// Authenticates the entire store before returning any display metadata.
     pub fn lists(&self) -> Result<Vec<ListMetadata>, StoreError> {
-        let mut query = self.connection.prepare(
+        let tx = self.connection.unchecked_transaction()?;
+        integrity::require_unchanged(&tx, self.integrity_key.as_slice())?;
+        let mut query = tx.prepare(
             "SELECT l.id, l.name, l.imported_at, l.source_sha256, count(w.id), l.source_path
              FROM lists l LEFT JOIN words w ON w.list_id = l.id GROUP BY l.id ORDER BY l.id",
         )?;
@@ -452,6 +455,8 @@ mod tests {
         store.connection.execute_batch(
             "CREATE TRIGGER reject_word BEFORE INSERT ON words BEGIN SELECT RAISE(ABORT, 'test'); END;"
         ).unwrap();
+        // Trust the fault-injection fixture so import reaches the failing INSERT.
+        integrity::write_manifest(&store.connection, store.integrity_key.as_slice()).unwrap();
         assert!(store
             .import_bytes(
                 b"apfel\nbirne",
@@ -472,7 +477,7 @@ mod tests {
         let store = EncryptedStore::open_with_key(&path, &key).unwrap();
         store
             .connection
-            .pragma_update(None, "user_version", 2)
+            .pragma_update(None, "user_version", 3)
             .unwrap();
         drop(store);
         assert!(matches!(

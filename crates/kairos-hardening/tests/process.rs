@@ -4,8 +4,9 @@ use kairos_hardening::{harden_process, Measure, Outcome};
 use windows_sys::Win32::{
     Foundation::{CloseHandle, GetLastError, ERROR_ACCESS_DENIED},
     System::Threading::{
-        GetCurrentProcessId, OpenProcess, PROCESS_DUP_HANDLE, PROCESS_QUERY_LIMITED_INFORMATION,
-        PROCESS_VM_READ,
+        GetCurrentProcessId, OpenProcess, PROCESS_CREATE_THREAD, PROCESS_DUP_HANDLE,
+        PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SUSPEND_RESUME,
+        PROCESS_TERMINATE, PROCESS_VM_OPERATION, PROCESS_VM_READ, PROCESS_VM_WRITE,
     },
 };
 
@@ -23,7 +24,18 @@ fn hardening_in_isolated_child() {
         ] {
             assert!(report.measures.contains(&(measure, Outcome::Applied)));
         }
-        for access in [PROCESS_VM_READ, PROCESS_DUP_HANDLE, 0x00040000, 0x00080000] {
+        for access in [
+            PROCESS_CREATE_THREAD,
+            PROCESS_VM_OPERATION,
+            PROCESS_VM_READ,
+            PROCESS_VM_WRITE,
+            PROCESS_DUP_HANDLE,
+            0x00040000, // WRITE_DAC
+            0x00080000, // WRITE_OWNER
+            PROCESS_QUERY_INFORMATION,
+            PROCESS_SUSPEND_RESUME,
+            PROCESS_TERMINATE,
+        ] {
             // SAFETY: opening a fresh handle checks the same-user DACL.
             let handle = unsafe { OpenProcess(access, 0, GetCurrentProcessId()) };
             if !handle.is_null() {

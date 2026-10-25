@@ -88,7 +88,9 @@ Vorbilder für vollständige Authentisierung, Fehlerbehandlung und Schlüsseltre
 **Paket-Manifeste und TUF** ergänzen klar gebundene Objektidentitäten, Längen und
 Inhaltshashes. Deshalb bindet unser HMAC-SHA-256-Manifest Quell-SHA-256 und den
 Hash der tatsächlich gespeicherten Wörter samt Sprache und Reihenfolge sowie
-alle bestehenden Listenmetadaten. Es authentisiert auch den gesamten Listenbestand.
+alle bestehenden Listenmetadaten. Die Manifestdomäne v2 bindet zusätzlich
+`user_version`, `application_id` und sämtliche Schemaobjekte aus `sqlite_master`,
+einschließlich Triggern, Views, Indizes und Constraints. Es authentisiert auch den gesamten Listenbestand.
 Das ist ein eigener lokaler Datentyp, kein KDBX- oder TUF-Format.
 
 **minisign/signify** wären passend, wenn später ein Herausgeber Listen mit einem
@@ -104,7 +106,11 @@ mit CurrentUser-DPAPI. Das spart eine zweite Schlüsseldatei und deren atomare
 Migration. Explizite Schlüssel über `open_with_key` bleiben Aufruferverantwortung.
 SQLCipher und Manifest werden in einer Transaktion aktualisiert; Prüfung und
 Laden verwenden denselben Snapshot. Fehlend und verändert sind Warnzustände und
-blockieren Laden/Import. Migration vertraut keinem Altbestand automatisch.
+blockieren Metadatenanzeige, Laden und Import. Neue Stores nutzen Schema 2 und
+werden von Schema-1-Binaries abgelehnt. Nur echte Schema-1-Stores ohne
+Manifesttabelle erhalten `ManifestMissing` und können nach ausdrücklicher Prüfung
+migriert werden. Ein entferntes Schema-2-Manifest ist `Changed` und kann nicht
+per Baseline-Annahme akzeptiert werden. Migration vertraut keinem Altbestand automatisch.
 Details zum Format und zur ausdrücklichen Baseline-Annahme stehen im
 [Store-README](../../crates/kairos-store/README.md).
 
@@ -125,9 +131,12 @@ die App muss mögliche Netzwerk-/Wechselmedienzugriffe bewusst auslösen.
 ## Dump-Test und Beweisgrenzen
 
 Der ignorierte Release-Test erzeugt einen Laufzeit-Testwert als UTF-8 und
-UTF-16LE direkt in LockedSecret. Er erzeugt FullMemory-Selbst-Dumps vor und nach
-dem Löschen. Im zweiten Dump bleiben getrennte lebende Positivkontrollen beider
-Kodierungen. Der Elternprozess baut Suchmuster erst nach Ende des Kindes auf,
+UTF-16LE direkt in LockedSecret. Er erzeugt drei FullMemory-Selbst-Dumps: mit den
+lebenden Werten, nach `clear()` bei weiterhin belegten und gesperrten Seiten und
+nach `close()` zur Suche nach Restkopien außerhalb der freigegebenen Allokationen.
+Nur der zweite Dump prüft das Löschen unabhängig vom späteren Unmapping. In beiden
+späteren Dumps bleiben getrennte lebende Positivkontrollen beider Kodierungen.
+Der Elternprozess baut Suchmuster erst nach Ende des Kindes auf,
 scannt mit überlappenden Fenstern und entfernt seine temporären Dumps.
 Keine echten Passwörter, keine Literal-Suchwerte im Zielprozess und keine
 Dump-Artefakte in CI. Der manuelle Befehl steht im Hardening-README.

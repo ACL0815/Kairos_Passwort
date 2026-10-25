@@ -89,7 +89,7 @@ Datei; kryptografisch lassen sich diese beiden Ursachen nicht sicher trennen.
 ## Manipulationserkennung beim Start (PR-9a, Prio 5)
 
 Die App soll unmittelbar nach `open` `verify_integrity()` auswerten und
-`Changed` oder `ManifestMissing` als Warnung anzeigen. `load` und Import prüfen
+`Changed` oder `ManifestMissing` als Warnung anzeigen. `lists`, `load` und Import prüfen
 zusätzlich selbst und liefern bei Warnungen `StoreError::IntegrityWarning`.
 So können Aufrufer einen vergessenen Startup-Check nicht zum stillen Laden nutzen.
 Datenbank-/SQLCipher-Fehler sind ebenfalls Fehler und kein erfolgreicher Check.
@@ -97,15 +97,21 @@ Die UI und der tatsächliche Startup-Aufruf sind Teil des späteren Integrations
 
 Das Manifest liegt in `integrity_manifest` innerhalb der verschlüsselten DB.
 Ein neuer leerer Store erhält einen authentisierten leeren Ausgangsstand.
-Ältere Schema-1-Datenbanken erhalten nur die zusätzliche Tabelle, keinen
-automatischen Vertrauensnachweis. Ein fehlender Datensatz bleibt auch nach
-erneutem Öffnen `ManifestMissing`. `accept_current_integrity()` setzt ausdrücklich
-den aktuellen Inhalt als vertrauenswürdig voraus. Diese Funktion ist nur für
-bewusst bestätigte Migration/Wiederherstellung gedacht, niemals als automatische
-Reaktion auf eine Warnung. Ein Neuimport geprüfter Originale in einen neuen Store
-ist die bevorzugte Wiederherstellung.
+Neue Stores verwenden `user_version = 2`; ältere Binaries, die nur Schema 1
+verstehen, lehnen sie als `UnsupportedSchema` ab. Echte Schema-1-Datenbanken ohne
+Manifesttabelle bleiben bis zur ausdrücklichen Migration `ManifestMissing`.
+`accept_current_integrity()` übernimmt nur diesen zuvor geprüften Altbestand und
+schreibt Version 2 und Manifest in einer Transaktion. Niemals automatisch beim
+Start aufrufen. Bei Schema 2 bedeutet eine fehlende Manifesttabelle oder -zeile
+`Changed`, auch nach erneutem Öffnen. Dieser Zustand lässt sich nicht durch
+`accept_current_integrity()` akzeptieren; geprüfte Originale müssen in einen
+neuen Store importiert werden. Eine auf Schema 1 zurückgesetzte Version mit noch
+vorhandener Manifesttabelle gilt ebenfalls als `Changed`.
 
-Das versionierte Binärformat bindet Listenanzahl, Gesamtwortanzahl und je Liste
+Das versionierte Binärformat (Manifestdomäne v2) bindet zuerst `user_version`,
+`application_id` und alle `sqlite_master`-Objekte (Typ, Name, zugehörige Tabelle und
+SQL einschließlich Trigger, Views, Indizes und Constraints) in stabiler Reihenfolge.
+Es bindet außerdem Listenanzahl, Gesamtwortanzahl und je Liste
 ID, Name, Importzeit, bytegenauen Quell-SHA-256, optionalen Quellpfad, Wortanzahl
 und SHA-256 der gespeicherten Wortzeilen. Die Wort-Hashes binden Zeilen-ID,
 Wortbytes und Sprache in stabiler ID-Reihenfolge. Diese Entscheidung bindet auch
@@ -132,6 +138,13 @@ das Manifest innerhalb einer IMMEDIATE-Transaktion. Fehler rollen alles zurück.
 Verifikation und Laden lesen Manifest und Wörter aus derselben DB-Sicht.
 Es gibt keinen separaten Manifestdatei-Rename und damit keinen Zwei-Dateien-
 Commit. SHA-256 allein reicht nicht, wenn der Angreifer die Referenz ändern kann.
+
+Jeder `load()`- und `lists()`-Aufruf liest und hasht den gesamten Wortbestand
+(O(N)), auch bei einem Filter auf eine einzelne Liste. Eine defekte Liste sperrt
+bewusst alle Listen des Stores. Für wiederholte Generierung soll die App einmal
+beim Start laden und den unabhängigen, unveränderlichen `StoredWordList`-Snapshot
+weiterverwenden, statt pro Passwort neu zu laden. Ein späteres erneutes Laden
+prüft wieder vollständig; es gibt keinen veraltbaren „bereits geprüft“-Cache.
 
 Modelled after: KeePassXC KDBX4 für authentisierte Metadaten und reihenfolgegebundene
 Inhalte; TUF und Paket-Manifeste für Identität, Länge und Hash je Objekt;

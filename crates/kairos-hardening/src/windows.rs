@@ -21,14 +21,14 @@ use windows_sys::Win32::{
     },
 };
 
-use crate::{HardeningReport, Measure, Outcome};
+use crate::{HardeningReport, Measure, OsError, Outcome};
 
 fn win32(success: i32) -> Outcome {
     if success != 0 {
         Outcome::Applied
     } else {
         // SAFETY: no intervening Win32 operation before retrieving this error.
-        Outcome::Failed(unsafe { GetLastError() })
+        Outcome::Failed(OsError::Win32(unsafe { GetLastError() }))
     }
 }
 
@@ -41,7 +41,7 @@ fn wer() -> Outcome {
     // Only that initial absence is treated as default flags; all other errors
     // and every post-set read failure remain visible in the report.
     if status < 0 && status as u32 != 0x80070490 {
-        return Outcome::Failed(status as u32);
+        return Outcome::Failed(OsError::HResult(status));
     }
     let required = WER_FAULT_REPORTING_FLAG_NOHEAP
         | WER_FAULT_REPORTING_FLAG_NO_HEAP_ON_QUEUE
@@ -50,14 +50,14 @@ fn wer() -> Outcome {
     // SAFETY: only documented process-local reporting flags, retaining old flags.
     let status = unsafe { WerSetFlags(flags | required) };
     if status < 0 {
-        return Outcome::Failed(status as u32);
+        return Outcome::Failed(OsError::HResult(status));
     }
     // SAFETY: same valid output and pseudo handle as above.
     let status = unsafe { WerGetFlags(GetCurrentProcess(), &mut flags) };
     if status < 0 {
-        Outcome::Failed(status as u32)
+        Outcome::Failed(OsError::HResult(status))
     } else if flags & required != required {
-        Outcome::Failed(ERROR_INVALID_DATA)
+        Outcome::Failed(OsError::Win32(ERROR_INVALID_DATA))
     } else {
         Outcome::Applied
     }
@@ -98,7 +98,7 @@ fn mitigation(policy: PROCESS_MITIGATION_POLICY, required: u32) -> Outcome {
     if result != Outcome::Applied {
         result
     } else if flags & required != required {
-        Outcome::Failed(ERROR_INVALID_DATA)
+        Outcome::Failed(OsError::Win32(ERROR_INVALID_DATA))
     } else {
         Outcome::Applied
     }
@@ -132,7 +132,7 @@ fn dacl() -> Outcome {
     // SAFETY: descriptor belongs to LocalAlloc, released exactly once.
     let free_failed = unsafe { !LocalFree(descriptor).is_null() };
     if free_failed && result == Outcome::Applied {
-        Outcome::Failed(unsafe { GetLastError() })
+        Outcome::Failed(OsError::Win32(unsafe { GetLastError() }))
     } else {
         result
     }
@@ -164,7 +164,7 @@ mod tests {
         unsafe {
             windows_sys::Win32::Foundation::SetLastError(5);
         }
-        assert_eq!(win32(0), Outcome::Failed(5));
+        assert_eq!(win32(0), Outcome::Failed(OsError::Win32(5)));
         assert_eq!(win32(1), Outcome::Applied);
     }
 }

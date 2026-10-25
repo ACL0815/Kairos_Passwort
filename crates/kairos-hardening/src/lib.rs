@@ -40,11 +40,18 @@ pub enum Measure {
     ImageLoads,
 }
 
+/// Error namespace for selecting the correct OS message formatter.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OsError {
+    Win32(u32),
+    HResult(i32),
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Outcome {
     Applied,
-    /// Win32 error or HRESULT, retaining its original bits.
-    Failed(u32),
+    /// Tagged Win32 error or HRESULT, retaining its original bits.
+    Failed(OsError),
     Unsupported,
 }
 
@@ -99,7 +106,7 @@ mod tests {
             .measures
             .push((Measure::ProcessDacl, Outcome::Applied));
         assert!(report.all_applied());
-        for outcome in [Outcome::Failed(5), Outcome::Unsupported] {
+        for outcome in [Outcome::Failed(OsError::Win32(5)), Outcome::Unsupported] {
             report.measures.push((Measure::ImageLoads, outcome));
             assert!(!report.all_applied());
             report.measures.pop();

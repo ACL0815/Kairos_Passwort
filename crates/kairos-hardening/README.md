@@ -9,8 +9,9 @@ Länge → keine unnötige Speicherung → Zwischenablage → Überschreiben/Dum
 ## Prozessstart
 
 `harden_process() -> HardeningReport` einmal vor sensibler Verarbeitung aufrufen.
-Jeder Eintrag enthält `Applied`, den unveränderten Win32-/HRESULT-Fehlercode oder
-`Unsupported`. Die App muss unvollständigen Schutz sichtbar machen. Die Funktion
+Jeder Eintrag enthält `Applied`, einen typisierten Fehler (`OsError::Win32` oder
+`OsError::HResult`) mit unverändertem Code oder `Unsupported`. Die App muss
+unvollständigen Schutz sichtbar machen. Die Funktion
 panikt nicht bei OS-Fehlern und ändert nur ihren eigenen Prozess. Manche Policies
 sind nicht rückgängig zu machen. Die App muss die Kompatibilität mit Hotkeys,
 Eingabemethoden, Barrierefreiheit und nativen Bibliotheken separat prüfen.
@@ -24,11 +25,18 @@ Eingabemethoden, Barrierefreiheit und nativen Bibliotheken separat prüfen.
   das implizite WRITE_DAC des Besitzers. QueryLimitedInformation, READ_CONTROL
   und Synchronize bleiben erlaubt. Die DACL ersetzt die bestehende DACL und
   kann Diagnosewerkzeuge beeinträchtigen. Bereits geöffnete oder geerbte
-  Handles bleiben verwendbar. Administratoren mit SeDebugPrivilege, Kernelcode,
+  Handles bleiben verwendbar. Neue Handles mit QUERY_INFORMATION, SUSPEND_RESUME
+  oder TERMINATE werden ebenfalls nicht erlaubt. Ein gewöhnlicher Task-Manager
+  desselben Nutzers kann den Prozess daher möglicherweise nicht mehr beenden;
+  ein zuvor geöffneter Handle oder erhöhte Debugrechte bleiben Ausnahmen.
+  Administratoren mit SeDebugPrivilege, Kernelcode,
   Tokenzugriff und Schadcode im Prozess bleiben außerhalb der Schutzwirkung.
 - ExtensionPointDisable deaktiviert alte DLL-Erweiterungspunkte. ImageLoad
   verbietet neue Remote-/Low-Integrity-Images und bevorzugt System32. Bestehende
   Flags bleiben erhalten, Rücklesen kontrolliert die angeforderten Bits.
+  NoRemoteImages kann spätere DLL-Loads von UNC-/Netzlaufwerken verhindern;
+  PreferSystem32 verändert die DLL-Suche. Portable Installationen auf Netzmedien
+  brauchen deshalb eine eigene Kompatibilitätsprüfung vor der App-Integration.
 
 DEP/ASLR/CFG müssen bereits zum Build und Prozessstart passen. Nachträgliches
 Setzen kann fehlende Compilerinstrumentierung oder bereits geladene Images
@@ -49,6 +57,13 @@ auch ungenutztes Padding, mit `zeroize`, bevor sie entsperrt/freigegeben wird.
 `close(self)` gibt Entsperrfehler zurück. Drop kann Fehler nicht zurückgeben.
 Die Allokation besitzt keine Debug-/Clone-Implementierung. Ausgeliehene Bytes
 können Aufrufer weiterhin kopieren.
+
+`LockedSecret` ist mit dem gewählten region-Backend `!Send` und `!Sync` und bleibt
+am erzeugenden Thread. Die spätere GUI-/Worker-Integration muss den Puffer dort
+anlegen und verwenden. Es gibt keine ungeprüfte `unsafe impl Send`-Zusicherung.
+`HardeningError::Memory` enthält derzeit `region::Error`; die öffentliche
+Fehlerstruktur ist damit bewusst an die gepinnte Version 3.0.2 gekoppelt. Vor
+einer stabilen externen API muss diese Kopplung neu bewertet werden.
 
 Für die App empfiehlt sich ein vorab dimensionierter Puffer, direkte Erzeugung
 oder kurzlebige Übernahme aus `GeneratedPassword.secret`, danach sofortiges
@@ -73,17 +88,20 @@ Der Kindprozess prüft auch, dass derselbe Benutzer keine neuen gefährlichen
 Prozesshandles öffnen kann und QueryLimitedInformation weiter funktioniert.
 
 Der ignorierte Test erzeugt ausschließlich synthetische Daten in einem eigenen
-Kindprozess und schreibt zwei Full-Memory-Dumps dieses Prozesses:
+Kindprozess und schreibt drei Full-Memory-Dumps dieses Prozesses:
 
 ```powershell
 cargo test --release -p kairos-hardening --test memory_dump -- --ignored --nocapture
 ```
 
 Ein Laufzeit-Seed erzeugt die bekannte ASCII-Testpasswortfolge direkt in zwei
-LockedSecret-Puffern als UTF-8 und UTF-16LE. Der erste Dump enthält die noch
-lebenden Puffer, der zweite entsteht nach `close`. Zusätzlich müssen beide
-Kodierungen einer anderen, noch lebenden Positivkontrolle im zweiten Dump
-gefunden werden. Erst der Elternprozess baut die Suchfolgen auf und scannt
+LockedSecret-Puffern als UTF-8 und UTF-16LE. Der erste Dump enthält die Werte.
+Der zweite entsteht nach `clear()`, während dieselben Seiten weiter belegt und
+gesperrt bleiben; dort müssen beide Werte fehlen. Damit prüft er das Löschen
+vor dem Unmapping. Der dritte entsteht nach `close()` und prüft zusätzlich auf
+Restkopien außerhalb der freigegebenen Puffer. In beiden späteren Dumps müssen
+beide Kodierungen einer anderen, noch lebenden Positivkontrolle auffindbar sein.
+Erst der Elternprozess baut die Suchfolgen auf und scannt
 mit überlappenden Lesefenstern. Passwörter stehen nicht als Literale, Argumente
 oder Umgebungswerte im Kind. Der Seed ist ein Testprotokoll, kein Geheimnis und
 kein produktiver Passwortgenerator. Temporäre Dumps werden auch bei normalen
@@ -94,7 +112,7 @@ Microsoft empfiehlt für produktive Diagnose einen externen Helper, weil Selbst-
 Dumps Loader-Deadlocks riskieren. Der Test ist deshalb manuell und ignoriert.
 Er lässt keine unzugänglichen Regionen per IgnoreInaccessibleMemory aus.
 Ein fehlender Treffer beweist keine vollständige Löschung. Gemessen werden nur
-die bekannten zusammenhängenden Bytefolgen zu den beiden Zeitpunkten in den
+die bekannten zusammenhängenden Bytefolgen zu den drei Zeitpunkten in den
 erfassten Bereichen. GUI, Generator, Clipboard und Zielprogramme sind kein Teil
 dieses Tests. Eigene Speicherlöschung ersetzt deren spätere Prüfung nicht.
 

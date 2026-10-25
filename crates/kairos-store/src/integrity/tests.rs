@@ -1,5 +1,6 @@
 use super::*;
 use crate::{ImportRules, Language};
+use kairos_core::WordSource;
 
 fn store() -> (tempfile::TempDir, EncryptedStore) {
     let dir = tempfile::tempdir().unwrap();
@@ -34,6 +35,12 @@ fn changed_words_metadata_membership_and_manifest_are_detected() {
         "DELETE FROM words; DELETE FROM lists",
         "UPDATE integrity_manifest SET tag = zeroblob(32)",
         "UPDATE integrity_manifest SET payload = X'00'",
+        "CREATE TRIGGER inject_word AFTER INSERT ON words BEGIN UPDATE words SET word = 'falsch'; END",
+        "CREATE VIEW injected_view AS SELECT * FROM words",
+        "CREATE INDEX injected_index ON words(word)",
+        "PRAGMA user_version = 1",
+        "PRAGMA user_version = 3",
+        "PRAGMA application_id = 0",
     ] {
         let (_dir, mut store) = store();
         assert_eq!(
@@ -51,6 +58,10 @@ fn changed_words_metadata_membership_and_manifest_are_detected() {
             Err(StoreError::IntegrityWarning(IntegrityStatus::Changed))
         ));
         assert!(matches!(
+            store.lists(),
+            Err(StoreError::IntegrityWarning(IntegrityStatus::Changed))
+        ));
+        assert!(matches!(
             store.import_bytes(b"haus", "New", Language::German, &ImportRules::default()),
             Err(StoreError::IntegrityWarning(IntegrityStatus::Changed))
         ));
@@ -58,35 +69,43 @@ fn changed_words_metadata_membership_and_manifest_are_detected() {
 }
 
 #[test]
-fn missing_manifest_requires_explicit_trust_and_is_never_recreated_on_open() {
-    let (dir, mut store) = store();
+fn removed_schema_two_manifest_is_changed_and_cannot_be_accepted() {
     for sql in [
         "DELETE FROM integrity_manifest",
         "DROP TABLE integrity_manifest",
     ] {
+        let dir = tempfile::tempdir().unwrap();
+        let key = DatabaseKey::generate().unwrap();
+        let path = dir.path().join("words.db");
+        let store = EncryptedStore::open_with_key(&path, &key).unwrap();
         store.connection.execute_batch(sql).unwrap();
-        assert_eq!(
-            store.verify_integrity().unwrap(),
-            IntegrityStatus::ManifestMissing
-        );
+        drop(store);
+        let mut store = EncryptedStore::open_with_key(&path, &key).unwrap();
+        assert_eq!(store.verify_integrity().unwrap(), IntegrityStatus::Changed);
         assert!(matches!(
             store.load(None, None),
-            Err(StoreError::IntegrityWarning(
-                IntegrityStatus::ManifestMissing
-            ))
+            Err(StoreError::IntegrityWarning(IntegrityStatus::Changed))
         ));
-        store.accept_current_integrity().unwrap();
-        assert_eq!(
-            store.verify_integrity().unwrap(),
-            IntegrityStatus::Unchanged
-        );
+        assert!(matches!(
+            store.accept_current_integrity(),
+            Err(StoreError::IntegrityWarning(IntegrityStatus::Changed))
+        ));
     }
+}
+
+#[test]
+fn legacy_schema_migrates_only_after_explicit_acceptance() {
+    let dir = tempfile::tempdir().unwrap();
     let key = DatabaseKey::generate().unwrap();
     let path = dir.path().join("legacy.db");
-    let legacy = EncryptedStore::open_with_key(&path, &key).unwrap();
+    let mut legacy = EncryptedStore::open_with_key(&path, &key).unwrap();
+    legacy
+        .import_bytes(b"haus", "Legacy", Language::German, &ImportRules::default())
+        .unwrap();
+    // Exact legacy schema: no manifest table and user_version 1.
     legacy
         .connection
-        .execute_batch("DROP TABLE integrity_manifest")
+        .execute_batch("DROP TABLE integrity_manifest; PRAGMA user_version = 1")
         .unwrap();
     drop(legacy);
     let mut legacy = EncryptedStore::open_with_key(&path, &key).unwrap();
@@ -94,11 +113,54 @@ fn missing_manifest_requires_explicit_trust_and_is_never_recreated_on_open() {
         legacy.verify_integrity().unwrap(),
         IntegrityStatus::ManifestMissing
     );
+    assert!(matches!(
+        legacy.lists(),
+        Err(StoreError::IntegrityWarning(
+            IntegrityStatus::ManifestMissing
+        ))
+    ));
+    assert!(matches!(
+        legacy.load(None, None),
+        Err(StoreError::IntegrityWarning(
+            IntegrityStatus::ManifestMissing
+        ))
+    ));
+    assert!(matches!(
+        legacy.import_bytes(b"boot", "New", Language::German, &ImportRules::default()),
+        Err(StoreError::IntegrityWarning(
+            IntegrityStatus::ManifestMissing
+        ))
+    ));
     legacy.accept_current_integrity().unwrap();
     assert_eq!(
         legacy.verify_integrity().unwrap(),
         IntegrityStatus::Unchanged
     );
+    let version: i64 = legacy
+        .connection
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .unwrap();
+    assert_eq!(version, 2, "legacy binaries only accept schema 1");
+    assert_eq!(legacy.lists().unwrap()[0].name, "Legacy");
+    assert_eq!(legacy.load(None, None).unwrap().word(0), "haus");
+    drop(legacy);
+    let mut upgraded = EncryptedStore::open_with_key(&path, &key).unwrap();
+    assert_eq!(
+        upgraded.verify_integrity().unwrap(),
+        IntegrityStatus::Unchanged
+    );
+    upgraded
+        .connection
+        .pragma_update(None, "user_version", 1)
+        .unwrap();
+    assert_eq!(
+        upgraded.verify_integrity().unwrap(),
+        IntegrityStatus::Changed
+    );
+    assert!(matches!(
+        upgraded.accept_current_integrity(),
+        Err(StoreError::IntegrityWarning(IntegrityStatus::Changed))
+    ));
 }
 
 #[test]
@@ -112,7 +174,9 @@ fn wrong_manifest_key_fails_authentication() {
 fn manifest_failure_rolls_back_the_entire_import() {
     let (_dir, mut store) = store();
     let before = store.lists().unwrap();
-    store.connection.execute_batch("CREATE TRIGGER reject_manifest BEFORE INSERT ON integrity_manifest BEGIN SELECT RAISE(ABORT, 'test'); END;").unwrap();
+    store.connection.execute_batch("CREATE TRIGGER reject_manifest BEFORE INSERT ON integrity_manifest WHEN (SELECT count(*) FROM lists) > 1 BEGIN SELECT RAISE(ABORT, 'test'); END;").unwrap();
+    // Authenticate the deliberate failure fixture; import must reach its commit.
+    write_manifest(&store.connection, store.integrity_key.as_slice()).unwrap();
     assert!(store
         .import_bytes(
             b"haus",
@@ -162,31 +226,29 @@ fn original_source_changes_are_advisory_and_unavailable_is_distinct() {
 }
 
 #[test]
+#[cfg(windows)]
 fn manifest_reopens_with_the_same_dpapi_protected_key() {
-    #[cfg(windows)]
-    {
-        let dir = tempfile::tempdir().unwrap();
-        let paths = crate::StorePaths {
-            database: dir.path().join("words.db"),
-            key_file: dir.path().join("key.dpapi"),
-        };
-        let mut store = EncryptedStore::open(&paths).unwrap();
-        store
-            .import_bytes(b"haus", "File", Language::German, &ImportRules::default())
-            .unwrap();
-        assert_eq!(
-            store.verify_integrity().unwrap(),
-            IntegrityStatus::Unchanged
-        );
-        drop(store);
-        assert_eq!(
-            EncryptedStore::open(&paths)
-                .unwrap()
-                .verify_integrity()
-                .unwrap(),
-            IntegrityStatus::Unchanged
-        );
-    }
+    let dir = tempfile::tempdir().unwrap();
+    let paths = crate::StorePaths {
+        database: dir.path().join("words.db"),
+        key_file: dir.path().join("key.dpapi"),
+    };
+    let mut store = EncryptedStore::open(&paths).unwrap();
+    store
+        .import_bytes(b"haus", "File", Language::German, &ImportRules::default())
+        .unwrap();
+    assert_eq!(
+        store.verify_integrity().unwrap(),
+        IntegrityStatus::Unchanged
+    );
+    drop(store);
+    assert_eq!(
+        EncryptedStore::open(&paths)
+            .unwrap()
+            .verify_integrity()
+            .unwrap(),
+        IntegrityStatus::Unchanged
+    );
 }
 
 #[test]

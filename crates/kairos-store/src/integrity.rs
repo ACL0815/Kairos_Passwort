@@ -14,7 +14,7 @@ use zeroize::{Zeroize, Zeroizing};
 use crate::{DatabaseKey, EncryptedStore, StoreError};
 
 type HmacSha256 = Hmac<Sha256>;
-const DOMAIN: &[u8] = b"Kairos word-list manifest v1\0";
+const DOMAIN: &[u8] = b"Kairos word-list manifest v2\0";
 
 /// A startup warning; absence is deliberately distinct from successful checking.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -22,6 +22,7 @@ const DOMAIN: &[u8] = b"Kairos word-list manifest v1\0";
 pub enum IntegrityStatus {
     Unchanged,
     Changed,
+    /// A legacy schema-1 store without a manifest, requiring explicit migration.
     ManifestMissing,
 }
 
@@ -49,13 +50,19 @@ impl EncryptedStore {
         verify(&tx, self.integrity_key.as_slice())
     }
 
-    /// Explicitly trusts the current database as a new baseline, for migration
-    /// or user-reviewed recovery only. Never call automatically on startup.
-    /// Prefer reimporting a known source into a new store after a warning.
+    /// Explicitly migrates a legacy schema-1 store after reviewing its contents.
+    /// Never call automatically on startup. Changed schema-2 stores cannot be
+    /// accepted: reimport known sources into a new store instead.
     pub fn accept_current_integrity(&mut self) -> Result<(), StoreError> {
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        match verify(&tx, self.integrity_key.as_slice())? {
+            IntegrityStatus::ManifestMissing => {}
+            IntegrityStatus::Unchanged => return Ok(()),
+            warning => return Err(StoreError::IntegrityWarning(warning)),
+        }
+        tx.pragma_update(None, "user_version", 2)?;
         create_table(&tx)?;
         write_manifest(&tx, self.integrity_key.as_slice())?;
         tx.commit()?;
@@ -140,6 +147,24 @@ fn field(output: &mut Vec<u8>, bytes: &[u8]) {
 /// identities and languages as well as bytes; IDs preserve generator ordering.
 fn snapshot(db: &Connection) -> Result<Vec<u8>, StoreError> {
     let mut output = DOMAIN.to_vec();
+    for pragma in ["user_version", "application_id"] {
+        let value: i64 = db.pragma_query_value(None, pragma, |r| r.get(0))?;
+        field(&mut output, &value.to_le_bytes());
+    }
+    // Bind triggers, views, indices and constraints as well as the data. The
+    // manifest table's schema contains no payload bytes, so no circular hash.
+    let mut schema =
+        db.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name")?;
+    let schema_count: i64 = db.query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get(0))?;
+    output.extend_from_slice(&schema_count.to_le_bytes());
+    let mut objects = schema.query([])?;
+    while let Some(object) = objects.next()? {
+        for index in 0..4 {
+            let value: Option<String> = object.get(index)?;
+            output.push(u8::from(value.is_some()));
+            field(&mut output, value.as_deref().unwrap_or("").as_bytes());
+        }
+    }
     let count: i64 = db.query_row("SELECT count(*) FROM lists", [], |r| r.get(0))?;
     output.extend_from_slice(&count.to_le_bytes());
     let all_words: i64 = db.query_row("SELECT count(*) FROM words", [], |r| r.get(0))?;
@@ -191,9 +216,14 @@ pub(crate) fn write_manifest(db: &Connection, key: &[u8]) -> Result<(), StoreErr
 }
 
 fn verify(db: &Connection, key: &[u8]) -> Result<IntegrityStatus, StoreError> {
+    let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
+    let app: i64 = db.pragma_query_value(None, "application_id", |r| r.get(0))?;
     let exists: bool = db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='integrity_manifest')", [], |r| r.get(0))?;
-    if !exists {
+    if version == 1 && app == 1262573906 && !exists {
         return Ok(IntegrityStatus::ManifestMissing);
+    }
+    if version != 2 || app != 1262573906 || !exists {
+        return Ok(IntegrityStatus::Changed);
     }
     let record = db
         .query_row(
@@ -203,7 +233,7 @@ fn verify(db: &Connection, key: &[u8]) -> Result<IntegrityStatus, StoreError> {
         )
         .optional()?;
     let Some((payload, tag)) = record else {
-        return Ok(IntegrityStatus::ManifestMissing);
+        return Ok(IntegrityStatus::Changed);
     };
     let mut mac = HmacSha256::new_from_slice(key).expect("HMAC accepts any key length");
     mac.update(&payload);
