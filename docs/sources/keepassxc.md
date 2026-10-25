@@ -1,5 +1,47 @@
 # KeePassXC-Browser-Protokoll und spätere URL-Brücke
 
+## Ergänzung PR-6b / PR-10: bestätigter F11-Fluss
+
+`feat/keepassxc-browser-bridge` verbindet den vorhandenen Client mit F11.
+Die Desktop-Hotkey-Grenze bleibt erhalten: keine verlässliche Tab-URL aus dem
+Hotkey. Violentmonkey liefert nur einen kurzlebigen Vorschlag mit lokalem
+HWND/PID-Hinweis, den der Nutzer ausdrücklich übernimmt. Fehlt dieser, bleibt
+das URL-Feld leer. Query und Fragment werden vor dem Schreiben entfernt.
+
+| Projekt | Permalink | Lizenz | Datei | Prinzip | Passung + Bewertung | Abrufdatum |
+|---|---|---|---|---|---|---|
+| KeePassXC | [BrowserAction](https://github.com/keepassxreboot/keepassxc/blob/860e51d8e9a5a67e73de79b173ae9bd5bdb5ebda/src/browser/BrowserAction.cpp) | GPL-2.0 OR GPL-3.0, Dateiheader | `src/browser/BrowserAction.cpp` | `test-associate`, bewusstes `associate`, neuer `set-login` | **5/5**, bestehende Crate unverändert wiederverwendet. Kein Code kopiert; Annahme ist keine Persistenzbestätigung. | 2026-10-25 |
+| 2FAS Auth | [Crypt.js](https://github.com/twofas/2fas-browser-extension/blob/9ad6e83d12792d0b3d8d66f018ace6765ebc3139/src/background/functions/Crypt.js) | GPL-3.0-or-later | `src/background/functions/Crypt.js` | Nutzerbestätigte Kopplung und getrennte Schlüsselrollen | **4/5**, Ablaufvorbild. Keine Übernahme von RSA-/Relay-Architektur. | 2026-10-25 |
+| Syncthing | [api.go](https://github.com/syncthing/syncthing/blob/a4a2da477f32d29eda98cc6eb08554dfe5078875/lib/api/api.go) | MPL-2.0 | `lib/api/api.go` | Host-/CSRF-Prüfung zusätzlich zu Auth | **5/5**, lokale Brücke übernimmt Prinzipien mit strengeren Origin-/CORS-Regeln. | 2026-10-25 |
+| Bitwarden | [Native Messaging](https://github.com/bitwarden/clients/blob/c0ca72a0c83cc8b7f990138ac04961cf63d985bc/apps/desktop/src/main/native-messaging.main.ts) | GPL-3.0 | `apps/desktop/src/main/native-messaging.main.ts` | Extension-ID-Bindung | **4/5**, späterer Zielpfad; mit Userscript nicht erreichbar. | 2026-10-25 |
+
+F11-Reihenfolge: Zielfeld erfassen, frisch generieren, URL/Benutzer/Gruppe prüfen,
+`test_associate`, bei `MissingAssociation` getrennte geführte Nutzerkopplung,
+erneut Eintragen bestätigen, `set_login`. Erst nach Annahme folgt ein frischer
+Klick zum Tippen über das ursprüngliche `FocusTarget`. Das vermeidet eine
+veraltete Autotype-Freigabe nach langen Dialogen. Ablehnung/Timeout: kein Tippen,
+kein Retry. Eingabefehler nach Annahme: sichtbares Teilergebnis, kein automatisches
+Löschen eines möglicherweise angelegten Eintrags. Browser-DOM-Feldwechsel und
+KeePassXCs DB-/Gruppen-/Persistenzgrenzen bleiben sichtbar dokumentiert.
+
+Die Brücke verwendet einen getrennten DPAPI-Blob mit festem Marker im vorhandenen
+insert-only Adapter; KeePassXC-Identifikationsschlüssel werden nicht geteilt.
+Beschädigte/widerrufene Zuordnung wird nicht automatisch ersetzt. Bewusster
+Neukopplungsablauf per manuellem Backup-Umbenennen und Widerruf in KeePassXC
+steht in der [Browser-Anleitung](../../browser/README.md). Vollständige
+Quellenbewertung für VM und localhost: [browser.md](browser.md).
+
+Nach dem kritischen Review: Jede Änderung an URL, Benutzername, Gruppe, UUID
+oder Passwort hebt die Bestätigung auf. Generator-/Clipboard-Fehler werden auch
+im F11-Dialog angezeigt; Saving/Accepted blockiert weitere Hotkeys, laufendes
+I/O verhindert normales Schließen. Egui-Regressionstests prüfen diese Abläufe.
+Der verzögert verarbeitete Hotkey kann weiterhin einen Fensterhinweis liefern,
+der nicht dem früher erfassten Tippziel entspricht; deshalb keine automatische
+URL-Übernahme und ausdrücklicher Warntext. Eine zuverlässige Snapshot-API wäre
+eine spätere additive Plattformänderung außerhalb dieses PR-Schreibbereichs.
+
+---
+
 Zuständig: **PR-6**, `feat/keepassxc-browser`, Priorität 3, Basis `main` bei
 `fa35aded13b50a67a817db79258b1ba1c95a9d46`. Der präzisierte PR-Auftrag verschiebt
 die App-/Hotkey-Integration in einen Folge-PR. Keine Änderungen an gemeinsamen

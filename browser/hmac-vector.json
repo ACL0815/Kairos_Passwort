@@ -1,0 +1,8 @@
+{
+  "secret": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "body": "{\"timestamp\":1700000000,\"nonce\":\"000102030405060708090a0b0c0d0e0f\",\"url\":\"https://example.invalid/signup\",\"username\":\"Jörg\"}",
+  "body_sha256": "7be6a3e9c85607b9f82db4ff82da1af19752a2a974d76cd13b8a5eb5baa861aa",
+  "canonical": "kairos-bridge-v2\nPOST\n/v2/context\n127.0.0.1:19471\n1700000000\n000102030405060708090a0b0c0d0e0f\n7be6a3e9c85607b9f82db4ff82da1af19752a2a974d76cd13b8a5eb5baa861aa",
+  "hmac": "f99849c4189d24be9cb508eb3058daccfaa4b7125a805840c12b19382cf1ecc8",
+  "client_key": "-hvWdkaQxz7FkOqbcLTIY6m3ppytT7d4eqWomsAJ3TE"
+}

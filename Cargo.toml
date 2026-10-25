@@ -6,6 +6,7 @@ members = [
     "crates/kairos-hardening",
     "crates/kairos-platform",
     "crates/kairos-keepassxc",
+    "crates/kairos-bridge",
     "apps/kairos",
 ]
 resolver = "2"
@@ -23,5 +24,6 @@ kairos-store = { path = "crates/kairos-store" }
 kairos-hardening = { path = "crates/kairos-hardening" }
 kairos-platform = { path = "crates/kairos-platform" }
 kairos-keepassxc = { path = "crates/kairos-keepassxc" }
+kairos-bridge = { path = "crates/kairos-bridge" }
 # Workspace MSRV: Rust 1.95 (verified dependency requirement).
 zeroize = "=1.8.2"
