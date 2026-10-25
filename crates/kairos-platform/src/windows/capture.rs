@@ -15,6 +15,7 @@ use windows_sys::{
 
 thread_local! {
     static STATE: Cell<Option<Rc<Cell<CaptureStatus>>>> = const { Cell::new(None) };
+    static NESTED_SHOW: Cell<bool> = const { Cell::new(false) };
 }
 
 fn affinity_for_version(major: u32, build: u32) -> u32 {
@@ -96,6 +97,7 @@ impl Hook {
             }));
         }
         STATE.with(|slot| slot.set(Some(state)));
+        NESTED_SHOW.with(|skipped| skipped.set(false));
         Ok(Self(hook))
     }
 }
@@ -104,6 +106,7 @@ impl Drop for Hook {
     fn drop(&mut self) {
         unsafe { UnhookWindowsHookEx(self.0) };
         STATE.with(|slot| slot.set(None));
+        NESTED_SHOW.with(|skipped| skipped.set(false));
     }
 }
 
@@ -127,12 +130,16 @@ unsafe extern "system" fn before_window_message(
             // Remove the slot while calling Win32, so nested messages cannot reenter it.
             STATE.with(|slot| {
                 if let Some(state) = slot.take() {
-                    state.set(
-                        state
-                            .get()
-                            .record(apply(message.hwnd, CapturePolicy::Protect)),
-                    );
+                    let result = apply(message.hwnd, CapturePolicy::Protect);
+                    let result = if NESTED_SHOW.with(|skipped| skipped.replace(false)) {
+                        CaptureStatus::Unavailable(CaptureError::NestedWindowShow)
+                    } else {
+                        result
+                    };
+                    state.set(state.get().record(result));
                     slot.set(Some(state));
+                } else {
+                    NESTED_SHOW.with(|skipped| skipped.set(true));
                 }
             });
         }
@@ -152,5 +159,39 @@ mod tests {
         for (major, build) in [(10, 19041), (10, 26100), (11, 1)] {
             assert_eq!(affinity_for_version(major, build), WDA_EXCLUDEFROMCAPTURE);
         }
+    }
+
+    #[test]
+    fn skipped_nested_show_does_not_leave_a_successful_status() {
+        let guard = crate::CaptureProtection::new(CapturePolicy::Protect);
+        let window = unsafe {
+            CreateWindowExW(
+                0,
+                windows_sys::core::w!("STATIC"),
+                windows_sys::core::w!("PUBLIC NESTED SHOW"),
+                WS_OVERLAPPEDWINDOW,
+                -32000,
+                -32000,
+                100,
+                100,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null(),
+            )
+        };
+        assert!(!window.is_null());
+        // Simulate the removed slot during an outer apply, using a real hook notification.
+        STATE.with(|slot| {
+            let outer = slot.take().unwrap();
+            unsafe { SendMessageW(window, WM_SHOWWINDOW, 1, 0) };
+            slot.set(Some(outer));
+        });
+        unsafe { SendMessageW(window, WM_SHOWWINDOW, 1, 0) };
+        unsafe { DestroyWindow(window) };
+        assert_eq!(
+            guard.status(),
+            CaptureStatus::Unavailable(CaptureError::NestedWindowShow)
+        );
     }
 }

@@ -26,6 +26,16 @@ nicht `Send`; ein künftig zusätzlicher GUI-Thread benötigt einen eigenen Guar
 Message-Only-Fenster der Clipboard-/Hotkey-Worker enthalten keine sichtbaren
 Passwörter und benötigen keine Anzeigeaffinität. Drop entfernt den Hook.
 
+Reine `GWL_STYLE`-Änderungen mit `WS_VISIBLE` lösen die beobachteten Nachrichten
+nicht aus. Das inhaltslose 0×0-Ereignisfenster von winit nutzt diesen Weg und
+ist kein Passwortfenster. Ein künftiges Fenster mit sichtbarem Inhalt muss vor
+einer solchen Stiländerung ausdrücklich `apply_to` verwenden. Bei zusätzlich
+integrierten nativen Viewports nach deren Anzeige auch den Root neu zeichnen
+lassen (`Context::request_repaint`), damit ein Hook-Fehler sofort im Banner steht.
+Der heutige `--popup`-/F9-Editor verwendet denselben Root und dessen Repaints.
+Eine während eines Affinitätsaufrufs übersprungene verschachtelte Anzeigenachricht
+setzt den Status auf `Unavailable(NestedWindowShow)` statt Erfolg zu behaupten.
+
 Ab Windows 10 2004 (Build 19041) wird `WDA_EXCLUDEFROMCAPTURE` verwendet,
 auf älteren Systemen ausdrücklich `WDA_MONITOR`. Die Betriebssystemversion
 kommt über `RtlGetVersion`, unabhängig vom App-Manifest. Jeder Set-Aufruf
@@ -43,6 +53,8 @@ dauerhaft „Bildschirmaufnahme erlaubt“. Bei fehlendem/fehlgeschlagenem Schut
 steht „Schutz nicht verfügbar“, beim älteren Fallback „Eingeschränkter
 Aufnahmeschutz“. Der Hinweis steht außerhalb des scrollbaren Editors, auch im
 `--popup`-Modus. Die Freigabe wird nicht gespeichert.
+Schlägt bei bewusstem Opt-out die Bestätigung von `WDA_NONE` fehl, bleibt der
+Freigabehinweis sichtbar und erklärt die nicht bestätigte Freigabe separat.
 
 **Grenzen:** Anzeigeaffinität benötigt DWM und erfasst nur Windows-Aufnahmewege,
 die diese Einstellung beachten. `WDA_MONITOR` kann eine leere/schwarze Fensterfläche

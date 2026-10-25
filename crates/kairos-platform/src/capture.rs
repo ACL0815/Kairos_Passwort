@@ -25,6 +25,7 @@ pub enum CaptureError {
     SetAffinityFailed(u32),
     ReadAffinityFailed(u32),
     UnexpectedAffinity(u32),
+    NestedWindowShow,
 }
 
 /// The weakest observed result across windows. Failures remain visible for this run.
@@ -72,6 +73,10 @@ pub fn set_window_capture_policy(
 /// dialogs, receive protection before display. egui windows drawn inside a viewport
 /// share its protection. A separate GUI thread needs its own guard.
 /// The guard cannot move between threads. It does not inspect other applications.
+/// Visibility set only through `GWL_STYLE | WS_VISIBLE` is not observed. Apply the
+/// policy explicitly before such a style change on a content-bearing window.
+/// When adding native viewports, repaint the root after showing them so failures
+/// recorded by the hook appear immediately. The current app's popup uses the root.
 pub struct CaptureProtection {
     policy: CapturePolicy,
     state: Rc<Cell<CaptureStatus>>,
@@ -120,6 +125,10 @@ impl CaptureProtection {
 
     pub fn status(&self) -> CaptureStatus {
         self.state.get()
+    }
+
+    pub fn policy(&self) -> CapturePolicy {
+        self.policy
     }
 }
 

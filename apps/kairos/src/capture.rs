@@ -3,13 +3,17 @@
 //! Modelled after: KeePassXC <https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/main.cpp>.
 
 use eframe::egui::{self, Color32, RichText};
-use kairos_platform::CaptureStatus;
+use kairos_platform::{CapturePolicy, CaptureStatus};
 
-pub(crate) fn banner(ui: &mut egui::Ui, status: CaptureStatus) {
+pub(crate) fn banner(ui: &mut egui::Ui, status: CaptureStatus, policy: CapturePolicy) {
     let (headline, detail) = match status {
         CaptureStatus::Allowed => (
             "Bildschirmaufnahme erlaubt",
             "Mit --allow-screencapture gestartet. Passwörter können in Freigaben und Aufnahmen sichtbar sein.",
+        ),
+        CaptureStatus::Unavailable(_) if policy == CapturePolicy::Allow => (
+            "Bildschirmaufnahme erlaubt",
+            "Mit --allow-screencapture gestartet. Windows konnte die Freigabe nicht bestätigen; Aufnahmen können weiterhin eingeschränkt sein.",
         ),
         CaptureStatus::Unavailable(_) | CaptureStatus::Pending => (
             "Schutz nicht verfügbar",
@@ -21,13 +25,11 @@ pub(crate) fn banner(ui: &mut egui::Ui, status: CaptureStatus) {
         ),
         CaptureStatus::Excluded => return,
     };
-    egui::Panel::top("capture-warning")
-        .frame(
-            egui::Frame::new()
-                .fill(Color32::from_rgb(84, 43, 15))
-                .inner_margin(10),
-        )
+    egui::Frame::new()
+        .fill(Color32::from_rgb(84, 43, 15))
+        .inner_margin(10)
         .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.label(
                 RichText::new(headline)
                     .strong()
@@ -64,6 +66,7 @@ mod tests {
             (CaptureStatus::MonitorOnly, "Eingeschränkter Aufnahmeschutz"),
         ] {
             let ctx = egui::Context::default();
+            crate::theme::install(&ctx);
             let mut output = ctx.run_ui(
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
@@ -73,7 +76,7 @@ mod tests {
                     ..Default::default()
                 },
                 |ui| {
-                    banner(ui, status);
+                    banner(ui, status, CapturePolicy::Protect);
                     egui::CentralPanel::default().show(ui, |ui| {
                         ui.label("PUBLIC PASSWORD EDITOR");
                     });
@@ -86,6 +89,17 @@ mod tests {
                 .find(|shape| contains_text(&shape.shape, expected))
                 .unwrap();
             assert!(warning.shape.visual_bounding_rect().bottom() < 120.0);
+            for text in output.shapes.iter().filter(|shape| {
+                contains_text(&shape.shape, expected)
+                    || contains_text(&shape.shape, "Passwörter können")
+                    || contains_text(&shape.shape, "Windows meldet nur")
+            }) {
+                assert!(
+                    text.clip_rect
+                        .contains_rect(text.shape.visual_bounding_rect()),
+                    "the entire warning must be visible with the real app theme: {status:?}"
+                );
+            }
             assert!(output
                 .shapes
                 .iter()
@@ -97,9 +111,34 @@ mod tests {
     fn confirmed_exclusion_does_not_render_a_warning() {
         let ctx = egui::Context::default();
         let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
-            banner(ui, CaptureStatus::Excluded)
+            banner(ui, CaptureStatus::Excluded, CapturePolicy::Protect)
         });
         output.textures_delta.clear();
+        assert!(!output
+            .shapes
+            .iter()
+            .any(|shape| contains_text(&shape.shape, "Schutz nicht verfügbar")));
+    }
+
+    #[test]
+    fn failed_opt_out_is_described_as_unconfirmed_permission() {
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            banner(
+                ui,
+                CaptureStatus::Unavailable(CaptureError::SetAffinityFailed(5)),
+                CapturePolicy::Allow,
+            );
+        });
+        output.textures_delta.clear();
+        assert!(output
+            .shapes
+            .iter()
+            .any(|shape| contains_text(&shape.shape, "Bildschirmaufnahme erlaubt")));
+        assert!(output
+            .shapes
+            .iter()
+            .any(|shape| contains_text(&shape.shape, "Freigabe nicht bestätigen")));
         assert!(!output
             .shapes
             .iter()

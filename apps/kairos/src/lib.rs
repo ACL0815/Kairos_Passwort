@@ -455,6 +455,10 @@ impl KairosApp {
                 kairos_platform::CaptureStatus::Pending,
                 kairos_platform::CaptureProtection::status,
             ),
+            self.capture_protection.as_ref().map_or(
+                kairos_platform::CapturePolicy::Protect,
+                kairos_platform::CaptureProtection::policy,
+            ),
         );
         egui::CentralPanel::default().frame(egui::Frame::new().fill(theme::BACKGROUND).inner_margin(if self.compact { 18 } else { 28 })).show(ui, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {

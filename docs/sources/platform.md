@@ -163,6 +163,7 @@ normale Rust-Abhängigkeiten verwendet.
 | Microsoft | [SetWindowDisplayAffinity](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity), [GetWindowDisplayAffinity](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindowdisplayaffinity) | Dokumentation CC-BY-4.0 | `WDA_EXCLUDEFROMCAPTURE`, `WDA_MONITOR`, `WDA_NONE`, Rückgabewerte | Eigenes Top-Level-Fenster ausschließen und gesetzte Affinität zurücklesen | 5/5. Ausschluss ab Windows 10 2004/Build 19041. Ältere Systeme erhalten explizit `WDA_MONITOR`; Fehler werden nicht als Schutz dargestellt. DWM erforderlich, keine Garantie gegen beliebige Aufnahmewege | 25.10.2026 |
 | Microsoft | [SetWindowsHookExW](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowshookexw), [CallWndProc](https://learn.microsoft.com/en-us/windows/win32/winmsg/callwndproc), [WM_WINDOWPOSCHANGING](https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-windowposchanging) | Dokumentation CC-BY-4.0 | Threadgebundener `WH_CALLWNDPROC`, `CWPSTRUCT`, `WINDOWPOS` | Vor Anzeige neuer nativer Fenster handeln, statt nur den Start-HWND zu schützen | 5/5. Deckt spätere eframe-Viewports und native Dialoge im GUI-Thread ab. Kein globaler Hook, keine Injection. Zusätzliche GUI-Threads benötigen eigenen Guard | 25.10.2026 |
 | eframe 0.37.0 / raw-window-handle 0.6.2 | [CreationContext](https://github.com/emilk/egui/blob/0.37.0/crates/eframe/src/epi.rs), [WindowHandle](https://docs.rs/raw-window-handle/0.6.2/raw_window_handle/struct.WindowHandle.html) | MIT OR Apache-2.0 | `HasWindowHandle`, `RawWindowHandle::Win32` | OS-Handle an die Lebensdauer des besitzenden Fensters binden | 5/5. Root-Handle ohne Titel-/Vordergrundsuche; Plattform bleibt ohne eframe-/winit-Abhängigkeit | 25.10.2026 |
+| winit 0.30.13 | [Windows-Ereignisfenster](https://github.com/rust-windowing/winit/blob/v0.30.13/src/platform_impl/windows/event_loop.rs#L913-L963) | Apache-2.0 | `create_event_target_window` | Technische Sichtbarkeit eines inhaltslosen Ereignis-HWND von sichtbarer App-Oberfläche unterscheiden | 5/5 zur Grenzprüfung. 0×0, layered, `WS_VISIBLE` per Stiländerung für WM_PAINT-Zustellung; kein angezeigtes Passwortfenster und kein Vorbildcode übernommen | 25.10.2026 |
 
 Kairos zeigt Freigabe, fehlenden Schutz und Monitor-Fallback getrennt und dauerhaft
 oberhalb des scrollbaren Editors an. Fehler aus einem späteren Fenster bleiben
@@ -172,3 +173,10 @@ Admin-/Treiber-Tools und manche Fernwartungsprogramme werden nicht abgedeckt.
 Die automatisierten Tests lesen reale Anzeigeaffinität eigener Fenster zurück;
 Teams/Snipping-Tool-Abnahme und ein tatsächlicher Alt-Windows-Lauf sind gesondert
 zu dokumentieren. [MANUAL-TEST.md](../MANUAL-TEST.md) enthält die Schritte.
+
+Reine `GWL_STYLE`-/`WS_VISIBLE`-Änderungen werden vom Show-Hook nicht erfasst.
+Das inhaltslose winit-Ereignisfenster benötigt keinen Passwortschutz; künftige
+Inhaltsfenster auf diesem Weg müssen vor der Stiländerung explizit geschützt
+werden. Neue native Viewports müssen nach dem Anzeigen einen Root-Repaint
+anfordern, damit ein Hook-Fehler sofort als Banner erscheint. Übersprungene
+verschachtelte Show-Nachrichten führen konservativ zu einem Fehlerstatus.
