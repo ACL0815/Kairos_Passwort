@@ -6,6 +6,7 @@
 #[cfg(all(feature = "demo", not(debug_assertions)))]
 compile_error!("The fake-data demo feature must never be used in a release build.");
 
+mod capture;
 mod clipboard;
 mod desktop;
 mod model;
@@ -43,6 +44,7 @@ pub struct KairosApp {
     rotate_profiles: bool,
     rotation_bonus: Option<f64>,
     copy_on_insert: bool,
+    capture_protection: Option<kairos_platform::CaptureProtection>,
 }
 
 impl KairosApp {
@@ -72,6 +74,7 @@ impl KairosApp {
             rotate_profiles: false,
             rotation_bonus: None,
             copy_on_insert: true,
+            capture_protection: None,
         };
         #[cfg(all(feature = "demo", debug_assertions))]
         {
@@ -79,6 +82,11 @@ impl KairosApp {
         }
         app.regenerate(ctx);
         app
+    }
+
+    /// Keeps the GUI-thread hook alive for all subsequent native viewports and dialogs.
+    pub fn connect_capture_protection(&mut self, protection: kairos_platform::CaptureProtection) {
+        self.capture_protection = Some(protection);
     }
 
     /// Connects OS services after the destination was captured before run_native.
@@ -441,6 +449,13 @@ impl KairosApp {
         if copy && !self.password.secret.is_empty() {
             self.copy(&ctx, false);
         }
+        capture::banner(
+            ui,
+            self.capture_protection.as_ref().map_or(
+                kairos_platform::CaptureStatus::Pending,
+                kairos_platform::CaptureProtection::status,
+            ),
+        );
         egui::CentralPanel::default().frame(egui::Frame::new().fill(theme::BACKGROUND).inner_margin(if self.compact { 18 } else { 28 })).show(ui, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.label(RichText::new("KAIROS").color(theme::CYAN).size(15.0).strong());

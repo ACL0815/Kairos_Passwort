@@ -150,13 +150,25 @@ als Ziel auszuschließen. Kein fremder Anwendungscode wurde übernommen.
 Die App-Grenzen sind per Fake prüfbar; ein zusätzlicher ignorierter nativer
 Test prüft Ablauf, Controlwechsel und explizite Eingabe nach Bearbeitungszeit.
 
-## Vorgemerkt für PR-11
+## PR-11: Bildschirmfreigabe und Aufnahmen, Prio 7
 
-PR-W aktiviert keinen Capture-Schutz. Geplant nach PR-W, Prio 7:
-„Unsichtbar bei Bildschirmfreigabe“ mit WDA_EXCLUDEFROMCAPTURE und explizitem
---allow-screencapture, modelliert nach KeePassXC.
+Standardmäßig aktiver Schutz mit explizitem `--allow-screencapture` pro Start.
+Die folgenden Quellen wurden als Prinzipien modelliert. Kein fremder
+Anwendungscode wurde kopiert; `raw-window-handle` und `windows-sys` werden als
+normale Rust-Abhängigkeiten verwendet.
 
 | Projekt | Permalink / Primärquelle | Lizenz | Datei / Vertrag | Prinzip | Passung + Bewertung | Abrufdatum |
 |---|---|---|---|---|---|---|
-| KeePassXC 2.8.0 | [main.cpp](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/main.cpp), [User Guide](https://keepassxc.org/docs/KeePassXC_UserGuide#_screenshot_security) | Quellcode GPL-2.0 OR GPL-3.0, Dateiheader; Doku nur referenziert | CLI allow-screencapture, Screenshot Security | Capture ausschließen und bewusst pro Start freigeben | 5/5 für Folge-PR; keine Capture-Implementierung in PR-W | 25.10.2026 |
-| Microsoft | [SetWindowDisplayAffinity](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity) | Dokumentation CC-BY-4.0 | WDA_EXCLUDEFROMCAPTURE | Eigenes Top-Level-Fenster vor unterstützten Capture-APIs ausblenden | 5/5 als Windows-Vertrag; ab Windows 10 2004, keine Garantie gegen beliebige Aufnahmewege | 25.10.2026 |
+| KeePassXC 2.8.0 | [main.cpp, CLI und Top-Level-Policy](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/main.cpp#L88-L100), [WinUtils.cpp, Win32-Aufruf](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/gui/osutils/winutils/WinUtils.cpp#L51-L63), [MainWindow.cpp](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/gui/MainWindow.cpp) | GPL-2.0 OR GPL-3.0 laut geprüften Dateiheadern | `allow-screencapture`, `setPreventScreenCapture`, `setAllowScreenCapture` | Standardmäßig ausschließen, bewusst pro Start freigeben und Top-Level-Fenster einbeziehen | 5/5. Direkt passende Windows-Policy; Qt-Ereignisfilter/Implementierung nicht übernommen. Kairos ergänzt Hook und Statusrückgabe in eigenem Rust-Code | 25.10.2026 |
+| Microsoft | [SetWindowDisplayAffinity](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity), [GetWindowDisplayAffinity](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindowdisplayaffinity) | Dokumentation CC-BY-4.0 | `WDA_EXCLUDEFROMCAPTURE`, `WDA_MONITOR`, `WDA_NONE`, Rückgabewerte | Eigenes Top-Level-Fenster ausschließen und gesetzte Affinität zurücklesen | 5/5. Ausschluss ab Windows 10 2004/Build 19041. Ältere Systeme erhalten explizit `WDA_MONITOR`; Fehler werden nicht als Schutz dargestellt. DWM erforderlich, keine Garantie gegen beliebige Aufnahmewege | 25.10.2026 |
+| Microsoft | [SetWindowsHookExW](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowshookexw), [CallWndProc](https://learn.microsoft.com/en-us/windows/win32/winmsg/callwndproc), [WM_WINDOWPOSCHANGING](https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-windowposchanging) | Dokumentation CC-BY-4.0 | Threadgebundener `WH_CALLWNDPROC`, `CWPSTRUCT`, `WINDOWPOS` | Vor Anzeige neuer nativer Fenster handeln, statt nur den Start-HWND zu schützen | 5/5. Deckt spätere eframe-Viewports und native Dialoge im GUI-Thread ab. Kein globaler Hook, keine Injection. Zusätzliche GUI-Threads benötigen eigenen Guard | 25.10.2026 |
+| eframe 0.37.0 / raw-window-handle 0.6.2 | [CreationContext](https://github.com/emilk/egui/blob/0.37.0/crates/eframe/src/epi.rs), [WindowHandle](https://docs.rs/raw-window-handle/0.6.2/raw_window_handle/struct.WindowHandle.html) | MIT OR Apache-2.0 | `HasWindowHandle`, `RawWindowHandle::Win32` | OS-Handle an die Lebensdauer des besitzenden Fensters binden | 5/5. Root-Handle ohne Titel-/Vordergrundsuche; Plattform bleibt ohne eframe-/winit-Abhängigkeit | 25.10.2026 |
+
+Kairos zeigt Freigabe, fehlenden Schutz und Monitor-Fallback getrennt und dauerhaft
+oberhalb des scrollbaren Editors an. Fehler aus einem späteren Fenster bleiben
+sichtbar, auch wenn das Hauptfenster erfolgreich geschützt wurde. Die tatsächliche
+Capture-Wirkung hängt vom verwendeten Aufnahmeweg ab. Kameras, privilegierte
+Admin-/Treiber-Tools und manche Fernwartungsprogramme werden nicht abgedeckt.
+Die automatisierten Tests lesen reale Anzeigeaffinität eigener Fenster zurück;
+Teams/Snipping-Tool-Abnahme und ein tatsächlicher Alt-Windows-Lauf sind gesondert
+zu dokumentieren. [MANUAL-TEST.md](../MANUAL-TEST.md) enthält die Schritte.

@@ -1299,6 +1299,7 @@ version = "0.1.0"
 dependencies = [
  "global-hotkey",
  "keyboard-types",
+ "raw-window-handle",
  "windows-sys 0.61.2",
  "zeroize",
 ]

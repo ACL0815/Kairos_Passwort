@@ -8,12 +8,16 @@
 //! Modelled after: KeePassXC <https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/gui/Clipboard.cpp>
 //! and global-hotkey <https://github.com/tauri-apps/global-hotkey/blob/b4185ab2f37b62e4d1bd2b8410fcf93e338f55fc/src/lib.rs>.
 
+mod capture;
 mod clipboard;
 mod focus;
 mod hotkeys;
 #[cfg(windows)]
 mod windows;
 
+pub use capture::{
+    set_window_capture_policy, CaptureError, CapturePolicy, CaptureProtection, CaptureStatus,
+};
 pub use clipboard::{
     copy_secret, ClearOutcome, ClipboardReceipt, DEFAULT_CLEAR_AFTER, MAX_CLEAR_AFTER,
 };
