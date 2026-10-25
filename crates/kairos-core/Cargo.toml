@@ -1,0 +1,10 @@
+[package]
+name = "kairos-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Shared password generation contract, profiles, and entropy"
+
+[dependencies]
+zeroize.workspace = true

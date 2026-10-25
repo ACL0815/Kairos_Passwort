@@ -1,0 +1,10 @@
+[package]
+name = "kairos-wordlists"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Embedded word lists with per-word language metadata"
+
+[dependencies]
+kairos-core.workspace = true

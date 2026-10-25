@@ -1,0 +1,2 @@
+# Preserve the original concept byte-for-byte, including line endings.
+docs/Grundkonzept.md -text
