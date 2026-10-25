@@ -29,8 +29,13 @@ Eingabemethoden, Barrierefreiheit und nativen Bibliotheken separat prüfen.
   oder TERMINATE werden ebenfalls nicht erlaubt. Ein gewöhnlicher Task-Manager
   desselben Nutzers kann den Prozess daher möglicherweise nicht mehr beenden;
   ein zuvor geöffneter Handle oder erhöhte Debugrechte bleiben Ausnahmen.
-  Administratoren mit SeDebugPrivilege, Kernelcode,
-  Tokenzugriff und Schadcode im Prozess bleiben außerhalb der Schutzwirkung.
+  **Der Schutz wirkt nicht gegen Prozesse mit aktiviertem SeDebugPrivilege
+  oder gegen Administratoren, die dieses Privileg aktivieren können.**
+  OpenProcess überspringt dann die DACL-Prüfung. Elevation allein ist kein
+  Nachweis für ein aktiviertes Privileg. `ProcessDacl: Applied` bestätigt die
+  gesetzte DACL, keine Zugriffsverweigerung gegenüber privilegierten Prozessen.
+  Kernelcode, Tokenzugriff und Schadcode im Prozess bleiben ebenfalls außerhalb
+  der Schutzwirkung.
 - ExtensionPointDisable deaktiviert alte DLL-Erweiterungspunkte. ImageLoad
   verbietet neue Remote-/Low-Integrity-Images und bevorzugt System32. Bestehende
   Flags bleiben erhalten, Rücklesen kontrolliert die angeforderten Bits.
@@ -54,7 +59,8 @@ Geheimniskopie gesperrt. Fehlschlag liefert `Err`, es gibt keinen ungesperrten
 Ersatzpuffer. `extend_from_slice` und `replace` wachsen nie; Überlänge lässt den
 bisherigen Wert unverändert. `clear` und Drop überschreiben die ganze Allokation,
 auch ungenutztes Padding, mit `zeroize`, bevor sie entsperrt/freigegeben wird.
-`close(self)` gibt Entsperrfehler zurück. Drop kann Fehler nicht zurückgeben.
+`close(self)` gibt Entsperrfehler und unter Windows auch VirtualFree-Fehler
+zurück. Drop kann Fehler nicht zurückgeben.
 Die Allokation besitzt keine Debug-/Clone-Implementierung. Ausgeliehene Bytes
 können Aufrufer weiterhin kopieren.
 
@@ -72,20 +78,33 @@ früheren Core-, Stack-, UI-, Undo- oder Zwischenablagekopien. Es gibt bewusst
 keinen automatischen Konvertierungsweg, der eine neue Kopie verbirgt.
 
 `region` 3.0.2 liefert geprüfte VirtualAlloc/VirtualLock/VirtualUnlock-Aufrufe
-unter Windows. Seine Allocation-RAII-Freigabe prüft VirtualFree intern mit einer
-Debug-Assertion; einen Freigabefehler kann diese API nicht an den Aufrufer geben.
-Die App sollte `close` nutzen. `VirtualLock` hat ein kleines Working-Set-Limit,
-verhindert keine Dumps, keine Zugriffe auf lesbare Seiten und keine
+unter Windows. `close` ersetzt dort die Allocation-RAII-Freigabe durch einen
+explizit geprüften VirtualFree-Aufruf, auch wenn VirtualUnlock fehlschlägt.
+`HardeningError::MemoryRelease` erhält den Freigabefehler und einen eventuell
+gleichzeitigen Unlock-Fehler. Bei fehlgeschlagener Freigabe bleiben die bereits
+gelöschten Seiten reserviert; es gibt keinen zweiten Freigabeversuch im Drop.
+Der gewöhnliche Drop nutzt weiterhin region, das Freigabefehler nur per
+Debug-Assertion prüft. Die App sollte deshalb `close` nutzen. Auf anderen
+Plattformen meldet `close` weiterhin nur Unlock-Fehler. `VirtualLock` hat ein
+kleines Working-Set-Limit, verhindert keine Dumps, keine Zugriffe auf lesbare Seiten und keine
 Ruhezustandsabbilder. Andere Betriebssysteme nutzen die region-Backends;
 Prozesshärtung wird dort als `Unsupported` berichtet.
 
 ## Prüfung
 
 `cargo test -p kairos-hardening` prüft Puffergrenzen, stabile Adressen bei Moves,
-Löschen einschließlich Padding, unabhängige Seiten, explizites Entsperren,
+Löschen einschließlich Padding, unabhängige Seiten, explizites Entsperren und
+Freigeben einschließlich realer OS-Fehlerinjektion,
 Report-Fehler und die echten Prozessmaßnahmen in einem isolierten Kindprozess.
-Der Kindprozess prüft auch, dass derselbe Benutzer keine neuen gefährlichen
-Prozesshandles öffnen kann und QueryLimitedInformation weiter funktioniert.
+Der Kindprozess protokolliert Elevation sowie initialen und verfügbaren
+SeDebugPrivilege-Status. Falls verfügbar, wird der dokumentierte DACL-Bypass
+mit aktiviertem Privileg für alle zehn gefährlichen Rechte geprüft. Anschließend
+wird das Privileg ausschließlich im wegwerfbaren Kindprozess deaktiviert.
+Alle zehn Rechte müssen dann ERROR_ACCESS_DENIED liefern, einschließlich
+WRITE_DAC und WRITE_OWNER für den Prozessbesitzer. Diese Prüfung wird auch
+auf erhöhten CI-Runnern niemals übersprungen. QueryLimitedInformation muss
+in beiden Kontexten funktionieren. Ohne verfügbares Debugprivileg ist nur
+der privilegierte Bypass nicht prüfbar; die Schutzprüfung bleibt vollständig.
 
 Der ignorierte Test erzeugt ausschließlich synthetische Daten in einem eigenen
 Kindprozess und schreibt drei Full-Memory-Dumps dieses Prozesses:

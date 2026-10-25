@@ -11,7 +11,8 @@ use crate::HardeningError;
 /// Construction fails if locking fails. No `Debug`, `Clone`, string conversion
 /// or growing API is provided. Borrowed slices may still be copied by callers.
 /// Windows uses VirtualAlloc/VirtualLock via region; page locks do not exclude
-/// dumps or hibernation. Call [`Self::close`] to observe VirtualUnlock errors.
+/// dumps or hibernation. Call [`Self::close`] to observe VirtualUnlock errors
+/// and, on Windows, VirtualFree errors.
 pub struct LockedSecret {
     memory: region::Allocation,
     capacity: usize,
@@ -84,9 +85,46 @@ impl LockedSecret {
     }
 
     /// Scrubs before unlocking and freeing. Drop also scrubs, but cannot return
-    /// an OS failure. If unlock fails, region still releases the zeroed pages.
-    pub fn close(mut self) -> Result<(), HardeningError> {
-        self.scrub_and_unlock()
+    /// an OS failure. Windows attempts VirtualFree even if unlock fails, and
+    /// reports both failures. A failed free leaves only zeroed pages mapped.
+    /// Other platforms use region's Drop for release and report only unlock errors.
+    pub fn close(self) -> Result<(), HardeningError> {
+        #[cfg(windows)]
+        {
+            self.close_with(|address| {
+                use windows_sys::Win32::System::Memory::{VirtualFree, MEM_RELEASE};
+                // SAFETY: region allocated this base with VirtualAlloc; size 0
+                // releases the complete reservation, including page padding.
+                if unsafe { VirtualFree(address, 0, MEM_RELEASE) } == 0 {
+                    Err(std::io::Error::last_os_error())
+                } else {
+                    Ok(())
+                }
+            })
+        }
+        #[cfg(not(windows))]
+        {
+            let mut this = self;
+            this.scrub_and_unlock().map_err(HardeningError::Memory)
+        }
+    }
+
+    #[cfg(windows)]
+    fn close_with(
+        mut self,
+        free: impl FnOnce(*mut std::ffi::c_void) -> std::io::Result<()>,
+    ) -> Result<(), HardeningError> {
+        let unlock = self.scrub_and_unlock();
+        // VirtualFree replaces Allocation::drop. Neither destructor may touch
+        // these pages again, even on failure, when the zeroed reservation leaks.
+        let mut this = std::mem::ManuallyDrop::new(self);
+        match free(this.memory.as_mut_ptr()) {
+            Ok(()) => unlock.map_err(HardeningError::Memory),
+            Err(free) => Err(HardeningError::MemoryRelease {
+                unlock: unlock.err(),
+                free,
+            }),
+        }
     }
 
     fn all_bytes(&mut self) -> &mut [u8] {
@@ -96,12 +134,11 @@ impl LockedSecret {
         unsafe { std::slice::from_raw_parts_mut(self.memory.as_mut_ptr(), len) }
     }
 
-    fn scrub_and_unlock(&mut self) -> Result<(), HardeningError> {
+    fn scrub_and_unlock(&mut self) -> region::Result<()> {
         self.clear();
         if self.locked {
             self.locked = false;
-            region::unlock(self.memory.as_ptr::<u8>(), self.memory.len())
-                .map_err(HardeningError::Memory)?;
+            region::unlock(self.memory.as_ptr::<u8>(), self.memory.len())?;
         }
         Ok(())
     }
@@ -155,6 +192,56 @@ mod tests {
                 LockedSecret::new(capacity),
                 Err(HardeningError::InvalidCapacity)
             ));
+        }
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn close_reports_unlock_and_free_failures_after_scrubbing() {
+        use windows_sys::Win32::{
+            Foundation::ERROR_INVALID_PARAMETER,
+            System::Memory::{VirtualFree, MEM_RELEASE},
+        };
+
+        for (fail_unlock, fail_free) in [(false, true), (true, true), (true, false)] {
+            let mut secret = LockedSecret::new(32).unwrap();
+            secret.replace(b"synthetic-release-test").unwrap();
+            let address = secret.memory.as_ptr::<u8>();
+            let len = secret.memory.len();
+            if fail_unlock {
+                region::unlock(address, len).unwrap();
+            }
+            let result = secret.close_with(|base| {
+                // SAFETY: close_with has scrubbed, but has not freed these pages.
+                assert!(
+                    unsafe { std::slice::from_raw_parts(base.cast::<u8>(), len) }
+                        .iter()
+                        .all(|byte| *byte == 0)
+                );
+                // MEM_RELEASE requires size 0. Size 1 injects a real OS failure
+                // without invalidating the allocation or its scrubbed contents.
+                if unsafe { VirtualFree(base, usize::from(fail_free), MEM_RELEASE) } == 0 {
+                    Err(std::io::Error::last_os_error())
+                } else {
+                    Ok(())
+                }
+            });
+            if fail_free {
+                match result {
+                    Err(HardeningError::MemoryRelease { unlock, free }) => {
+                        assert_eq!(unlock.is_some(), fail_unlock);
+                        assert_eq!(free.raw_os_error(), Some(ERROR_INVALID_PARAMETER as i32));
+                    }
+                    other => panic!("expected release error, got {other:?}"),
+                }
+                // SAFETY: the failed free left this zeroed reservation mapped.
+                assert_ne!(
+                    unsafe { VirtualFree(address.cast_mut().cast(), 0, MEM_RELEASE) },
+                    0
+                );
+            } else {
+                assert!(matches!(result, Err(HardeningError::Memory(_))));
+            }
         }
     }
 }

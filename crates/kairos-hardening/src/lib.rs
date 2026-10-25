@@ -17,6 +17,11 @@ pub enum HardeningError {
     InvalidCapacity,
     CapacityExceeded,
     Memory(region::Error),
+    /// Windows page release failed after scrubbing and attempting unlock.
+    MemoryRelease {
+        unlock: Option<region::Error>,
+        free: std::io::Error,
+    },
 }
 
 impl std::fmt::Display for HardeningError {
@@ -25,6 +30,13 @@ impl std::fmt::Display for HardeningError {
             Self::InvalidCapacity => f.write_str("secret capacity must be 1..=65536 bytes"),
             Self::CapacityExceeded => f.write_str("secret exceeds fixed capacity"),
             Self::Memory(error) => write!(f, "memory protection failed: {error}"),
+            Self::MemoryRelease { unlock, free } => {
+                write!(f, "memory release failed: {free}")?;
+                if let Some(error) = unlock {
+                    write!(f, "; unlock also failed: {error}")?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -73,7 +85,9 @@ impl HardeningReport {
 /// <https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/core/Bootstrap.cpp>.
 /// Call once, early, on the application startup thread. Some settings cannot be
 /// undone. Existing handles, elevated debuggers and WER LocalDumps remain outside
-/// this protection. The process DACL can affect diagnostics and integrations.
+/// this protection. Enabled SeDebugPrivilege bypasses the process DACL, and an
+/// administrator can enable it. Applied reports configuration, not protection
+/// against privileged callers. The DACL can affect diagnostics and integrations.
 pub fn harden_process() -> HardeningReport {
     #[cfg(windows)]
     {

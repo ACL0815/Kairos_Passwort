@@ -47,6 +47,8 @@ keine Codequelle; dort existiert häufig kein Commit-Permalink.
 | Projekt | Permalink | Lizenz | Datei/API | Prinzip | Passung und Bewertung | Abrufdatum |
 |---|---|---|---|---|---|---|
 | Microsoft Learn | [Prozessrechte](https://learn.microsoft.com/en-us/windows/win32/procthread/process-security-and-access-rights), [OWNER RIGHTS](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-identifiers) | API-Dokumentation, kein Code übernommen | OpenProcess, DACL, S-1-3-4 | VM_READ, DUP_HANDLE und implizites Owner-WRITE_DAC berücksichtigen | **5**. Echte neue Handles testen; Alt-Handles und SeDebugPrivilege bleiben Grenzen | 2026-10-25 |
+| Microsoft Learn | [OpenProcess](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess), [AdjustTokenPrivileges](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-adjusttokenprivileges) | API-Dokumentation, kein Code übernommen | SeDebugPrivilege, ERROR_NOT_ALL_ASSIGNED | Aktiviertes Debugprivileg umgeht den Security Descriptor; verfügbar ist nicht gleich aktiviert | **5**. Test protokolliert Elevation/Privileg und prüft Bypass sowie Verweigerung nach Deaktivierung im isolierten Kind | 2026-10-25 |
+| Microsoft Learn | [VirtualFree](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualfree) | API-Dokumentation, kein Code übernommen | MEM_RELEASE | Gesamte VirtualAlloc-Reservierung mit Größe 0 freigeben und Fehler auswerten | **5**. close prüft den Aufruf explizit und erhält gleichzeitige Unlock-/Free-Fehler; Test injiziert ungültige Größe 1 | 2026-10-25 |
 | Microsoft Learn | [VirtualLock](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtuallock), [VirtualUnlock](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualunlock) | API-Dokumentation | Speicher-Locking | Rückgaben prüfen, Seiten exklusiv besitzen, vor Unlock löschen | **5**. Gewählt; kein Schutz gegen Lesen oder Dumps | 2026-10-25 |
 | Microsoft Learn | [WerGetFlags](https://learn.microsoft.com/en-us/windows/win32/api/werapi/nf-werapi-wergetflags), [WerSetFlags](https://learn.microsoft.com/en-us/windows/win32/api/werapi/nf-werapi-wersetflags), [LocalDumps](https://learn.microsoft.com/en-us/windows/win32/wer/collecting-user-mode-dumps) | API-Dokumentation | WER-Flags, LocalDumps | Heap-/Snapshotdaten reduzieren, keine globale Dumpsperre behaupten | **5**. Nur pro Prozess, keine Registry. ERROR_NOT_FOUND vor erstem Set im frischen nativen Prozess lokal geprüft | 2026-10-25 |
 | Microsoft Learn | [Mitigation API](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setprocessmitigationpolicy), [Extension Points](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-process_mitigation_extension_point_disable_policy), [Image Load](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-process_mitigation_image_load_policy) | API-Dokumentation | Get/SetProcessMitigationPolicy | Lesen, gewünschte Bits ergänzen, zurücklesen | **5**. Früher Aufruf und App-Kompatibilität erforderlich | 2026-10-25 |
@@ -148,6 +150,14 @@ bleiben. Der Test misst keine UI, kein Undo, keine Zwischenablage und keine
 Generatorintegration. VirtualLock verhindert weder Dump noch Debuggerlesen.
 WER/DACL begrenzen bestimmte Zugriffswege; Adminrechte, bestehende Handles,
 Kernelcode, Ruhezustand und in-process-Malware bleiben Grenzen.
+
+**Die Prozess-DACL schützt nicht gegen Prozesse mit aktiviertem SeDebugPrivilege
+oder gegen Administratoren, die es aktivieren können.** `Applied` im Report
+bestätigt die Konfiguration und keine Grenze gegen diesen Angreifer. Der
+Prozesstest protokolliert Elevation und Privilegstatus, prüft den Bypass bei
+verfügbarem Privileg und deaktiviert es dann im isolierten Kindprozess.
+Anschließend müssen alle zehn gefährlichen Rechte einschließlich der
+Owner-Rechte verweigert werden. Elevation führt zu keinem pauschalen Test-Skip.
 
 ## Offene Integration und Folge-PR
 
