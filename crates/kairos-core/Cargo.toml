@@ -7,4 +7,8 @@ publish.workspace = true
 description = "Shared password generation contract, profiles, and entropy"
 
 [dependencies]
+rand = { version = "=0.9.5", default-features = false, features = ["os_rng", "unbiased"] }
 zeroize.workspace = true
+
+[dev-dependencies]
+rand = { version = "=0.9.5", default-features = false, features = ["std_rng"] }

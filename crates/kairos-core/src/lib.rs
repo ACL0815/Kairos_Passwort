@@ -1,11 +1,20 @@
-//! Shared contract for word sources, generation profiles, and generated passwords.
+//! Word sources, data-driven profiles, OS-backed generation, and entropy.
 //!
-//! Generation and entropy calculations are reserved for PR-1.
+//! Modelled after: KeePassXC <https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/core/PassphraseGenerator.cpp>.
+//! Modelled after: zeroize <https://github.com/RustCrypto/utils/blob/zeroize-v1.8.2/zeroize/src/lib.rs>.
+//!
+//! See the crate README for source validation, Unicode casing, and entropy bounds.
 
 use std::fmt;
 use std::ops::Range;
 
 use zeroize::Zeroizing;
+
+mod generator;
+mod profiles;
+
+pub use generator::{entropy_bits_for, generate};
+pub use profiles::{profile_rules, profile_warnings, CaseRule, ProfileRules, ProfileWarning};
 
 /// Language metadata attached to an individual source word.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -110,6 +119,20 @@ pub struct Segment {
 ///
 /// This type deliberately has no `Debug` or `Clone` implementation. Zeroizing
 /// the owned string cannot erase copies made by the UI or clipboard.
+/// Its public `secret` field must never be logged: `Zeroizing<String>` itself
+/// implements `Debug` and does not redact its contents.
+///
+/// ```compile_fail
+/// fn log_secret(password: &kairos_core::GeneratedPassword) {
+///     println!("{password:?}");
+/// }
+/// ```
+///
+/// ```compile_fail
+/// fn copy_secret(password: kairos_core::GeneratedPassword) {
+///     let _copy = password.clone();
+/// }
+/// ```
 pub struct GeneratedPassword {
     pub secret: Zeroizing<String>,
     pub segments: Vec<Segment>,
@@ -140,21 +163,28 @@ impl fmt::Display for GenerateError {
 
 impl std::error::Error for GenerateError {}
 
-/// Generates a password from an indexed word source and validated settings.
-///
-/// The scaffold always returns `GenerateError::NotImplemented`.
-pub fn generate(
-    _source: &dyn WordSource,
-    _config: &GeneratorConfig,
-) -> Result<GeneratedPassword, GenerateError> {
-    Err(GenerateError::NotImplemented)
-}
-
 /// Estimates entropy from the actual source size and effective profile choices.
 ///
-/// # Panics
+/// Assumes distinct, lowercase six-letter words with reversible single-letter
+/// uppercase mappings. A digit has five inner insertion positions per word.
+/// This model is not a lower bound for arbitrary words. Use [`entropy_bits_for`]
+/// for an honest, source-dependent bound, as [`generate`] does.
+/// Empty sources or invalid separator exclusions return `0.0`.
 ///
-/// This scaffold stub always panics until PR-1 implements the calculation.
-pub fn entropy_bits(_source_len: usize, _config: &GeneratorConfig) -> f64 {
-    todo!("implement profile-aware entropy in PR-1")
+/// Modelled after: xkcdpass <https://github.com/redacted/XKCD-password-generator/blob/b981361292ae7328313e116178acacc90680df5e/xkcdpass/xkcd_password.py>.
+pub fn entropy_bits(source_len: usize, config: &GeneratorConfig) -> f64 {
+    if source_len == 0 {
+        return 0.0;
+    }
+    let Ok(separators) = profiles::separators(config) else {
+        return 0.0;
+    };
+    generator::entropy_bound(
+        source_len,
+        profile_rules(config.profile),
+        separators.len(),
+        5,
+        2,
+        6,
+    )
 }
