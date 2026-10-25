@@ -5,8 +5,8 @@ ergänzen die unveränderte deutsche Quelle. Je Sprache **7.134 Wörter**,
 zusammen **21.402 eindeutige Wörter** mit Sprachflag. Jede Wortposition kann
 unabhängig aus der Vereinigung gezogen werden. API, Auswahl, disjunkte
 Schnittmengen, Datenlizenzen, Grenzen und Offline-Pipeline stehen im
-[Sprachen-README](data/languages/README.md). Englisch: Mittelwert **6,282**,
-Latein **6,618** Buchstaben.
+[Sprachen-README](data/languages/README.md). Englisch: Mittelwert **6,283**,
+Latein **6,725** Buchstaben.
 
 Die deutsche Wortliste ist mit `include_str!` in die Anwendung eingebettet.
 `german() -> &'static EmbeddedWordList` stellt `kairos_core::WordSource`
@@ -202,7 +202,12 @@ im Offline-Lauf geprüft. Der Mittelwert darf höchstens 6,6 betragen; die
 engere ±0,5-Spanne um sechs wird zugunsten der erläuterten Grundformauswahl
 nicht erzwungen.
 
-PR-7 ergänzt neun Integrationstests und einen Rustdoc-Test, insgesamt **19 + 2**.
+PR-7 ergänzt zwölf Integrationstests und einen Rustdoc-Test, insgesamt **22 + 2**.
 Sie prüfen die drei disjunkten Sprachmengen, alle Flags, vollständige Union,
-Größen, Interleaving, Prüfsummen und Offline-Reproduktion einschließlich
+Größen, Interleaving, Platzhalter, Glossen-/Variantenfilter, Prüfsummen und
+Offline-Reproduktion einschließlich
 Bedeutungsregister. [Details](data/languages/README.md).
+
+Für die Weitergabe der neuen englischen/lateinischen Wortdaten liegt eine
+[NOTICE.txt](data/languages/NOTICE.txt) mit Attribution, Änderungen und
+vollständigen Lizenztexten bei; der spätere Release muss sie mit der EXE ausliefern.

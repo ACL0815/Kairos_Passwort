@@ -48,13 +48,16 @@ Foundation bilden den Hauptbestand. Ihre 10.368 Zeilen ergeben nach `a-z`,
 3–9 und Deduplizierung 8.301 Wörter. Dazu kommen genau 1.257 ausdrücklich
 ausgewählte, gegen die MIT-Wortliste von Wordnik geprüfte kurze Wörter
 ([Positivliste](english-supplement.txt)). Der vollständige Wordnik-Pool ist
-kein freigegebenes Passwortvokabular. 1.224 kategorisierte Sperren entfernen
+kein freigegebenes Passwortvokabular. 1.226 kategorisierte Sperren entfernen
 unter anderem Belastendes, reine Namen, Marken und schwierige Schreibweisen.
 Die EFF-Prüfung auf Profanität allein genügt für die strengere Kairos-Auswahl
 nicht; beispielsweise bleiben `douche`, `badass` und `cancer` ausgeschlossen.
-Nach Sperren und 383 deutschen Überschneidungen bleiben 7.951 Kandidaten.
+Die kontextgebundenen Labels `islamist` und `marxism` sind als
+Schreibbarkeitsentscheidung für zufällige Passwortausgaben gesperrt, ohne die
+bezeichneten Überzeugungen zu bewerten. `faith` bleibt erlaubt.
+Nach Sperren und 383 deutschen Überschneidungen bleiben 7.949 Kandidaten.
 Die Pipeline bevorzugt kurze Wörter, bei gleicher Länge ordinal, und wählt
-7.134. Mittlere Länge: **6,282 Buchstaben**.
+7.134. Mittlere Länge: **6,283 Buchstaben**.
 
 **Latein:** Whitaker's WORDS bietet ausreichend lizenzierte Daten. Deshalb
 werden Esperanto/Italienisch nicht als Ausweichsprache benötigt. Der feste
@@ -64,13 +67,14 @@ Adjektive, die erste Person Präsens regelmäßiger bzw. deponentischer Verben
 sowie unveränderliche Wortarten. Sie fügt ausschließlich die zum erkannten
 Muster gehörende Endung an; Stämme werden nicht pauschal als Wörter ausgegeben.
 Andere Flexionsmuster und unpersönliche Verben werden ausgelassen. Reine Namen
-mit Kennzeichen `N` und großgeschriebene Stämme entfallen bereits im Decoder.
+mit Kennzeichen `N` und großgeschriebene Stämme entfallen bereits im Decoder. Der WORDS-Platzhalter
+`zzz` für einen fehlenden Stamm wird vor jeder Endungsbildung abgelehnt.
 
-Es bleiben 11.635 unterschiedliche, passende Kandidaten mit Frequenz A–D.
+Es bleiben 11.632 unterschiedliche, passende Kandidaten mit Frequenz A–D.
 Upstream bezeichnet A als sehr häufig, B als häufig, C als verbreitet und D
 als weniger häufig (oberer Bestand von etwa 20.000). Diese Kennzeichen sind
 Wörterbuchangaben, keine aktuelle Häufigkeitsmessung und keine Komfortgarantie.
-2.350 versionierte Sperren betreffen Belastendes, Namen sowie Schreibbarkeit;
+2.352 versionierte Sperren betreffen Belastendes, Namen sowie Schreibbarkeit;
 darunter archaische Formen, häufige `ad-/ac-`- und `i/j`-Doppelvarianten und
 auffällige Quelldatenfehler wie `adnililo`. Der begrenzte Decoder würde aus
 einem falsch/irregulär klassifizierten Eintrag auch `abnueo` ableiten; diese
@@ -81,9 +85,32 @@ Die Durchsicht nutzt Bedeutungen und berücksichtigt auch belastende
 Nebenbedeutungen konservativ. Gewöhnliche positive Begriffe wie `pax` (Frieden),
 `aqua` (Wasser) und `amor` (Liebe) bleiben trotz einzelner kontextueller
 Nebenbedeutungen erlaubt. Weltanschauungen werden nicht pauschal gesperrt.
-Nach Sperren und Überschneidungen stehen 9.081 Kandidaten bereit; die Auswahl
+Ein zusätzlicher deterministischer Glossenwächter entfernt 35 weitere Kandidaten
+mit expliziten Markierungen/Bedeutungen wie `(rude)`, Genitalien, Urinieren,
+Bordell, Zuhälter, Sodomie oder Einlauf. Er prüft alle berücksichtigten Glossen
+eines Wortes einschließlich Nebenbedeutungen; es gibt keine Ausnahmeliste.
+`vagina`, `semen` und `genital` sind zusätzlich als auf Deutsch/Englisch
+problematische Schreibweisen gesperrt. Dies ist ein konservativer Markerfilter,
+kein allgemeiner semantischer Klassifikator.
+
+Nach Sperren, Wächter und Überschneidungen stehen 9.041 Kandidaten bereit.
+Von Wörtern mit identischer vollständiger erster Glosse bleibt jeweils eine
+Schreibweise: höhere Frequenz, dann kürzer, dann ordinal. Das entfernt 902
+Varianten; 8.139 Kandidaten bleiben. Die Regel kann vorsorglich auch echte
+Synonyme entfernen und erkennt nicht alle linguistischen Varianten.
+Abhängige Präfixformen wie `plo` und bekannte irritierende Schreibweisen wie
+`arcs`/`apes` sind ausdrücklich gesperrt. Der Sprachflag bezeichnet den
+zugewiesenen Wortgebrauch; ein gültiges lateinisches Wort kann zugleich im
+gesamten englischen Wörterbuch vorkommen. Ein pauschaler Wordnik-Ausschluss
+wird deshalb nicht angewandt; disjunkt bleiben die tatsächlich eingebetteten
+Sprachen. Die Auswahl
 bevorzugt A vor B vor C vor D, innerhalb der Gruppe kurze Wörter und ordinale
-Reihenfolge. Die 7.134 Endwörter haben durchschnittlich **6,618 Buchstaben**.
+Reihenfolge. Am Größenlimit bevorzugt diese Regel alphabetisch frühe Wörter
+gleicher Länge/Frequenz; sie ist kein Repräsentativitätsversprechen für die
+Sprache. Englisch hat beispielsweise 506 gewählte Neunbuchstabenwörter von
+`abdominal` bis `guileless`. Diese Auswahlverzerrung des festen Vokabulars ist
+öffentlich und verändert die Gleichverteilung innerhalb der Endliste nicht.
+Die 7.134 Endwörter haben durchschnittlich **6,725 Buchstaben**.
 
 Alle ausgewählten lateinischen Wörter sind im reproduzierten
 [Bedeutungsregister](latin-glosses.tsv) mit Zeilennummer des Originaldatensatzes,
@@ -91,8 +118,11 @@ Frequenz und englischer Originalerklärung nachprüfbar. Mehrere Einträge einer
 Schreibweise stehen mit ` | ` getrennt in derselben Zeile. Dieses Register
 gehört zur Datenprüfung und wird nicht in die Laufzeitquelle eingebettet.
 
-**Zielabweichungen:** Sechs Buchstaben bleiben ein Komfortziel. Die kleinen
-Abweichungen Deutsch 6,564 und Latein 6,618 sind offengelegt. Latein enthält
+**Zielabweichungen:** Sechs Buchstaben bleiben ein Komfortziel. Die
+Abweichungen Deutsch 6,564 und Latein 6,725 sind offengelegt. Die Variantenbereinigung
+erhöht den lateinischen Mittelwert gegenüber dem ersten Stand 6,618 leicht;
+unterscheidbare Schreibweisen und zuverlässigere Lemmata haben Vorrang vor
+einer künstlich auf sechs gedrückten Länge. Der Test sichert maximal 6,8. Latein enthält
 auch weniger verbreitete Lemmata; 7.134 einfache lateinische Alltagswörter werden
 nicht behauptet. Keine Zusicherung allgemeiner Präfixfreiheit, eindeutiger
 Dreizeichenpräfixe, eines Editierabstands oder völliger Abwesenheit jeder
@@ -111,11 +141,13 @@ Größenbegrenzung, nicht auf die unbereinigten Wörterbücher.
 
 | Schritt | Deutsch | Englisch | Latein |
 |---|---:|---:|---:|
-| Kuratierter Pool vor Sprachabzug | 7.134 | 8.334 | 9.285 |
+| Kuratierter Pool nach Glossenwächter, vor Sprachabzug | 7.134 | 8.332 | 9.245 |
 | Wegen Deutsch entfernt | 0 | 383 | 83 |
 | Wegen endgültigem Englisch entfernt | 0 | 0 | 121 |
-| Verfügbare disjunkte Kandidaten | 7.134 | 7.951 | 9.081 |
-| Wegen gleicher Zielgröße nicht gewählt | 0 | 817 | 1.947 |
+| Verfügbare disjunkte Kandidaten | 7.134 | 7.949 | 9.041 |
+| Wegen identischer erster Glosse entfernt | 0 | 0 | 902 |
+| Nach Variantenbereinigung verfügbar | 7.134 | 7.949 | 8.139 |
+| Wegen gleicher Zielgröße nicht gewählt | 0 | 815 | 1.005 |
 | Endgröße | **7.134** | **7.134** | **7.134** |
 
 Eine bereits bei der Kuratierung ausgeschlossene gemeinsame Schreibweise zählt
@@ -148,14 +180,22 @@ Gzip spart Platz, seine Containerbytes dürfen variieren; maßgeblich bleiben di
 dekomprimierten Originalbytes. Latin-1 der WORDS-Datei wird nur beim Werkzeug
 gelesen, Laufzeitlisten sind ASCII mit LF. Es gibt keine Transliteration.
 
-Neun zusätzliche Integrationstests prüfen vollständige paarweise Disjunktheit,
+Zwölf zusätzliche Integrationstests prüfen vollständige paarweise Disjunktheit,
 Endgrößen, Zeichen/Längen/Mittelwerte, Quellen- und Endprüfsummen, Register,
 Sprachflags jedes Wortes, vollständige Union, Verschachtelung, Indexgrenzen,
 threadsichere Einmalinitialisierung, ausgewählte Decoderbeispiele und
-unabhängige redaktionelle Regressionen. Zusammen mit PR-2 sind es **19
+unabhängige redaktionelle Regressionen. Neue Prüfungen sichern insbesondere
+fehlende `zzz`-Stämme, alle konkret beanstandeten Wörter, den Glossenwächter
+und eindeutige erste Glossen gegen Varianten ab. Zusammen mit PR-2 sind es **22
 Integrationstests und zwei Rustdoc-Tests**. Die Tests ersetzen keine vollständige
 sprachwissenschaftliche oder semantische Begutachtung.
 
 Originale, Lizenzen, Änderungen und alle Prüfsummen:
 [PROVENANCE.md](PROVENANCE.md). Vorbilderbewertung und verworfene Alternativen:
 [docs/sources/languages.md](../../../../docs/sources/languages.md).
+
+Für die spätere Binärdistribution [NOTICE.txt](NOTICE.txt) mitliefern. Sie
+bündelt die erforderlichen Namensnennungen, Änderungshinweise und kompletten
+Lizenzen der englischen und lateinischen Daten. Die GUI-/Release-Integration
+muss diese Datei neben die EXE bzw. in deren Lizenzanzeige aufnehmen; diese
+Verdrahtung bleibt als Integrationsaufgabe außerhalb dieses Bereichs-PRs offen.

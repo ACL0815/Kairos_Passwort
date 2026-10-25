@@ -58,7 +58,7 @@ pub fn latin_lemma(line: &str) -> Option<String> {
         return None;
     }
     let stem = line[..19].trim();
-    if stem.is_empty() || !stem.bytes().all(|byte| byte.is_ascii_lowercase()) {
+    if stem.is_empty() || stem == "zzz" || !stem.bytes().all(|byte| byte.is_ascii_lowercase()) {
         return None;
     }
     let grammar: Vec<_> = line[76..100].split_whitespace().collect();
@@ -106,6 +106,50 @@ pub fn rejections(text: &str, candidates: &BTreeSet<String>) -> Result<BTreeSet<
     Ok(rejected)
 }
 
+/// Rejects explicit sensitive dictionary meanings, including secondary senses.
+/// This guard is conservative; it is not a general semantic classifier.
+pub fn sensitive_gloss(gloss: &str) -> bool {
+    let gloss = gloss.to_ascii_lowercase();
+    [
+        "(rude)",
+        "(somewhat rude)",
+        "genital",
+        "urinat",
+        "sodomy",
+        "anal intercourse",
+        "brothel",
+        "pimp",
+        "procuress",
+        "procurer",
+        "private parts",
+        "buttocks",
+        "pudend",
+        "ejaculat",
+        "sexual",
+        "coitus",
+        "enema",
+        "excrement",
+        "prostitut",
+        "testicle",
+    ]
+    .iter()
+    .any(|marker| gloss.contains(marker))
+}
+
+// The records are produced locally as "source-line frequency meaning".
+fn meaning(record: &str) -> &str {
+    record
+        .splitn(3, ' ')
+        .nth(2)
+        .unwrap_or("")
+        .trim_start_matches('|')
+        .trim()
+}
+
+fn rank_words(words: &mut [(u8, String)]) {
+    words.sort_by(|(rank_a, a), (rank_b, b)| (rank_a, a.len(), a).cmp(&(rank_b, b.len(), b)));
+}
+
 fn output(words: impl IntoIterator<Item = String>) -> String {
     let words: BTreeSet<_> = words.into_iter().collect();
     words.into_iter().map(|word| word + "\n").collect()
@@ -119,7 +163,7 @@ fn select(
     words.retain(|(_, word)| !excluded.contains(word));
     // Common Latin lemmas first; English ranks are equal. Prefer short words
     // within each frequency band, with an ordinal tie break for reproducibility.
-    words.sort_by(|(rank_a, a), (rank_b, b)| (rank_a, a.len(), a).cmp(&(rank_b, b.len(), b)));
+    rank_words(&mut words);
     if words.len() < size {
         return Err(format!("only {} curated words, need {size}", words.len()).into());
     }
@@ -255,6 +299,17 @@ pub fn build() -> Result<Build> {
     )?;
     report.push_str(&format!("Latin editorial rejections: {}\n", rejected.len()));
     latin.retain(|word, _| !rejected.contains(word));
+    let before_guard = latin.len();
+    latin.retain(|word, _| {
+        !["vagina", "semen", "genital"].contains(&word.as_str())
+            && !glosses[word]
+                .iter()
+                .any(|record| sensitive_gloss(meaning(record)))
+    });
+    report.push_str(&format!(
+        "Latin sensitive-gloss/spelling guard removed: {}\n",
+        before_guard - latin.len()
+    ));
     let english_set: BTreeSet<_> = english.lines().map(str::to_owned).collect();
     let de_overlap = latin.keys().filter(|word| german.contains(*word)).count();
     let en_overlap = latin
@@ -263,11 +318,24 @@ pub fn build() -> Result<Build> {
         .count();
     let excluded: BTreeSet<_> = german.union(&english_set).cloned().collect();
     report.push_str(&format!("Latin overlap removed (German): {de_overlap}\nLatin overlap removed (English): {en_overlap}\nLatin available after curation and overlap removal: {}\n", latin.len() - de_overlap - en_overlap));
-    let latin = select(
-        latin.into_iter().map(|(word, rank)| (rank, word)).collect(),
-        &excluded,
-        size,
-    )?;
+    let mut latin: Vec<_> = latin
+        .into_iter()
+        .filter(|(word, _)| !excluded.contains(word))
+        .map(|(word, rank)| (rank, word))
+        .collect();
+    rank_words(&mut latin);
+    // Identical complete first glosses conservatively identify spelling variants.
+    // Keep the highest-frequency, then shortest, then ordinal spelling. This can
+    // also discard genuine synonyms; no linguistic equivalence is claimed.
+    let before_variants = latin.len();
+    let mut seen_glosses = BTreeSet::new();
+    latin.retain(|(_, word)| seen_glosses.insert(meaning(&glosses[word][0])));
+    report.push_str(&format!(
+        "Latin identical-gloss variants removed: {}\nLatin available after variant filter: {}\n",
+        before_variants - latin.len(),
+        latin.len()
+    ));
+    let latin = select(latin, &BTreeSet::new(), size)?;
     let latin_glosses = latin
         .lines()
         .map(|word| format!("{word}\t{}\n", glosses[word].join(" | ")))

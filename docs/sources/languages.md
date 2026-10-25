@@ -2,10 +2,7 @@
 
 PR-7, **Prio 4**, `feat/languages-en-la`, **gestapelt auf #2** (`feat/wordlist-de`
 @ `f35f842d50436492b31d4dfa6a789dbb66112d6f`). Abruf/Stichproben: **25.10.2026**.
-Drei reine Recherche-Kinder: `codex/gpt-6-luna`, `reasoningEffort=xhigh`,
-`serviceTier=priority`; Themen Englisch, Latein und mehrsprachige Vereinigung.
-Keine Weiterdelegation und keine Schreibzugriffe dieser Kinder. Die folgende
-Bewertung ist die Implementierungsentscheidung nach Primärquellenprüfung.
+Bewertung nach Prüfung der Primärquellen am 25.10.2026.
 
 Code- und Datenlizenzen werden getrennt betrachtet. **Kein fremder
 Implementierungscode wurde kopiert**. Übernommen sind nur lizenzierte Wortdaten
@@ -16,7 +13,7 @@ Aufbereitungsaufwand zusammen. Alle Zeilen wurden am 25.10.2026 abgerufen.
 |---|---|---|---|---|---|
 | EFF / Joseph Bonneau | [Long, 18.07.2016](https://www.eff.org/files/2016/07/18/eff_large_wordlist.txt), [Short 1](https://www.eff.org/files/2016/09/08/eff_short_wordlist_1.txt), [Short 2](https://www.eff.org/files/2016/09/08/eff_short_wordlist_2_0.txt), [Methodik, Juli 2016](https://www.eff.org/deeplinks/2016/07/new-wordlists-random-passphrases) | **Daten: CC BY 4.0 gewählt**, laut aktueller [EFF-Freigabe](https://www.eff.org/copyright) für EFF-Originalmaterial, sofern nicht anders angegeben; ältere xkcdpass-Kopien nennen CC BY 3.0. | Drei Rohlisten von 2016, 7.776 + 1.296 + 1.296 Zeilen | Bekannte schreibbare Wörter, Prüfung vor Auswahl. Vereinigung nach `a-z`, 3–9: 8.301 verschiedene Wörter. Eigene strengere Belastungsprüfung nötig. Datierte URLs sind keine unveränderlichen Git-Commits; lokale Originalbytes durch SHA-256 festgelegt. | **5** – beste Passphrasenbasis; kurze Ergänzungen nötig. Dreizeichenpräfixe/Editierabstand der separaten Kurzliste gelten nach Kombination nicht. |
 | Wordnik | [Wortliste, Commit 46e6215](https://github.com/wordnik/wordlist/blob/46e6215d0f90356afe9c8ba4be347e7e98cb425c/wordlist-20210729.txt), [README](https://github.com/wordnik/wordlist/blob/46e6215d0f90356afe9c8ba4be347e7e98cb425c/README.md) | **MIT**, Copyright (c) 2020 Wordnik, [Lizenz](https://github.com/wordnik/wordlist/blob/46e6215d0f90356afe9c8ba4be347e7e98cb425c/LICENSE) | `wordlist-20210729.txt`, 198.422 Zeilen | Nur ausdrückliche Positivliste von 1.257 kurzen Wörtern; Mitgliedschaft gegen vollständige komprimierte Quelle geprüft. Keine automatische Aufnahme des Wortspiel-Wörterbuchs. | **4** – lizenzklarer Ergänzungspool; ungeprüft wegen seltenen/belastenden Wörtern ungeeignet. |
-| Whitaker's WORDS | [Lexikon, Commit 1f2f0fb](https://github.com/mk270/whitakers-words/blob/1f2f0fb0867a896d7b9284a03d615ed635d6f992/DICTLINE.GEN), [Projekt](https://github.com/mk270/whitakers-words/tree/1f2f0fb0867a896d7b9284a03d615ed635d6f992) | **Individuelle permissive Freigabe für Programm und Daten**, [Originaltext](https://github.com/mk270/whitakers-words/blob/1f2f0fb0867a896d7b9284a03d615ed635d6f992/LICENCE.txt); keine CC0-/PD-Behauptung. | `DICTLINE.GEN`, 39.335 Datensätze; [Frequenz-/Grammatikbeschreibung](https://github.com/mk270/whitakers-words/blob/1f2f0fb0867a896d7b9284a03d615ed635d6f992/src/latin_utils/latin_utils-inflections_package.ads) | Gewählte Lateinquelle: Stämme, Grammatik, Frequenz und Bedeutungen. Begrenzter eigener Decoder für unterstützte Grundformen; 11.635 passende Kandidaten A–D vor Kuratierung. Keine Ada-Codeübernahme. | **4** – genug Daten und breite Weitergabefreigabe; Quelldatenfehler und ungewohnte Lemmata verlangen dokumentierte Grenzen. |
+| Whitaker's WORDS | [Lexikon, Commit 1f2f0fb](https://github.com/mk270/whitakers-words/blob/1f2f0fb0867a896d7b9284a03d615ed635d6f992/DICTLINE.GEN), [Projekt](https://github.com/mk270/whitakers-words/tree/1f2f0fb0867a896d7b9284a03d615ed635d6f992) | **Individuelle permissive Freigabe für Programm und Daten**, [Originaltext](https://github.com/mk270/whitakers-words/blob/1f2f0fb0867a896d7b9284a03d615ed635d6f992/LICENCE.txt); keine CC0-/PD-Behauptung. | `DICTLINE.GEN`, 39.335 Datensätze; [Frequenz-/Grammatikbeschreibung](https://github.com/mk270/whitakers-words/blob/1f2f0fb0867a896d7b9284a03d615ed635d6f992/src/latin_utils/latin_utils-inflections_package.ads) | Gewählte Lateinquelle: Stämme, Grammatik, Frequenz und Bedeutungen. Begrenzter eigener Decoder für unterstützte Grundformen; 11.632 passende Kandidaten A–D vor Kuratierung. Keine Ada-Codeübernahme. | **4** – genug Daten und breite Weitergabefreigabe; Quelldatenfehler und ungewohnte Lemmata verlangen dokumentierte Grenzen. |
 | xkcdpass | [Auswahlroutine, Commit b981361](https://github.com/redacted/XKCD-password-generator/blob/b981361292ae7328313e116178acacc90680df5e/xkcdpass/xkcd_password.py), [README](https://github.com/redacted/XKCD-password-generator/blob/b981361292ae7328313e116178acacc90680df5e/README.rst) | **Code: BSD-3-Clause**, [Lizenz](https://github.com/redacted/XKCD-password-generator/blob/b981361292ae7328313e116178acacc90680df5e/LICENSE.BSD); Daten je Liste separat. | `generate_wordlist`, `xkcdpass/static/` | Mehrere Quellen vor unabhängiger Indexwahl vereinigen und deduplizieren; Zeichen/Länge vorher filtern. Kairos bewahrt zusätzlich Sprachflags und wendet deutschen Vorrang an. | **5** – direkt passendes Prinzip; Flattening allein verliert Sprachherkunft. |
 | sts10/tidy | [README, Commit 449c187](https://github.com/sts10/tidy/blob/449c1875e8a8a6cb973640265486195cb7ae87e8/readme.markdown), [Lizenz](https://github.com/sts10/tidy/blob/449c1875e8a8a6cb973640265486195cb7ae87e8/LICENSE) | **Code: MIT**, keine Wortdaten mitgeliefert | Listenvereinigung, ASCII-/Längenfilter, Sperr-/Freigabelisten | Reproduzierbare Datenpflege vor Passworterzeugung; Prinzip übertragen, keine Logik kopiert, keine weitere Laufzeit-Crate. | **4** – passende Filterprinzipien; Sprachherkunft bleibt Aufgabe von Kairos. |
 | Uli Fouquet/diceware | [README, Commit 89534ea](https://github.com/ulif/diceware/blob/89534ea7b2c2d090e76307d55497a27ff90cc3d9/README.rst), [COPYRIGHT](https://github.com/ulif/diceware/blob/89534ea7b2c2d090e76307d55497a27ff90cc3d9/COPYRIGHT) | **Code: GPL-3.0-or-later**, Wortdaten separat, z. B. Deutsch CC BY 3.0, Französisch CC0. | `diceware/wordlists/`, Mehrlisten-Muster | Dateispezifische Lizenzen und reale Größen. Feste Mehrlisten-Muster sind keine freie Sprachwahl pro Wort. Kein Code und keine Daten übernommen. | **3** – gute Metadatenvorlage; Generatorsemantik für diesen Auftrag weniger passend. |
@@ -59,9 +56,12 @@ Indexwahl ist die Reihenfolge entropieneutral. Jeder Wortaufruf liefert das
 passende Sprachflag. Core, Profile und GUI werden in diesem Bereichs-PR nicht
 außerhalb der Crate geändert.
 
-Mittlere Länge: Englisch **6,282**, Latein **6,618**, Deutsch unverändert **6,564**.
+Mittlere Länge: Englisch **6,283**, Latein **6,725**, Deutsch unverändert **6,564**.
 Sechs Buchstaben bleiben ein Komfortziel. Latein enthält auch weniger bekannte
-Lemmata. Begrenzter Decoder, Quelldatenfehler und semantische Nebenbedeutungen
+Lemmata. Der Decoder verwirft fehlende `zzz`-Stämme, ein zusätzlicher Glossenwächter
+entfernt explizit sensible Bedeutungen und identische erste Glossen werden auf
+eine Schreibweise reduziert. Bekannte irritierende Einzelwörter sind gesperrt.
+Begrenzter Decoder, weitere Quelldatenfehler und semantische Nebenbedeutungen
 bleiben dokumentierte Grenzen; vollständige sprachwissenschaftliche Prüfung,
 allgemeine Präfixfreiheit und garantierter Editierabstand werden nicht behauptet.
 Neutrale gewöhnliche Begriffe wie `pax`, `aqua` und `amor` bleiben erlaubt.
@@ -71,3 +71,10 @@ Belege: [Crate-README](../../crates/kairos-wordlists/README.md),
 [Provenienz/Lizenztexte/Hashes](../../crates/kairos-wordlists/data/languages/PROVENANCE.md),
 [Filterbericht](../../crates/kairos-wordlists/data/languages/report.txt),
 [lateinische Bedeutungen und Originalzeilen](../../crates/kairos-wordlists/data/languages/latin-glosses.tsv).
+
+Die deterministische Größenbegrenzung bevorzugt an der Schnittstelle ordinal
+frühe Wörter gleicher Länge/Frequenz. Das verzerrt die Vokabularzusammensetzung,
+ist offengelegt und verändert die gleichverteilte Ziehung der Endwörter nicht.
+[NOTICE.txt](../../crates/kairos-wordlists/data/languages/NOTICE.txt) bündelt die
+Lizenztexte für die spätere Auslieferung; die GUI-/Release-Verdrahtung muss sie
+der EXE beilegen und bleibt außerhalb des Schreibbereichs dieses PRs offen.

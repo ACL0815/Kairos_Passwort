@@ -21,7 +21,7 @@ fn single_language_sources_have_equal_sizes_and_valid_spelling() {
             latin(),
             Language::Latin,
             include_str!("../data/languages/latin.txt"),
-            6.7,
+            6.8,
         ),
     ] {
         assert_eq!(source.len(), 7_134);
@@ -138,12 +138,7 @@ fn editorial_decisions_are_valid_and_cannot_silently_restore_regressions() {
             "Latin regression: {word}"
         );
     }
-    for (source, neutral) in [
-        (english(), "faith"),
-        (english(), "marxism"),
-        (english(), "islamist"),
-        (latin(), "amo"),
-    ] {
+    for (source, neutral) in [(english(), "faith"), (latin(), "amo")] {
         assert!((0..source.len()).any(|i| source.word(i) == neutral));
     }
 }
@@ -216,5 +211,101 @@ fn all_sources_are_shared_across_threads() {
         for handle in handles {
             assert!(std::ptr::eq(constructor(), handle.join().unwrap()));
         }
+    }
+}
+
+#[test]
+fn missing_latin_stems_never_become_words() {
+    for grammar in ["ADV X", "N 1 1 F T", "ADJ 1 1 POS", "V 1 1 TRANS"] {
+        let row = format!("{:<19}{:<57}{grammar:<24}{:<10}", "zzz", "", "X X X D O");
+        assert!(
+            pipeline::latin_lemma(&row).is_none(),
+            "placeholder accepted: {grammar}"
+        );
+    }
+    for index in 0..latin().len() {
+        assert!(!latin().word(index).starts_with("zzz"));
+    }
+}
+
+#[test]
+fn sensitive_latin_meanings_and_reviewed_spellings_are_excluded() {
+    for gloss in [
+        "buttocks; anus; (rude)",
+        "URINATE",
+        "commit sodomy with",
+        "female pudenda",
+        "brothel",
+        "pimp",
+        "procuress",
+        "private parts",
+        "genitalia",
+        "ejaculate; (somewhat rude)",
+        "enema",
+    ] {
+        assert!(
+            pipeline::sensitive_gloss(gloss),
+            "sensitive gloss missed: {gloss}"
+        );
+    }
+    for harmless in [
+        "water; sea, lake",
+        "peace; harmony",
+        "procure goods; provide",
+    ] {
+        assert!(!pipeline::sensitive_gloss(harmless));
+    }
+    let words: BTreeSet<_> = (0..latin().len())
+        .map(|index| latin().word(index))
+        .collect();
+    for word in [
+        "culus", "cunnus", "pedico", "percido", "meio", "mingo", "mio", "lupanar", "leno", "lena",
+        "natis", "ile", "ilum", "sulcus", "vagina", "semen", "genital", "cluster", "plo", "arcs",
+        "apes",
+    ] {
+        assert!(!words.contains(word), "review regression: {word}");
+    }
+    for row in include_str!("../data/languages/latin-glosses.tsv").lines() {
+        assert!(
+            !pipeline::sensitive_gloss(row),
+            "sensitive selected entry: {row}"
+        );
+    }
+    for word in ["islamist", "marxism"] {
+        assert!(!(0..english().len()).any(|index| english().word(index) == word));
+    }
+}
+
+#[test]
+fn identical_first_glosses_do_not_repeat_in_latin_selection() {
+    let mut seen = BTreeMap::new();
+    for row in include_str!("../data/languages/latin-glosses.tsv").lines() {
+        let (word, records) = row.split_once('\t').unwrap();
+        let first = records.split(" | ").next().unwrap();
+        let meaning = first
+            .splitn(3, ' ')
+            .nth(2)
+            .unwrap()
+            .trim_start_matches('|')
+            .trim();
+        assert!(
+            seen.insert(meaning, word).is_none(),
+            "duplicate first gloss: {word}"
+        );
+    }
+    let words: BTreeSet<_> = (0..latin().len())
+        .map(|index| latin().word(index))
+        .collect();
+    for group in [
+        &["paeniteo", "peniteo", "poeniteo"][..],
+        &["neclego", "neglego", "negligo"],
+        &["computo", "conputo"],
+        &["absilio", "apsilio"],
+        &["colostra", "colostrum", "colustra", "colustrum"],
+        &["hisopum", "hisopus", "hysopum", "hysopus"],
+        &["orfanus", "orphanus"],
+        &["praesaepe", "praesepe"],
+    ] {
+        assert!(group.iter().filter(|word| words.contains(**word)).count() <= 1);
     }
 }

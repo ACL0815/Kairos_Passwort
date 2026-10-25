@@ -3154,6 +3154,7 @@ grumbly
 grumpily
 grunge
 grunt
+guacamole
 guard
 guest
 guidable
@@ -3161,6 +3162,7 @@ guidance
 guide
 guiding
 guild
+guileless
 guise
 guitar
 gulf
@@ -3496,7 +3498,6 @@ irony
 irrigate
 islam
 islamic
-islamist
 island
 isle
 islet
@@ -3961,7 +3962,6 @@ marrow
 marry
 marsh
 marshy
-marxism
 mascot
 mash
 mashed
