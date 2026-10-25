@@ -18,7 +18,7 @@ pub use source::german_source;
 mod demo;
 
 use clipboard::{ClipboardAccess, ProtectedClipboard};
-use desktop::{boxed_target, input_error, InputTarget};
+use desktop::{boxed_target, input_error, Destination};
 use eframe::egui::{self, Color32, Key, Modifiers, RichText};
 #[cfg(not(all(feature = "demo", debug_assertions)))]
 use kairos_core::generate;
@@ -37,7 +37,7 @@ pub struct KairosApp {
     notice: &'static str,
     compact: bool,
     show_licenses: bool,
-    target: Option<Box<dyn InputTarget>>,
+    target: Destination,
     hotkeys: Option<GlobalHotkeys>,
     hotkey_error: Option<&'static str>,
     rotate_profiles: bool,
@@ -66,7 +66,7 @@ impl KairosApp {
             notice: "",
             compact,
             show_licenses: false,
-            target: None,
+            target: Destination::Unavailable,
             hotkeys: None,
             hotkey_error: None,
             rotate_profiles: false,
@@ -89,8 +89,9 @@ impl KairosApp {
         ctx: &egui::Context,
         target: Result<FocusTarget, PlatformError>,
     ) {
-        self.target = boxed_target(target).ok();
-        if self.target.is_none() {
+        self.target =
+            boxed_target(target).map_or(Destination::Unavailable, Destination::ReturnOnly);
+        if !self.target.can_restore() {
             self.notice = "Kein externes Zielfeld gemerkt. Generieren und Kopieren sind verfügbar; für Einfügen F9 im gewünschten Feld auslösen.";
         }
         self.register_hotkeys(ctx);
@@ -115,7 +116,8 @@ impl KairosApp {
         let result = self.hotkeys.as_ref().map(GlobalHotkeys::try_recv);
         match result {
             Some(Ok(Some(event))) => {
-                self.handle_action(ctx, event.action, boxed_target(event.target))
+                self.handle_action(ctx, event.action, boxed_target(event.target));
+                ctx.request_repaint();
             }
             Some(Err(_)) => {
                 self.hotkeys = None;
@@ -130,21 +132,21 @@ impl KairosApp {
         &mut self,
         ctx: &egui::Context,
         action: Action,
-        target: Result<Box<dyn InputTarget>, PlatformError>,
+        target: Result<Box<dyn desktop::InputTarget>, PlatformError>,
     ) {
         ctx.send_viewport_cmd(egui::ViewportCommand::Title("Kairos Passwort".into()));
         match action {
             Action::OpenEditor => {
-                self.target = target.ok();
+                self.target = target.map_or(Destination::Unavailable, Destination::Editor);
                 self.regenerate(ctx);
-                if self.target.is_none() {
+                if !self.target.can_insert() {
                     self.notice = "Kein externes Zielfeld gemerkt. Generieren und Kopieren sind verfügbar; für Einfügen F9 im gewünschten Feld auslösen.";
                 }
                 self.show_popup(ctx);
             }
             Action::GenerateTypeCopy => {
                 // A background action must not retain a previous editor destination.
-                self.target = None;
+                self.target = Destination::Unavailable;
                 self.regenerate(ctx);
                 if self.password.secret.is_empty() {
                     self.notice = self.password.message;
@@ -180,13 +182,7 @@ impl KairosApp {
                 }
             }
             Action::GenerateTypeKeePassXC => {
-                self.target = None;
-                self.password.clear();
-                self.password.message = "KeePassXC-Anbindung folgt (PR-6)";
-                self.rotation_bonus = None;
-                ctx.data_mut(|data| {
-                    data.remove::<egui::text_edit::TextEditState>(egui::Id::unique("password"))
-                });
+                self.target = Destination::Unavailable;
                 self.show_popup(ctx);
                 self.notice = "KeePassXC-Anbindung folgt (PR-6)";
             }
@@ -241,7 +237,7 @@ impl KairosApp {
                 self.notice =
                     "Kopiert. Zwischenablage wird nach 30 Sekunden geleert, sofern unverändert.";
                 if return_to_previous {
-                    match self.target.as_ref().ok_or(PlatformError::TargetUnavailable).and_then(|target| target.restore()) {
+                    match self.target.restore() {
                         Ok(()) => {
                             ctx.memory_mut(|memory| memory.surrender_focus(egui::Id::unique("password")));
                             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
@@ -259,8 +255,8 @@ impl KairosApp {
     }
 
     fn insert(&mut self, ctx: &egui::Context) {
-        let Some(target) = self.target.take() else {
-            self.notice = "Kein gemerktes Zielfeld. Hotkey im gewünschten Feld erneut auslösen.";
+        let Some(target) = self.target.take_editor() else {
+            self.notice = "Kein mit F9 gewähltes Einfügeziel. Passwort bleibt erhalten; Kopieren nutzen oder F9 im Ziel auslösen (erzeugt neu).";
             return;
         };
         match target.type_text(&self.password.secret, true) {
@@ -470,16 +466,18 @@ impl KairosApp {
                     ui.label(RichText::new(self.password.message).color(theme::MUTED).size(14.0));
                 });
                 ui.add_space(8.0);
-                if self.target.is_some() {
+                if self.target.can_insert() {
                     ui.label(RichText::new("Einfügen nutzt das vor dem Öffnen gemerkte Fenster. Windows kann Browser-Feldwechsel im selben Fenster nicht erkennen. Zielfeld vorher prüfen; keine automatische Wiederholung.").color(theme::MUTED).size(12.0));
                     ui.checkbox(&mut self.copy_on_insert, "Beim Einfügen auch kopieren (30 s)");
+                } else {
+                    ui.label(RichText::new("Einfügen mit F9 im gewünschten Zielfeld freigeben. Das Startfenster dient nur dem Fokus-Rücksprung.").color(theme::MUTED).size(12.0));
                 }
                 ui.horizontal_wrapped(|ui| {
                     if ui.add(egui::Button::new(RichText::new("Neu generieren").strong()).fill(Color32::from_rgb(45, 79, 132))).on_hover_text("Strg+R").clicked() { self.regenerate(&ctx); }
                     let available = !self.password.secret.is_empty();
                     if ui.add_enabled(available, egui::Button::new("Kopieren")).on_hover_text("Strg+C kopiert das ganze Passwort").clicked() { self.copy(&ctx, false); }
-                    if ui.add_enabled(available, egui::Button::new("Kopieren und zurückspringen")).clicked() { self.copy(&ctx, true); }
-                    if ui.add_enabled(available && self.target.is_some(), egui::Button::new("Einfügen")).clicked() { self.insert(&ctx); }
+                    if ui.add_enabled(available && self.target.can_restore(), egui::Button::new("Kopieren und zurückspringen")).on_disabled_hover_text("Für einen Rücksprung muss zuerst ein externes Fenster gemerkt sein.").clicked() { self.copy(&ctx, true); }
+                    if ui.add_enabled(available && self.target.can_insert(), egui::Button::new("Einfügen")).on_disabled_hover_text("F9 im gewünschten Zielfeld auslösen. Beim App-Start wird kein Einfügeziel freigegeben.").clicked() { self.insert(&ctx); }
                 });
                 if !self.notice.is_empty() { ui.label(RichText::new(self.notice).color(theme::CYAN).size(14.0)); }
                 let bits = match self.password.assessment { Assessment::Generated(bits) => Some(bits), _ => None };
@@ -596,6 +594,7 @@ fn profile_name(profile: u8) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::desktop::InputTarget;
     use kairos_core::{GeneratedPassword, Language};
     use std::{cell::RefCell, rc::Rc};
     use zeroize::Zeroizing;
@@ -798,7 +797,7 @@ mod tests {
         let ctx = egui::Context::default();
         let (mut app, clipboard) = fixture_app(&ctx);
         let target = Rc::new(RefCell::new(FakeTargetState::default()));
-        app.target = Some(Box::new(FakeTarget(target.clone())));
+        app.target = Destination::Editor(Box::new(FakeTarget(target.clone())));
         clipboard.borrow_mut().fail_copy = true;
         app.copy(&ctx, true);
         let output = frame(&ctx, &mut app, vec![]);
@@ -851,7 +850,7 @@ mod tests {
             app.compact = false;
             app.handle_action(&ctx, action, Err(PlatformError::TargetUnavailable));
             assert!(app.compact);
-            assert!(app.target.is_none());
+            assert!(!app.target.can_restore());
             let output = frame(&ctx, &mut app, vec![]);
             assert!(output.viewport_output[&egui::ViewportId::ROOT]
                 .commands
@@ -881,7 +880,7 @@ mod tests {
         );
         assert!(target.borrow().typed == [(app.password.secret.to_string(), false)]);
         assert!(clipboard.borrow().copied == [app.password.secret.to_string()]);
-        assert!(app.target.is_none());
+        assert!(!app.target.can_restore());
         let output = frame(&ctx, &mut app, vec![]);
         assert!(!output.viewport_output[&egui::ViewportId::ROOT]
             .commands
@@ -917,7 +916,7 @@ mod tests {
         assert!(target.borrow().typed.is_empty());
         assert!(clipboard.borrow().copied.is_empty());
         assert!(app.notice.contains("gewechselt"));
-        assert!(app.target.is_none());
+        assert!(!app.target.can_restore());
     }
 
     #[test]
@@ -925,7 +924,7 @@ mod tests {
         let ctx = egui::Context::default();
         let (mut app, clipboard) = fixture_app(&ctx);
         let target = Rc::new(RefCell::new(FakeTargetState::default()));
-        app.target = Some(Box::new(FakeTarget(target.clone())));
+        app.target = Destination::Editor(Box::new(FakeTarget(target.clone())));
         app.password.secret.clear();
         app.password.secret.push_str("PUBLIC-Ä@#+'!?");
         app.password.edited();
@@ -933,7 +932,102 @@ mod tests {
         app.insert(&ctx);
         assert_eq!(target.borrow().typed, [("PUBLIC-Ä@#+'!?".into(), true)]);
         assert_eq!(clipboard.borrow().copied, ["PUBLIC-Ä@#+'!?"]);
-        assert!(app.target.is_none());
+        assert!(!app.target.can_restore());
+    }
+
+    #[test]
+    fn startup_destination_can_only_return_focus_even_in_compact_mode() {
+        let ctx = egui::Context::default();
+        for compact in [false, true] {
+            let (mut app, clipboard) = fixture_app(&ctx);
+            let target = Rc::new(RefCell::new(FakeTargetState::default()));
+            app.compact = compact;
+            app.target = Destination::ReturnOnly(Box::new(FakeTarget(target.clone())));
+            assert!(!app.target.can_insert());
+            app.insert(&ctx);
+            assert!(target.borrow().typed.is_empty());
+            assert!(clipboard.borrow().copied.is_empty());
+            assert!(app.target.can_restore());
+            app.copy(&ctx, true);
+            assert_eq!(target.borrow().restores, 1);
+            assert_eq!(clipboard.borrow().copied, ["Öl-7Wiese"]);
+            assert!(target.borrow().typed.is_empty());
+        }
+    }
+
+    #[test]
+    fn f9_explicitly_authorizes_the_destination_across_regeneration() {
+        let ctx = egui::Context::default();
+        let (mut app, clipboard) = fixture_app(&ctx);
+        let target = Rc::new(RefCell::new(FakeTargetState::default()));
+        app.handle_action(
+            &ctx,
+            Action::OpenEditor,
+            Ok(Box::new(FakeTarget(target.clone()))),
+        );
+        assert!(app.target.can_insert());
+        app.regenerate(&ctx);
+        assert!(app.target.can_insert());
+        app.password.secret.clear();
+        app.password.secret.push_str("PUBLIC EDITED FIXTURE");
+        app.password.edited();
+        app.insert(&ctx);
+        assert_eq!(
+            target.borrow().typed,
+            [("PUBLIC EDITED FIXTURE".into(), true)]
+        );
+        assert_eq!(clipboard.borrow().copied, ["PUBLIC EDITED FIXTURE"]);
+        assert!(!app.target.can_restore());
+    }
+
+    #[test]
+    fn f11_keeps_manual_work_and_does_not_authorize_a_new_destination() {
+        let ctx = egui::Context::default();
+        let (mut app, clipboard) = fixture_app(&ctx);
+        app.password.edited();
+        app.handle_action(
+            &ctx,
+            Action::GenerateTypeKeePassXC,
+            Err(PlatformError::TargetUnavailable),
+        );
+        assert_eq!(&**app.password.secret, "Öl-7Wiese");
+        assert!(app.password.assessment == Assessment::Edited);
+        assert!(!app.target.can_insert());
+        assert!(clipboard.borrow().copied.is_empty());
+        assert_eq!(app.notice, "KeePassXC-Anbindung folgt (PR-6)");
+    }
+
+    #[test]
+    fn registration_error_and_retry_control_remain_visible_after_regeneration() {
+        fn has_text(shape: &egui::epaint::Shape, expected: &str) -> bool {
+            match shape {
+                egui::epaint::Shape::Text(text) => text.galley.text().contains(expected),
+                egui::epaint::Shape::Vec(shapes) => {
+                    shapes.iter().any(|shape| has_text(shape, expected))
+                }
+                _ => false,
+            }
+        }
+        let ctx = egui::Context::default();
+        let (mut app, _) = fixture_app(&ctx);
+        app.hotkey_error = Some("PUBLIC HOTKEY REGISTRATION FAILURE");
+        let _ = frame(&ctx, &mut app, vec![]);
+        app.regenerate(&ctx);
+        let output = frame(&ctx, &mut app, vec![]);
+        for expected in [
+            "PUBLIC HOTKEY REGISTRATION FAILURE",
+            "Hotkeys erneut registrieren",
+        ] {
+            assert!(output
+                .shapes
+                .iter()
+                .any(|shape| has_text(&shape.shape, expected)));
+        }
+        assert!(output
+            .shapes
+            .iter()
+            .filter(|shape| has_text(&shape.shape, "PUBLIC HOTKEY REGISTRATION FAILURE"))
+            .all(|shape| shape.shape.visual_bounding_rect().top() < 250.0));
     }
 
     #[test]
@@ -944,13 +1038,13 @@ mod tests {
             error: Some(PlatformError::InputIncomplete),
             ..Default::default()
         }));
-        app.target = Some(Box::new(FakeTarget(target.clone())));
+        app.target = Destination::Editor(Box::new(FakeTarget(target.clone())));
         app.insert(&ctx);
         assert!(clipboard.borrow().copied.is_empty());
         assert!(app.notice.contains("Teil der Eingabe"));
-        assert!(app.target.is_none());
+        assert!(!app.target.can_restore());
         target.borrow_mut().error = None;
-        app.target = Some(Box::new(FakeTarget(target.clone())));
+        app.target = Destination::Editor(Box::new(FakeTarget(target.clone())));
         app.copy_on_insert = false;
         app.insert(&ctx);
         assert_eq!(target.borrow().typed.len(), 1);

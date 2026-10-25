@@ -15,7 +15,8 @@ getrennt; die KeePassXC-Crate ist noch ein Scaffold.
 In PowerShell zuerst die bereitgestellte Build-Umgebung laden:
 
 ```powershell
-. 'C:\Users\Axel_desktop\.t3\projects\kairos-password\target\Enter-KairosBuildEnv.ps1'
+# Den vom Projekt bereitgestellten Enter-KairosBuildEnv.ps1-Helfer laden.
+# Beispiel: . '<Hauptcheckout>\target\Enter-KairosBuildEnv.ps1'
 cargo run -p kairos
 cargo run -p kairos -- --popup
 ```
@@ -41,9 +42,9 @@ ausgeschlossenes Minuszeichen in dieser Rotation ungültig.
 | Einfügen in Kairos | Strg+V nur bei Fokus im Passworteditor; Steuerzeichen werden entfernt. |
 | Kopieren und zurückspringen | Kopiert, gibt den Fokus über das vor App-/Popup-Öffnung erfasste Ziel zurück und minimiert erst nach erfolgreicher Rückgabe. Bei Fehler bleibt Kairos offen. |
 | Strg+Umschalt+F9 | Merkt das externe Zielfeld vor dem Wakeup, generiert und zeigt den kompakten Editor. Nachbearbeiten und erneute Generierungen sind möglich. |
-| Einfügen | Bestätigt das ursprüngliche Ziel nach der Bearbeitung, gibt Fokus zurück und tippt über die Plattform. Optional auch kopieren, standardmäßig an. Der Auftrag wird verbraucht; kein doppeltes Tippen durch einen zweiten Klick. |
+| Einfügen | Erst nach F9 im gewünschten Zielfeld aktiv. Bestätigt dieses Ziel nach der Bearbeitung, gibt Fokus zurück und tippt über die Plattform. Optional auch kopieren, standardmäßig an. Der Auftrag wird verbraucht; kein doppeltes Tippen durch einen zweiten Klick. |
 | Strg+Umschalt+F10 | Generiert, tippt direkt ins erfasste Ziel und kopiert nach angenommener Eingabe. Fordert keinen Fokus für das Hauptfenster an. Fehler stehen im App-Hinweis und gegebenenfalls im Titel/Taskleistenhinweis. |
-| Strg+Umschalt+F11 | Sichtbarer Hinweis „KeePassXC-Anbindung folgt (PR-6)“. Keine Texteingabe, kein Kopieren und kein Tresoreintrag. |
+| Strg+Umschalt+F11 | Sichtbarer Hinweis „KeePassXC-Anbindung folgt (PR-6)“. Keine Texteingabe, kein Kopieren und kein Tresoreintrag. Das aktuelle Passwort einschließlich Nacharbeit bleibt erhalten; kein Einfügeziel wird freigegeben. |
 
 Der Dienst wird einmal mit `GlobalHotkeys::with_wakeup` gestartet. Der Callback
 fordert nur `request_repaint` an. `eframe::App::logic` verarbeitet das Ereignis
@@ -53,6 +54,11 @@ mit einer Schaltfläche zum erneuten Registrieren. Die App akzeptiert kein
 Eingabeziel im eigenen Prozess. Ohne erfassbares Ziel bleibt F9 zum Generieren
 und Kopieren verfügbar. Ein Klick auf das schon offene Taskleistenfenster
 ersetzt das frühere Ziel nicht; für ein neues Ziel F9 dort erneut auslösen.
+Das beim normalen oder kompakten Start gemerkte Fenster berechtigt ausschließlich
+zum Fokus-Rücksprung. „Einfügen“ bleibt dabei deaktiviert, damit ein Start aus
+Terminal oder Explorer keine Eingabe dorthin freigibt. Erst F9 im beabsichtigten
+Zielfeld erzeugt einen Editorauftrag. Ohne gemerktes Ziel bleibt auch „Kopieren
+und zurückspringen“ deaktiviert.
 
 ## Fokus und Auto-Type
 
@@ -69,6 +75,8 @@ Es gibt keine automatische Wiederholung, keine Eingabe von Tab/Enter und
 keinen Clipboard-Fallback nach Eingabefehlern. Nach angenommener Eingabe und
 fehlgeschlagenem Kopieren erklärt der Hinweis den Teilerfolg; nur Kopieren
 soll erneut versucht werden. Der Nutztext wird nicht in Fehlern ausgegeben.
+Nach einem Einfügefehler bleibt die Nacharbeit erhalten und kann kopiert werden.
+Ein erneutes F9 erzeugt ein neues Passwort; die Fehlermeldungen erklären dies.
 
 **Grenzen:** Windows kann Fokusaktivierung verweigern. `SendInput` hat keinen
 atomaren Zielparameter. Mehrere DOM-Felder können dasselbe native HWND teilen,

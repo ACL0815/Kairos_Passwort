@@ -15,7 +15,7 @@ Die fachlichen PR-Kürzel unterscheiden sich von den GitHub-Nummern.
 | 2 | PR-3 | [#4](https://github.com/ACL0815/Kairos_Passwort/pull/4) | `feat/gui` | Gemergt. egui-Oberfläche, Profilwahl, Bearbeitung und Hervorhebung. Der Übergangsadapter wird in PR-W ersetzt. |
 | 4 | PR-8 | [#5](https://github.com/ACL0815/Kairos_Passwort/pull/5) | `feat/profile-rotation` | Gemergt. Eigene Profile und optionale gleichverteilte Rotation, ehrlicher Bonus und konservative Mischungsentropie. |
 | 3 | PR-5 | [#6](https://github.com/ACL0815/Kairos_Passwort/pull/6) | `feat/encrypted-store` | Gemergt. Import, SQLCipher, DPAPI, stabile WordSource-Snapshots. Noch keine Store-Oberfläche. |
-| 2 | PR-W | Dieser PR | `feat/app-wiring` | Implementiert, im Review. Echte deutsche Quelle, Plattform-Clipboard, Fokus-Rücksprung, F9/F10/F11 im eframe-Loop, Rotationshaken, Herkunftsdialog und manuelle Desktop-Checkliste. |
+| 2 | PR-W | [#8](https://github.com/ACL0815/Kairos_Passwort/pull/8) | `feat/app-wiring` | Implementiert, Review-Nachbesserung. Echte deutsche Quelle, Plattform-Clipboard, Fokus-Rücksprung, F9/F10/F11 im eframe-Loop, Rotationshaken, Herkunftsdialog und manuelle Desktop-Checkliste. |
 | 4 | PR-7 | [#7](https://github.com/ACL0815/Kairos_Passwort/pull/7) | `feat/languages-en-la` | Offen, in Nachbesserung. Englisch/Latein und `combined()` sind nicht auf der hier verwendeten main-Basis. |
 
 ## Nächste PRs

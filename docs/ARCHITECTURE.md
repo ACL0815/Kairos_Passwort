@@ -66,6 +66,12 @@ Der Einstieg erfasst das Vordergrundziel vor `run_native` und reicht
 eingebettete Liste ohne Wortkopien. Derselbe Konstruktor akzeptiert später
 eine kombinierte Quelle oder einen eigenen Store-Snapshot. Ein Quellenwechsel
 braucht keine Änderung im Core; Store- und Sprachauswahl-UI gehören zu Folge-PRs.
+Die App modelliert das Ziel als `Unavailable`, `ReturnOnly` oder `Editor`.
+Ein Startziel ist ausschließlich `ReturnOnly`, auch mit `--popup`. Es darf
+nur den Fokus zurückgeben, niemals eine Texteingabe freigeben. Erst F9 im
+gewünschten Zielfeld erzeugt `Editor`. So kann ein normaler Start aus Terminal
+oder Explorer kein Passwort dorthin tippen. Die Schaltflächen spiegeln diese
+Berechtigung und das Vorhandensein eines Rücksprungziels wider.
 
 Die App hält genau einen Hotkey-Dienst. Dessen Callback fordert nur ein Repaint
 an; `App::logic` verarbeitet Ereignisse auch bei verborgenem Fenster. Das Ziel
@@ -75,7 +81,10 @@ erst nach angenommener Eingabe, ohne einen Fokusbefehl an Kairos zu senden.
 Fehler erscheinen beim Öffnen im App-Hinweis, Eingabe-/Kopierfehler zusätzlich
 als Titel-/Taskleistenhinweis. Registrierungsfehler bleiben sichtbar und sind
 mit einem erneuten Registrierungsversuch behebbar. F11 öffnet den sichtbaren
-KeePassXC-Hinweis. Eigene Prozessziele werden in der App abgewiesen.
+KeePassXC-Hinweis und bewahrt das aktuelle Passwort samt Nacharbeit, gibt aber
+kein neues Einfügeziel frei. Eigene Prozessziele werden in der App abgewiesen.
+Nach einem verarbeiteten Hotkey fordert die App ein weiteres Repaint an, damit
+ein während der Verarbeitung eingetroffenes Ereignis nicht liegen bleibt.
 
 `FocusTarget::restore()` aktiviert vor dem Minimieren das gemerkte Fenster.
 Bei Fehler bleibt die App offen. Einfügen aus dem Editor nutzt additiv
@@ -83,7 +92,8 @@ Bei Fehler bleibt die App offen. Einfügen aus dem Editor nutzt additiv
 ursprüngliche Fenster-/Prozess-/Thread-/Control-Identität und startet nach
 geprüfter Rückgabe eine frische Eingabefrist. Es wird kein neues Ziel erfasst.
 Der Editor verbraucht den Auftrag auch bei Fehler; kein doppeltes Senden und
-kein automatischer Clipboard-Fallback. Direkte Hotkey-Eingaben behalten die
+kein automatischer Clipboard-Fallback. Das Passwort bleibt zur manuellen Kopie
+erhalten; Hinweise erklären, dass ein neues F9 auch neu generiert. Direkte Hotkey-Eingaben behalten die
 Fünf-Sekunden-Frist. Integritäts-, Modifier- und Unicode-Prüfungen gelten für
 beide Pfade. `is_current_process()` liefert ausschließlich Zielmetadaten.
 

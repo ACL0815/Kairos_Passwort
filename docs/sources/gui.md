@@ -15,7 +15,7 @@ und das ausdrücklich lizenzierte Schrift-Asset sind gesondert genannt.
 | Bitwarden browser-v2026.10.0 | [Farbige Inline-Anzeige](https://github.com/bitwarden/clients/blob/browser-v2026.10.0/apps/browser/src/autofill/overlay/inline-menu/pages/list/autofill-inline-menu-list.ts#L411-L444) | GPL-3.0; verlinkter Pfad außerhalb `bitwarden_license` | `buildColorizedPasswordElement` | Ziffern und Sonderzeichen mit eigenen Klassen darstellen; reine Prinzipienreferenz | 4 |
 | egui 0.37.0 TextEdit | [Builder](https://github.com/emilk/egui/blob/0.37.0/crates/egui/src/widgets/text_edit/builder.rs), [State](https://github.com/emilk/egui/blob/0.37.0/crates/egui/src/widgets/text_edit/state.rs) | MIT OR Apache-2.0 | `password`, `clear_undoer`, `store`, eigener Layouter | Passwortmodus verhindert normales Kopieren; Undo muss separat geleert werden. Ein eigener sichtbarer Layouter erzeugt Klartext-Layouts | 5 |
 | catppuccin-egui | [Commit ffb92d2](https://github.com/catppuccin/egui/blob/ffb92d2da71b72bde41d83bbc0a46917de97b486/src/lib.rs) | MIT | `set_theme`, `make_widget_visual` | Semantische Rollen für Hintergrund, Text, Auswahl und Fokus statt zufälliger Einzelwerte | 2 |
-| arboard 3.7.0 | [Commit 5f5c863](https://github.com/1Password/arboard/blob/5f5c8637911ba219edee619105a19b4f74e66a9f/src/platform/windows.rs) | MIT OR Apache-2.0 | `SetExtWindows`, `Set::text`, `OpenClipboard` | Beide Windows-Ausschlussformate über erprobte Crate setzen; der Windows-Adapter besitzt keinen HWND-Eigentümer | 5 |
+| arboard 3.7.0 | [Commit 5f5c863](https://github.com/1Password/arboard/blob/5f5c8637911ba219edee619105a19b4f74e66a9f/src/platform/windows.rs) | MIT OR Apache-2.0 | `SetExtWindows`, `Set::text`, `OpenClipboard` | Historisches Modell des ersetzten Übergangsadapters; heute keine direkte App-Abhängigkeit, allenfalls transitiv über eframe. Schreiben übernimmt kairos-platform. | 3 |
 | clipboard-win 5.4.3 | [Commit ed27008](https://github.com/DoumanAsh/clipboard-win/tree/ed27008ae5d1f10cfbb266de039f0fb35fd05a56), [Cargo.toml](https://github.com/DoumanAsh/clipboard-win/blob/ed27008ae5d1f10cfbb266de039f0fb35fd05a56/Cargo.toml) | BSL-1.0 (Boost Software License), gegen Cargo-Metadaten geprüft | `Clipboard`, `raw::seq_num`, `get_string`, `get_vec`, `empty` | RAII-Sperre für gemeinsame Prüfung und bedingte Löschung; permissive normale Windows-Abhängigkeit, bereits transitiv von arboard benötigt | 5 |
 
 ## Übertragung und Grenzen
@@ -37,7 +37,7 @@ das Abschreiben nötig, erzeugt aber Klartext in eguis Layout-/Galley-Daten.
 `password(true)` ersetzt keine Speicherhärtung. Der Undoer wird nach jedem Frame
 geleert, seine temporären `String`-Snapshots können wir über die öffentliche API
 nicht sicher überschreiben. Die verbleibenden UI-/OS-Kopien sind im
-[Crate-README](../../apps/kairos/README.md) dokumentiert und PR-9 vorbehalten.
+[Crate-README](../../apps/kairos/README.md) dokumentiert und PR-9a vorbehalten.
 
 PR-W ersetzt den Übergangsadapter durch `kairos_platform::copy_secret`.
 Alle drei Schutzformate werden in derselben OS-Transaktion vor dem Text
@@ -110,6 +110,9 @@ Abrufdatum 25.10.2026. Prinzipien modelliert, kein Anwendungscode kopiert.
 Der manuelle Editor bestätigt mit einem neuen Klick die ursprüngliche
 Zielidentität. Er erfasst sie nicht erneut und verbraucht den Auftrag auch bei
 Fehlern. Direkte F10-Ereignisse behalten die Plattform-Frist von fünf Sekunden.
+Ein Startziel dient nur dem Fokus-Rücksprung; ausschließlich F9 im gewünschten
+Zielfeld berechtigt den Editor zur Eingabe. Auch `--popup` allein gibt keine
+Texteingabe in ein Startterminal oder den Explorer frei.
 F10 fordert keinen Fokus für Kairos an. Browser-DOM-Felder können dasselbe HWND
 teilen und sind damit nicht sicher unterscheidbar. Die UI benennt diese Grenze.
 Kopiert wird nach erfolgreicher Windows-Annahme; bei Teileingabe wird weder

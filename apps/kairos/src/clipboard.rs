@@ -18,7 +18,7 @@ pub(crate) struct ProtectedClipboard {
 
 impl ClipboardAccess for ProtectedClipboard {
     fn copy(&self, text: &str) -> Result<(), ()> {
-        if text.chars().any(char::is_control) {
+        if text.is_empty() || text.chars().any(char::is_control) {
             return Err(());
         }
         let receipt = copy_secret(text, Some(DEFAULT_CLEAR_AFTER)).map_err(|_| ())?;
@@ -45,5 +45,26 @@ impl Drop for ProtectedClipboard {
         if let Some(receipt) = self.receipt.take() {
             let _ = receipt.clear_if_current();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn invalid_text_is_rejected_before_calling_the_platform_clipboard() {
+        let clipboard = ProtectedClipboard::default();
+        for text in [
+            "",
+            "PUBLIC\0FIXTURE",
+            "PUBLIC\nFIXTURE",
+            "PUBLIC\rFIXTURE",
+            "PUBLIC\tFIXTURE",
+            "PUBLIC\u{1b}FIXTURE",
+        ] {
+            assert!(clipboard.copy(text).is_err());
+        }
+        assert!(clipboard.receipt.get().is_none());
     }
 }
