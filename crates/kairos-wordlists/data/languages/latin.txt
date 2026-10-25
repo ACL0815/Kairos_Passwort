@@ -16,10 +16,7 @@ abitio
 abitus
 abjudico
 abjungo
-abjuratio
-abjuro
 ablacto
-ablego
 abnegatio
 abnegator
 abnego
@@ -136,7 +133,7 @@ adjunctio
 adjunctum
 adjunctus
 adjungo
-adjutor
+adjuto
 adjuvo
 adolesco
 adopertus
@@ -225,7 +222,6 @@ affatus
 affectio
 affecto
 affingo
-affinis
 affinitas
 affirmo
 affluens
@@ -295,7 +291,6 @@ alius
 aliusmodi
 allec
 allecto
-allego
 allevo
 allibesco
 allicio
@@ -334,7 +329,6 @@ alveolus
 alveus
 ama
 amabilis
-amando
 amanter
 amaracum
 amarantus
@@ -348,10 +342,10 @@ ambiguum
 ambio
 ambitio
 ambitiose
-ambitus
 ambroscus
 ambulatio
 ambulo
+amen
 amfractus
 amice
 amicio
@@ -487,7 +481,6 @@ apparatio
 apparatus
 apparens
 appareo
-apparitio
 apparo
 appellito
 appendo
@@ -591,7 +584,6 @@ asina
 asinarius
 aspecto
 aspectus
-aspello
 aspere
 asperitas
 aspicio
@@ -867,7 +859,6 @@ caerulum
 caerulus
 caesius
 caeterus
-calator
 calcar
 calceo
 calceus
@@ -1268,7 +1259,6 @@ competum
 compingo
 complaceo
 complano
-complex
 complexio
 complico
 complodo
@@ -1351,7 +1341,6 @@ confusus
 congemino
 congenero
 congeries
-congero
 congestio
 congestus
 conglacio
@@ -1362,7 +1351,6 @@ conitor
 coniveo
 conjectio
 conjuncte
-conjuro
 conlecta
 conlectus
 connascor
@@ -1447,7 +1435,6 @@ conula
 convallis
 convalo
 conveho
-convena
 conventio
 conventum
 conventus
@@ -1515,7 +1502,6 @@ crater
 cratis
 creator
 creatrix
-creatura
 crebesco
 crebo
 crebre
@@ -1742,7 +1728,6 @@ demisse
 demissus
 demolitio
 demoror
-demoveo
 demulceo
 demum
 demuto
@@ -1764,7 +1749,6 @@ denuo
 deorsum
 depango
 depecto
-depello
 dependeo
 dependo
 deporto
@@ -1810,7 +1794,6 @@ destillo
 destino
 destituo
 destricte
-desudo
 desuesco
 desuetudo
 desuetus
@@ -1972,7 +1955,6 @@ divinitus
 divino
 divinus
 divisio
-divisor
 divisus
 divitia
 divulgo
@@ -1986,13 +1968,9 @@ doctus
 dodrans
 dogma
 domabilis
-domina
 dominator
 dominicum
-dominicus
 dominium
-dominor
-dominus
 domito
 domuncula
 domus
@@ -2126,7 +2104,6 @@ emblema
 emendatio
 emendo
 ementior
-emercor
 emereo
 emergo
 emetior
@@ -2182,7 +2159,6 @@ erectus
 eremus
 erga
 erigo
-erilis
 erogatio
 erogo
 erraticus
@@ -2194,7 +2170,6 @@ erubesco
 erudio
 eruditio
 eruditus
-erus
 ervum
 esca
 escendo
@@ -2308,7 +2283,6 @@ expatior
 expecto
 expedio
 expedius
-expello
 expendo
 expensa
 expensum
@@ -2347,19 +2321,16 @@ exspecto
 exspes
 exsto
 exstruo
-exsul
 exsulto
 exsuscito
 extasis
 extemplo
 extenuo
-extermino
 externus
 extimulo
 extimus
 exto
 extollo
-extorris
 extraho
 extraneus
 extrarius
@@ -2370,8 +2341,6 @@ extrudo
 extruo
 exturbo
 exubero
-exudo
-exulo
 exultatio
 exulto
 exululo
@@ -2407,7 +2376,6 @@ faenero
 faenile
 faginus
 fagus
-famulor
 fandus
 fanum
 fanus
@@ -2557,6 +2525,7 @@ foenus
 fomes
 fons
 fontanus
+for
 foramen
 foras
 forceps
@@ -2810,12 +2779,10 @@ haricolor
 haud
 hebetudo
 hedera
-hera
 herba
 herbidus
 hercle
 hercule
-hereticus
 heri
 heroicus
 heros
@@ -2851,6 +2818,7 @@ honestas
 honeste
 honesto
 honestus
+honor
 honorate
 honoratus
 honoro
@@ -2918,7 +2886,6 @@ illecebra
 illibatus
 illic
 illicio
-illicitus
 illico
 illigo
 illim
@@ -2937,6 +2904,7 @@ imbrex
 imbuo
 imitamen
 imitatio
+imitator
 imitatrix
 imitor
 immadesco
@@ -3191,7 +3159,6 @@ institor
 instituo
 instrepo
 instruo
-insudo
 insuesco
 insuetus
 insula
@@ -3266,7 +3233,6 @@ invitus
 invius
 invoco
 involvo
-ipsimus
 irinum
 irretio
 irriguus
@@ -3337,9 +3303,7 @@ junctus
 juncus
 jungo
 juniperus
-juratus
 jure
-juro
 jus
 jussio
 jussum
@@ -3413,8 +3377,6 @@ laqueatus
 lardum
 largitas
 largiter
-largitio
-largitor
 largus
 laridum
 lascivio
@@ -3495,9 +3457,7 @@ liberalis
 liberatio
 liberator
 libere
-libero
 libertas
-libertina
 libra
 librarius
 librilis
@@ -3586,7 +3546,6 @@ lunaris
 lunatus
 luno
 lupatus
-lupinus
 lupus
 luscinia
 lusor
@@ -3601,7 +3560,6 @@ lympha
 lynx
 lyra
 lyricus
-lytrum
 macellum
 maceria
 machinor
@@ -3636,9 +3594,9 @@ mantele
 mantica
 mantile
 manufesto
-manumitto
 mappa
 marca
+mare
 margarita
 margino
 margo
@@ -3713,7 +3671,6 @@ meracus
 mercator
 mercatura
 mercatus
-merces
 mercor
 merges
 mergus
@@ -3842,7 +3799,6 @@ mundo
 mundus
 municeps
 munificus
-munus
 muralis
 murena
 murex
@@ -3938,7 +3894,6 @@ neuma
 neutro
 neve
 nexilis
-nexum
 nicto
 nidor
 nidus
@@ -4335,6 +4290,7 @@ pampinus
 panacea
 pando
 pandus
+pane
 pango
 panicum
 panis
@@ -4425,16 +4381,12 @@ peccatrix
 pecto
 pectus
 pecuarius
-peculator
-peculatus
 pecunia
 pecus
 pedalis
 pedisequa
 pedum
 pegma
-pejero
-pejerosus
 pelagius
 pelagus
 pellego
@@ -4513,8 +4465,6 @@ perhorreo
 perinde
 peritia
 peritus
-perjuro
-perjurus
 perlabor
 perlateo
 perlevis
@@ -4629,6 +4579,7 @@ petra
 phaselus
 philyra
 phoca
+phoenix
 physica
 physice
 physicum
@@ -4952,7 +4903,6 @@ procursus
 procurvus
 prodico
 prodigo
-proditor
 productio
 producto
 profano
@@ -5044,7 +4994,6 @@ prorsus
 prorumpo
 proruo
 prosapia
-proscribo
 prosequor
 prosilio
 prospecto
@@ -5098,10 +5047,7 @@ pubesco
 publice
 publico
 publicus
-pudenter
 pudeo
-pudicitia
-pudicus
 pudor
 puellaris
 puerilis
@@ -5376,8 +5322,6 @@ relabor
 relativus
 relatus
 relaxo
-relegatio
-relego
 relevo
 relictio
 relictum
@@ -5644,7 +5588,6 @@ salignus
 salillum
 salina
 salinum
-saliva
 salix
 salo
 salsugo
@@ -5694,7 +5637,6 @@ sarrio
 sarritor
 sartor
 satago
-satelles
 satias
 satietas
 satio
@@ -5870,7 +5812,6 @@ serus
 servator
 servatrix
 servo
-servula
 sessilis
 sessio
 setius
@@ -5916,7 +5857,6 @@ similis
 similiter
 similo
 simius
-simonia
 simplex
 simpulum
 simul
@@ -5961,7 +5901,6 @@ socius
 socordia
 socors
 socrus
-sodalis
 sodalitas
 sodes
 sofista
@@ -6160,7 +6099,6 @@ subito
 subitus
 subjaceo
 subjecto
-subjector
 subjectus
 sublatus
 sublevo
@@ -6237,8 +6175,6 @@ succussus
 succutio
 sucinum
 sudis
-sudo
-sudor
 sudus
 sueo
 suesco
@@ -6304,7 +6240,6 @@ surena
 surgo
 sus
 susceptio
-susceptor
 suscipio
 suscito
 suspectus
@@ -6388,7 +6323,6 @@ tempero
 tempestas
 templum
 temptatio
-tempto
 tempus
 tenacitas
 tenellus
@@ -6632,7 +6566,6 @@ unice
 unicus
 uniformis
 unigena
-unimanus
 unitas
 uniter
 universus
@@ -6654,7 +6587,6 @@ usquequo
 usucapio
 usura
 usurarius
-usurpatio
 usurpo
 usus
 utcumque
@@ -6743,7 +6675,6 @@ velociter
 velox
 velum
 velut
-venalis
 venaticus
 venatio
 venator

@@ -1,8 +1,8 @@
 # Provenienz: Englisch und Latein
 
-Abrufdatum: **25.10.2026**. Alle Quellbytes und Original-Lizenztexte liegen lokal.
-Die Hashes komprimierter Dateien beziehen sich auf die dekomprimierten Originalbytes.
-Die Pipeline braucht kein Netzwerk.
+Abruf 25.10.2026. Die Hashes komprimierter Quellen beziehen sich auf die
+dekomprimierten Bytes. Quellen und Originallizenzen liegen lokal; die
+Wortlisten-Pipelines benötigen kein Netzwerk.
 
 | Lokaler Pfad unter `upstream/` | Original-Download / fester Stand | SHA-256 der lokal geprüften Bytes (Rohdaten: Originalbytes) |
 |---|---|---|
@@ -17,80 +17,77 @@ Die Pipeline braucht kein Netzwerk.
 | `wordnik/wordlist-20210729.txt.gz` | [Original](https://raw.githubusercontent.com/wordnik/wordlist/46e6215d0f90356afe9c8ba4be347e7e98cb425c/wordlist-20210729.txt) | `bfd1b4eb4ade1ba81e84c7e24248b9a1aecec9d9baa427453b367a83e30e0451` |
 | `wordnik/LICENSE` | [Original](https://raw.githubusercontent.com/wordnik/wordlist/46e6215d0f90356afe9c8ba4be347e7e98cb425c/LICENSE) | `a568f0ac4c7ad5248ff748387d41e39519811b4a3e07d7438c9d1465dd4c9339` |
 | `wordnik/README.md` | [Original](https://raw.githubusercontent.com/wordnik/wordlist/46e6215d0f90356afe9c8ba4be347e7e98cb425c/README.md) | `740feccbefca2ff908862884cd46fbfbd6b1787eff24ef69f2369bbef8ca704b` |
+| `wordnet/WordNet-3.0.tar.gz` | Princeton WordNet 3.0 / eigener Auszug | `0d25346d1e6f1b053708274563eb4379171e14da21524fb12776ec0896a46e62` |
+| `wordnet/LICENSE` | Princeton WordNet 3.0 / eigener Auszug | `7731175a77952e259390b496fab905e57118b8d19ad3a8383c67eee724ff443f` |
+| `wordnet/candidate-senses.tsv.gz` | Princeton WordNet 3.0 / eigener Auszug | `439192525026792d32f95a7e68a8a1adbe425d3b88d22942a7db504ade4eb250` |
 
-EFF: **Joseph Bonneau und Electronic Frontier Foundation**, Listen von 2016.
-Gewählt ist **CC BY 4.0** aufgrund der aktuellen ausdrücklichen Freigabe für
-EFF-Originalmaterial auf der [EFF-Lizenzseite](https://www.eff.org/copyright).
-Die ältere xkcdpass-Kopie nennt CC BY 3.0; Kairos bezieht die Dateien direkt
-von EFF und wählt deren aktuelle Freigabe. Der vollständige
-[CC-BY-4.0-Text](upstream/eff/LICENSE.txt) und ein gekennzeichneter
-[Auszug der Freigabe](upstream/eff/COPYRIGHT-POLICY.txt) liegen bei. Die URLs
-sind datierte Veröffentlichungen, keine unveränderlichen Git-Commits; die
-SHA-256-Werte legen die tatsächlich übernommenen Bytes fest.
+EFF: Joseph Bonneau und Electronic Frontier Foundation, 2016. Direkte EFF-Dateien
+werden unter der vorhandenen ausdrücklichen CC-BY-4.0-Freigabe verteilt.
+[EFF-Richtlinie](https://www.eff.org/copyright), [vollständige Lizenz](upstream/eff/LICENSE.txt).
+Ältere Kopien nennen CC BY 3.0; sie werden hier nicht als neue Quelle verwendet.
 
-Wordnik: **Copyright (c) 2020 Wordnik**, [MIT](upstream/wordnik/LICENSE).
-Der Rohbestand ist ein Wörterbuch für Wortspiele; nur die ausdrückliche
-[Positivliste](english-supplement.txt) wird aufgenommen. Die MIT-Datei und
-das [Original-README](upstream/wordnik/README.md) gehören zum festen Commit.
+Wordnik: Copyright (c) 2020 Wordnik, [MIT](upstream/wordnik/LICENSE).
+Nur die expliziten Ergänzungen sind Kandidaten, keine ungeprüften Wörterbuchreste.
 
-Latein: **William A. Whitaker (1936–2010) und Beitragende**, WORDS,
-Commit `1f2f0fb0867a896d7b9284a03d615ed635d6f992`. Die
-[Originalfreigabe](upstream/whitaker/LICENCE.txt) gestattet jede Nutzung von
-Programm und Daten einschließlich Weitergabe und Verkauf. Dies ist eine
-**individuelle permissive Freigabe**, keine CC0-/Public-Domain-Erklärung und
-keine pauschale MIT-Lizenz. Die Wortdaten werden mit Namensnennung und
-unverändertem Lizenztext verteilt. Es wurde kein WORDS-Implementierungscode
-übernommen. Die Datei hat 39.335 Datensätze; Dokumentationen mit anderen
-Ständen nennen rund 39.000.
+Whitaker und Beitragende: individuelle permissive Freigabe für Programm und Daten,
+keine CC0-/Public-Domain-Behauptung. [Originaltext](upstream/whitaker/LICENCE.txt).
+Der begrenzte eigene Decoder verwendet nur Wortdaten.
 
-Änderungen von Kairos: Würfelpräfixe entfernt, ASCII-/Längenfilter,
-Deduplizierung, positive Ergänzungsauswahl, kategorisierte Ausschlüsse,
-begrenzte Rekonstruktion lateinischer Grundformen, Vorrang Deutsch vor
-Englisch vor Latein und Auswahl auf EN/LA jeweils 6.966 Wörter bei unverändertem DE-Umfang von 7.130. Stammfelder werden nicht pauschal übernommen; ein begrenzter Decoder und
-versionierte redaktionelle Sperren bestimmen die lateinischen Wörter.
+Princeton WordNet 3.0: Copyright 2006 by Princeton University. Das unveränderte
+[Originalarchiv](https://wordnetcode.princeton.edu/3.0/WordNet-3.0.tar.gz),
+die [Originallizenz](upstream/wordnet/LICENSE) und der als eigener Auszug
+gekennzeichnete Bedeutungsbestand sind enthalten. Der Extraktor übernimmt
+keinen Princeton-Implementierungscode. Das Originalarchiv enthält auch die
+unbenutzten Upstream-Werkzeuge. [Extraktionsverfahren und Containerhash](upstream/wordnet/README.md).
 
-Die Freigaben betreffen die Wortdaten getrennt von der Crate-Software
-(MIT OR Apache-2.0). Für eine Binärdistribution die Angaben dieses Dokuments
-und die drei oben verlinkten Lizenztexte zusammen mit den Wortdaten bzw.
-der Anwendung mitliefern, insbesondere die EFF-Attribution und den
-Änderungshinweis. Es besteht keine Unterstützung oder Empfehlung durch
-die ursprünglichen Autoren. Keine übernommenen Daten erfordern Copyleft. Die zusammengefasste
-[NOTICE.txt](NOTICE.txt) enthält Attribution, Änderungshinweise und alle drei
-Lizenztexte der neuen Wortdaten zur Weitergabe. Die spätere GUI-/Release-Integration
-muss diese Datei der EXE beilegen; diese Packaging-Verdrahtung liegt außerhalb
-des Schreibbereichs dieses Crate-PRs.
+Kairos entfernt Würfelpräfixe, filtert Zeichen/Länge, vereinigt und dedupliziert,
+wählt Ergänzungen, rekonstruiert unterstützte LA-Lemmata, bindet Bedeutungen,
+wendet redaktionelle und A/B-Entscheidungen an und entfernt Überlappungen/Varianten.
+Die Autoren unterstützen oder empfehlen diese Änderungen nicht.
+
+| Sprache | Wörter | Mittelwert | SHA-256 |
+|---|---:|---:|---|
+| DE | 6.909 | 6,577 | `02911732a22dbba0967453121e60d245bc7452e13383d808acfbbef47efb2ed0` |
+| EN | 6.897 | 6,659 | `8aae2952cab7bb2406864e7f87b685f8f5c3ced1d7c7b4f04d4a666f9253899a` |
+| LA | 6.897 | 6,988 | `7ccd0262310397edb42e1c65e33d5a781a4426fd84ad14d7edf8bedee28fd8c3` |
+
+Die Softwarelizenz MIT OR Apache-2.0 ersetzt keine dieser Datenlizenzen.
+[NOTICE.txt](NOTICE.txt) enthält alle vier vollständigen Texte und Attributionen
+zur Weitergabe mit der Anwendung. Keine übernommenen Daten erfordern Copyleft.
+Die spätere NOTICE-Auslieferung liegt außerhalb dieses Crate-Auftrags.
 
 ## Reproduzierbarer Filterbericht
 
-Arbeitsstand mit STOP, keine semantische Abnahme; siehe [Diagnose](../curation-diagnosis.md).
-
 ```text
-German retained: 7130
-Semantic decisions sha256: e2b7f51f134ce27745cf3813c73d10f0a1bdd3fcc9e1652cf71e511fdfeccb86
+German retained: 6909
+Acceptance rubric A/B sha256: 65ea55de3e60a534da3243a3fe3600e3fecead5338a86daa818cd193c4e05159
+Semantic decisions sha256: 09b47c892c5f4c18560129a3137e1999ff7d9751a761059e72c94dc51ebfbba0
 English raw rows: 10368
 English eligible distinct: 8301
 English Wordnik selected additions: 1257
-English semantic decisions: 9558; blocked: 1408
+English WordNet covered: 8924; explicit no-entry: 634; EFF Large positive signals: 7772
+English person meanings review: 669 candidates; sha256: 8fd57ff79446dd90c6a3fe2441dd6d827b3d471eb103874884a9d125275c6a4f
+English semantic decisions: 9558; blocked: 1782
 English editorial rejections: 1226
-English additional semantic blocks: 757
+English additional semantic blocks: 1066
 English disease/injury/decay/death guard removed: 0
-English overlap removed (German): 361
-English available after curation and overlap removal: 7214
+English overlap removed (German): 343
+English available after curation and overlap removal: 6923
 Latin raw rows: 39335
 Latin eligible distinct (frequency A-D, supported lemma patterns): 11632
-Latin semantic decisions: 11632; blocked: 2952
+Latin semantic decisions: 11632; blocked: 3095
 Latin editorial rejections: 2352
-Latin additional semantic blocks: 1388
+Latin additional semantic blocks: 1472
 Latin sensitive-gloss/spelling guard removed: 16
 Latin overlap removed (German): 77
-Latin overlap removed (English): 108
-Latin available after curation and overlap removal: 7691
-Latin identical-gloss variants removed: 725
-Latin available after variant filter: 6966
-Equal EN/LA size reduced to 6966: minimum of German target, reviewed English pool and Latin pool after overlap/variant filtering. German unchanged; Latin overlap exclusions retain the English preselection of 7130.
-English final: 6966; mean length: 6.541; sha256: 511107e3b370cb4c184ef9c5fc0675fbe226fbbe06ee533f1eba6a6047784881
-Latin final: 6966; mean length: 6.990; sha256: 95d8b89f37c794ce6c2ea446f59551aff7cb08ce98e087fa6269630d0e0d0987
-Combined distinct: 21062
+Latin overlap removed (English): 99
+Latin available after curation and overlap removal: 7616
+Latin identical-gloss variants removed: 719
+Latin available after variant filter: 6897
+Equal EN/LA size reduced to 6897: minimum of German target, reviewed English pool and Latin pool after overlap/variant filtering. German unchanged; Latin overlap exclusions retain the English preselection of 6909.
+English final: 6897; mean length: 6.659; sha256: 8aae2952cab7bb2406864e7f87b685f8f5c3ced1d7c7b4f04d4a666f9253899a
+Latin final: 6897; mean length: 6.988; sha256: 7ccd0262310397edb42e1c65e33d5a781a4426fd84ad14d7edf8bedee28fd8c3
+Combined distinct: 20703
 ```
 
-Die Ergebnisprüfwerte stehen in [english.sha256](english.sha256) und [latin.sha256](latin.sha256). Sie fixieren den reproduzierbaren Arbeitsstand und behaupten keine semantische Freigabe. Rohquellen und Lizenztexte bleiben unverändert.
+Aktueller Prüfstand und semantische Grenzen: [Stufe 2](../curation-stage-two.md).

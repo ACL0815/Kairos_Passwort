@@ -1,5 +1,10 @@
 # Diagnose und Ursachenfix (Abnahmerunde 2)
 
+**Historischer Bericht der Stufe 1 bei `691860b`.** Der damalige STOP bleibt
+unten unverändert nachvollziehbar. Der aktuelle verbindliche Standard steht
+in [curation-rubric.md](curation-rubric.md); Fortsetzung, Entscheidungen und
+aktuelle Abnahme in [curation-stage-two.md](curation-stage-two.md).
+
 **Arbeitsstand mit STOP, keine fachliche Abnahme.** Nach vollständiger
 Kandidatenklassifikation und einem Korrekturversuch findet die zweite eigene
 Abnahmeprobe erneut Sperr-/Zweifelfälle derselben Klassen. Gemäß Auftrag werden

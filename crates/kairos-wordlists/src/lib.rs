@@ -40,7 +40,7 @@ impl WordSource for EmbeddedWordList {
 ///
 /// A thread-safe index is initialized once. No external dictionary is needed.
 /// Use [`WordSource::len`] for the actual vocabulary size when calculating
-/// entropy. This single-language source retains the PR-2 vocabulary unchanged.
+/// entropy. Editorial A/B exclusions are applied before embedding the data.
 ///
 /// Modelled after: pwgen-go <https://github.com/gabe565/pwgen-go/tree/5a53dce1f9cbde823855ee6facf6889eb5275fde/internal/wordlist>.
 /// Modelled after: passalong-core <https://docs.rs/passalong-core/0.3.0/src/passalong_core/crypto/words.rs.html>.
@@ -48,7 +48,7 @@ impl WordSource for EmbeddedWordList {
 /// ```
 /// use kairos_core::{Language, WordSource};
 /// let words = kairos_wordlists::german();
-/// assert!(words.len() >= 7_000);
+/// assert!(words.len() >= 5_000);
 /// assert_eq!(words.language(0), Language::German);
 /// ```
 pub fn german() -> &'static EmbeddedWordList {

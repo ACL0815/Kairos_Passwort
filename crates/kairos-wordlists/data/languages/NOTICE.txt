@@ -2,41 +2,31 @@ Kairos Passwort - English and Latin word data
 
 English EFF lists: Joseph Bonneau and Electronic Frontier Foundation, 2016.
 Source: https://www.eff.org/dice
-Data: Creative Commons Attribution 4.0 International, under the EFF policy
-https://www.eff.org/copyright (retrieved 2026-10-25).
-English selected supplements: Copyright (c) 2020 Wordnik, MIT license.
+Data: Creative Commons Attribution 4.0 International under the existing
+EFF policy https://www.eff.org/copyright (retrieved 2026-10-25).
+English selected supplements: Copyright (c) 2020 Wordnik, MIT.
 Source: https://github.com/wordnik/wordlist/tree/46e6215d0f90356afe9c8ba4be347e7e98cb425c
 Latin data: William A. Whitaker (1936-2010) and contributors, WORDS.
 Source: https://github.com/mk270/whitakers-words/tree/1f2f0fb0867a896d7b9284a03d615ed635d6f992
-License: original individual permission for program and data, reproduced below.
+License: original individual permission for program and data.
+English meaning evidence: Princeton WordNet 3.0, Copyright 2006 by Princeton University.
+Source: https://wordnetcode.princeton.edu/3.0/WordNet-3.0.tar.gz
 
-Kairos modifications: remove dice numbers, filter character set and length,
-merge and deduplicate, select explicit English additions, decode supported Latin
-lemmas, apply editorial exclusions and a sensitive-gloss guard, remove spelling
-variants with identical glosses, remove cross-language overlaps, select equal
-list sizes, interleave with language metadata. No endorsement by source authors.
+Kairos modifications: remove dice numbers, filter spelling and length, select
+explicit additions, decode supported Latin lemmas, bind all available meanings,
+apply source-bound editorial and A/B decisions, remove variants and overlaps,
+select equal EN/LA sizes and interleave with language flags. No endorsement
+by source authors. Meaning evidence and lists are separate from the software.
 
-Curation revision 2026-10-25 (Verifier A): extend disease, injury, pus/ulcer,
-itch/mange/leprosy, decay and death filters, including secondary Latin meanings;
-apply the same English term classes before selection. Regenerate English and
-Latin at 7,130 words each, disjoint from the corrected 7,130-word German list.
+Curation stage 2, 2026-10-25: German 6909, English 6897, Latin 6897;
+combined 20703. A is excluded; B is logged separately, with explicitly
+documented conservative exclusions. See curation-rubric.md, curation-stage-two.md,
+semantic-decisions.tsv and report.txt. Historical stage-1 STOP evidence is kept.
+German data is corrected here after PR-2 merged; its CC0 provenance is in
+../PROVENANCE.md. The current acceptance evidence is recorded separately.
 
-The software license does not replace these word-data licenses. Include this
-notice with binary distributions that embed the English or Latin word data.
-German word-data provenance is documented separately in data/PROVENANCE.md.
-
-Curation revision 2026-10-25 (acceptance round 2): review every eligible English
-and Latin candidate and every reserve candidate against the explicit semantic
-rubric, including all available secondary Latin meanings regardless of their
-frequency. Apply versioned source-bound allow/block decisions before selection;
-fail on missing reviews or changed meanings. Retain the keyword guard as an
-additional check. German data and German curation rules are unchanged here;
-German findings are reported separately for PR-2. See curation-diagnosis.md,
-semantic-decisions.tsv and report.txt for decisions, coverage and final counts.
-This snapshot retains 6,966 English and 6,966 Latin words alongside 7,130 German
-words. Semantic acceptance failed again; work stopped under the assigned stop
-rule. This reproducible curation snapshot is not a semantic approval. See
-../curation-diagnosis.md for the remaining findings and decision handoff.
+Include this notice and all applicable data licenses with binary distributions.
+The MIT OR Apache-2.0 software license does not replace word-data licenses.
 
 ===== EFF: CC BY 4.0 =====
 
@@ -436,7 +426,6 @@ public licenses.
 
 Creative Commons may be contacted at creativecommons.org.
 
-
 ===== Wordnik: MIT =====
 
 MIT License
@@ -479,3 +468,37 @@ would appreciate comments and suggestions.
 
 All parts of the WORDS system, source code and data files, are made freely
 available to anyone who wishes to use them, for whatever purpose.
+
+===== Princeton WordNet 3.0 =====
+
+WordNet Release 3.0
+
+This software and database is being provided to you, the LICENSEE, by
+Princeton University under the following license.  By obtaining, using
+and/or copying this software and database, you agree that you have
+read, understood, and will comply with these terms and conditions.:
+
+Permission to use, copy, modify and distribute this software and
+database and its documentation for any purpose and without fee or
+royalty is hereby granted, provided that you agree to comply with
+the following copyright notice and statements, including the disclaimer,
+and that the same appear on ALL copies of the software, database and
+documentation, including modifications that you make for internal
+use or for distribution.
+
+WordNet 3.0 Copyright 2006 by Princeton University.  All rights reserved.
+
+THIS SOFTWARE AND DATABASE IS PROVIDED "AS IS" AND PRINCETON
+UNIVERSITY MAKES NO REPRESENTATIONS OR WARRANTIES, EXPRESS OR
+IMPLIED.  BY WAY OF EXAMPLE, BUT NOT LIMITATION, PRINCETON
+UNIVERSITY MAKES NO REPRESENTATIONS OR WARRANTIES OF MERCHANT-
+ABILITY OR FITNESS FOR ANY PARTICULAR PURPOSE OR THAT THE USE
+OF THE LICENSED SOFTWARE, DATABASE OR DOCUMENTATION WILL NOT
+INFRINGE ANY THIRD PARTY PATENTS, COPYRIGHTS, TRADEMARKS OR
+OTHER RIGHTS.
+
+The name of Princeton University or Princeton may not be used in
+advertising or publicity pertaining to distribution of the software
+and/or database.  Title to copyright in this software, database and
+any associated documentation shall at all times remain with
+Princeton University and LICENSEE agrees to preserve same.

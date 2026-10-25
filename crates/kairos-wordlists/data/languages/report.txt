@@ -1,26 +1,29 @@
-German retained: 7130
-Semantic decisions sha256: e2b7f51f134ce27745cf3813c73d10f0a1bdd3fcc9e1652cf71e511fdfeccb86
+German retained: 6909
+Acceptance rubric A/B sha256: 487129b118d1459667ecc9e3b1a7bb3721991238a472739580df4467b2de0fe6
+Semantic decisions sha256: f2f9bfdeec2d1f67e8ea3ca0f707b5af58234034afc8e49965eadda9f7f9c864
 English raw rows: 10368
 English eligible distinct: 8301
 English Wordnik selected additions: 1257
-English semantic decisions: 9558; blocked: 1408
+English WordNet covered: 8924; explicit no-entry: 634; EFF Large positive signals: 7772
+English person meanings review: 669 candidates; sha256: 8fd57ff79446dd90c6a3fe2441dd6d827b3d471eb103874884a9d125275c6a4f
+English semantic decisions: 9558; blocked: 1782
 English editorial rejections: 1226
-English additional semantic blocks: 757
+English additional semantic blocks: 1066
 English disease/injury/decay/death guard removed: 0
-English overlap removed (German): 361
-English available after curation and overlap removal: 7214
+English overlap removed (German): 343
+English available after curation and overlap removal: 6923
 Latin raw rows: 39335
 Latin eligible distinct (frequency A-D, supported lemma patterns): 11632
-Latin semantic decisions: 11632; blocked: 2952
+Latin semantic decisions: 11632; blocked: 3095
 Latin editorial rejections: 2352
-Latin additional semantic blocks: 1388
+Latin additional semantic blocks: 1472
 Latin sensitive-gloss/spelling guard removed: 16
 Latin overlap removed (German): 77
-Latin overlap removed (English): 108
-Latin available after curation and overlap removal: 7691
-Latin identical-gloss variants removed: 725
-Latin available after variant filter: 6966
-Equal EN/LA size reduced to 6966: minimum of German target, reviewed English pool and Latin pool after overlap/variant filtering. German unchanged; Latin overlap exclusions retain the English preselection of 7130.
-English final: 6966; mean length: 6.541; sha256: 511107e3b370cb4c184ef9c5fc0675fbe226fbbe06ee533f1eba6a6047784881
-Latin final: 6966; mean length: 6.990; sha256: 95d8b89f37c794ce6c2ea446f59551aff7cb08ce98e087fa6269630d0e0d0987
-Combined distinct: 21062
+Latin overlap removed (English): 99
+Latin available after curation and overlap removal: 7616
+Latin identical-gloss variants removed: 719
+Latin available after variant filter: 6897
+Equal EN/LA size reduced to 6897: minimum of German target, reviewed English pool and Latin pool after overlap/variant filtering. German unchanged; Latin overlap exclusions retain the English preselection of 6909.
+English final: 6897; mean length: 6.659; sha256: 8aae2952cab7bb2406864e7f87b685f8f5c3ced1d7c7b4f04d4a666f9253899a
+Latin final: 6897; mean length: 6.988; sha256: 7ccd0262310397edb42e1c65e33d5a781a4426fd84ad14d7edf8bedee28fd8c3
+Combined distinct: 20703

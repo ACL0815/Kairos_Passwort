@@ -1,9 +1,12 @@
 # Englisch und Latein
 
-**Arbeitsstand mit STOP, keine fachliche Freigabe:** Nach dem Korrekturversuch ist die zweite eigene semantische Abnahme erneut fehlgeschlagen. [Befunde und Übergabe](../../crates/kairos-wordlists/data/curation-diagnosis.md).
+Der aktuelle Abnahmestandard unterscheidet zwingende A-Ausschlüsse und
+zulässige B-Fälle. Der historische STOP aus Stufe 1 und die Fortsetzung
+werden getrennt dokumentiert. [Rubrik](../../crates/kairos-wordlists/data/curation-rubric.md),
+[aktueller Prüfstand Stufe 2](../../crates/kairos-wordlists/data/curation-stage-two.md).
 
-PR-7, **Prio 4**, `feat/languages-en-la`, **gestapelt auf #2** (`feat/wordlist-de`
-@ `4b10929d339dc8741fc844186a40cd385e507839`). Abruf/Stichproben: **25.10.2026**.
+PR-7, **Prio 4**, `feat/languages-en-la`, **Base main nach Merge von #2**.
+Abruf/historische Stichproben: **25.10.2026**.
 Bewertung nach Prüfung der Primärquellen am 25.10.2026.
 
 Code- und Datenlizenzen werden getrennt betrachtet. **Kein fremder
@@ -33,62 +36,47 @@ Aufbereitungsaufwand zusammen. Alle Zeilen wurden am 25.10.2026 abgerufen.
 
 ## Entscheidung und Konzepttreue
 
-Die zweite Abnahmerunde zeigte, dass eine Erweiterung einzelner Keywordklassen
-die geforderte semantische Eignung nicht sicherstellt. Der Ursachenfix verlangt
-jetzt eine quellengebundene Einzelentscheidung für jeden der 9.558 EN- und
-11.632 LA-Kandidaten einschließlich aller Reserven. Alle LA-Nebenbedeutungen
-werden berücksichtigt, auch seltene Frequenzen außerhalb A–D bei derselben
-Schreibweise. Fehlende oder veraltete Entscheidungen brechen die Pipeline ab.
-Der Keyword-Wächter bleibt als Zusatznetz und erkennt weitere Markerformen.
+Der aktuelle [A/B-Standard](../../crates/kairos-wordlists/data/curation-rubric.md) ersetzt „im Zweifel raus“.
+Die [Stufe-2-Belege](../../crates/kairos-wordlists/data/curation-stage-two.md) trennen Semantik und technische
+Reproduktion. Der historische STOP bleibt in der Diagnose zu `691860b` erhalten.
 
-[Diagnose, Rubrik und eigene 400er-Stichprobe](../../crates/kairos-wordlists/data/curation-diagnosis.md),
-[versionierte Einzelentscheidungen](../../crates/kairos-wordlists/data/languages/semantic-decisions.tsv).
-Die frühere [Verifier-A-Nachbesserung](../../crates/kairos-wordlists/data/curation-review.md)
-ist als historischer Stand erhalten; ihre Keyword-Erweiterung allein genügte
-nicht für die zweite fachliche Abnahme.
-Latein hat eine brauchbare redistribuierbare Quelle mit ausreichend Wörtern.
-Deshalb sind Esperanto/Italienisch als Ausweichsprachen nicht erforderlich.
-Übernommen werden EFF (CC BY 4.0), ausgewählte Wordnik-Daten (MIT) und WORDS
-(individuelle permissive Freigabe). Es gibt **keine offene Copyleft-Entscheidung**.
-Originaltexte, Namensnennungen und Änderungshinweise liegen bei und müssen bei
-einer Binärdistribution mitgeliefert werden. Die Crate-Software bleibt MIT OR
-Apache-2.0; diese Lizenz ersetzt keine Datenlizenz.
+Zusätzlich gewählt ist Princeton WordNet 3.0 als englische Bedeutungsquelle.
+[Originalarchiv](https://wordnetcode.princeton.edu/3.0/WordNet-3.0.tar.gz),
+[Original-Lizenz](https://wordnet.princeton.edu/license-and-commercial-use).
+Der deterministische eigene Auszug bindet Definitionen, Wortart, Synset-Offset,
+Lemma und EFF-Large-Mitgliedschaft. 8.924 von 9.558 Kandidaten haben Treffer,
+634 bleiben explizite Lücken. Das sind Quellenbelege, keine automatische Freigabe.
+Die gezielte EN-Restsuche durchsucht den gesamten erlaubten Bestand, beansprucht
+aber keine menschliche Einzelabnahme jeder WordNet-Zuordnung.
 
-Deutsch bleibt bytegleich bei **7.130 Wörtern**. EN und LA werden nach vollständiger
-Kandidatenklassifikation, Sperren, Sprachabzug und Variantenfilter auf das
-verfügbare Minimum **je 6.966** gekürzt. Englisch entfernt 361 deutsche
-Überschneidungen; Latein 77 deutsche und 108 aus der EN-Vorauswahl von 7.130.
-Dieser konservative Sprachabzug wird nach der Größenkürzung nicht rückgängig
-gemacht. `combined()` enthält **21.062 verschiedene Schreibweisen** mit
-Sprachflag. Die Sprachen sind paarweise disjunkt. EN und LA haben gleichen
-Umfang, Deutsch ist größer; die Sprachwahrscheinlichkeiten folgen diesen Größen.
-Vier Wörter aus der Vereinigung ergeben bei festem Trenner **57,449 Bit**,
-Vergleichsfaktor zur deutschen Einzelquelle **76,145**. Faktor 81 gilt hier nicht.
-Die Größenfixierung und Quellenreproduktion sind keine semantische Abnahme.
-Die kombinierte Ablage verschränkt Deutsch/Englisch/Latein deterministisch,
-ohne Sprachblöcke. Dies ist keine geheime Zufallspermutation; bei gleichverteilter
-Indexwahl ist die Reihenfolge entropieneutral. Jeder Wortaufruf liefert das
-passende Sprachflag. Core, Profile und GUI werden in diesem Bereichs-PR nicht
-außerhalb der Crate geändert.
+Nach dem Merge von #2 basiert #7 auf main und setzt die deutsche Triage hier um.
+DE hat 6.909 Wörter, EN/LA jeweils 6.897, die disjunkte Vereinigung
+20.703. Vier unabhängig und gleichverteilt aus der Vereinigung gezogene Wörter ergeben bei festem Trenner **57,350 Bit**. Der Größenfaktor gegenüber DE ist **80,625**; der Sprachanteil ist bereits enthalten und darf nicht nochmals addiert werden.
+Die Mittelwerte sind DE 6,577, EN 6,659, LA 6,988.
 
-Mittlere Länge: EN **6,541**, LA **6,990**, DE unverändert **6,565**. Die strengere
-Kuratierung erhöht die mittlere Wortlänge; Tests begrenzen EN nun auf 6,6 und
-LA auf 7,0 statt 6,5/6,8. Der begrenzte Decoder, alle Rohglossen pro Kandidat,
-versionierte Einzelentscheidungen und zusätzliche Markerprüfungen sind
-reproduzierbar. Die eigene Abnahme hat aber verbleibende Fehlentscheidungen
-nachgewiesen. Die Stop-Regel ist ausgelöst; eine weitere Diagnoseleiterstufe
-entscheidet der Lead. Deutsche Funde sind ausschließlich für #2 gemeldet.
-Neutrale Grundbegriffe wie `pax` und `amo` bleiben erlaubt; ein neutraler
-Hauptsinn genügt bei expliziter problematischer Nebenbedeutung nicht.
-Belege: [Crate-README](../../crates/kairos-wordlists/README.md),
-[Auswahl, Zahlen, Schnittmengen und Offline-Pipeline](../../crates/kairos-wordlists/data/languages/README.md),
-[Provenienz/Lizenztexte/Hashes](../../crates/kairos-wordlists/data/languages/PROVENANCE.md),
-[Filterbericht](../../crates/kairos-wordlists/data/languages/report.txt),
-[lateinische Bedeutungen und Originalzeilen](../../crates/kairos-wordlists/data/languages/latin-glosses.tsv).
+Quell- und Lizenzentscheidung: EFF CC BY 4.0, Wordnik MIT, Whitakers individuelle
+permissive Freigabe und Princeton WordNet 3.0. Es besteht keine offene Copyleft-
+Entscheidung für übernommene Daten. Keine fremde Implementierung wird in den
+eigenen Generatorcode übernommen. Das originale WordNet-Archiv enthält auch
+unbenutzte Upstream-Werkzeuge. Die Runtime verwendet ausschließlich die Endwörter.
 
-Die deterministische Größenbegrenzung bevorzugt an der Schnittstelle ordinal
-frühe Wörter gleicher Länge/Frequenz. Das verzerrt die Vokabularzusammensetzung,
-ist offengelegt und verändert die gleichverteilte Ziehung der Endwörter nicht.
-[NOTICE.txt](../../crates/kairos-wordlists/data/languages/NOTICE.txt) bündelt die
-Lizenztexte für die spätere Auslieferung; die GUI-/Release-Verdrahtung muss sie
-der EXE beilegen und bleibt außerhalb des Schreibbereichs dieses PRs offen.
+Der Decoder und das Ranking bleiben begrenzt und deterministisch. Seltene
+LA-Lemmata, morphologische Homographen und regionale EN-Bedeutungen sind
+offengelegte Grenzen. Sämtliche verfügbaren LA-Glossen werden gebunden;
+EN-NO_ENTRY-Zeilen bleiben sichtbar. Sprache bezeichnet den zugeordneten
+Wortgebrauch. Vollständige allgemeine sprachliche Fehlerfreiheit wird nicht behauptet.
+
+[Crate-README](../../crates/kairos-wordlists/README.md), [Auswahl und Prüfungen](../../crates/kairos-wordlists/data/languages/README.md),
+[Provenienz und Hashes](../../crates/kairos-wordlists/data/languages/PROVENANCE.md), [Filterbericht](../../crates/kairos-wordlists/data/languages/report.txt),
+[Originalglossen](../../crates/kairos-wordlists/data/languages/latin-glosses.tsv), [NOTICE](../../crates/kairos-wordlists/data/languages/NOTICE.txt).
+Die spätere Release-Integration muss NOTICE mit der Anwendung ausliefern.
+
+## Stufe 2: Bereit zur unabhängigen Prüfung (präzisierte Rubrik)
+
+Der Lead stuft `reptile` als B ein: Eine Tier-/Gegenstandsmetapher bei neutraler
+Hauptbedeutung erzwingt kein A. Nur sexuelle, vulgäre/obszöne oder Slur-Nebensinne
+tun dies; die Hauptbedeutungen bleiben streng nach A-Klasse bewertet.
+Bereits gesperrte Wörter bleiben gesperrt. Der frühere STOP-Grund ist damit
+ersetzt, die zweite eigene Probe bleibt unvollständig. Keine neue semantische
+Stichprobe durch den Implementierungsworker; ein frischer Verifier übernimmt
+die unabhängige Prüfung. [Lead-Entscheid, Seeds und Prüfgrenzen](../../crates/kairos-wordlists/data/curation-stage-two.md).

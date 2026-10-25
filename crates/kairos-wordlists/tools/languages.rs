@@ -140,9 +140,14 @@ pub fn semantic_blocks(
                         "Tod-Trauer",
                         "Gewalt-Waffen",
                         "Sexualitaet",
+                        "Ausscheidung",
                         "Drogen-Alkohol",
                         "Abwertung",
                         "Vulgaer",
+                        "Slur",
+                        "Sklaverei-Unterdrueckung",
+                        "Verbrechen",
+                        "Herabsetzung-Extremismus",
                         "Zweifel",
                     ]
                     .contains(&c)
@@ -178,14 +183,34 @@ pub fn semantic_blocks(
     Ok(blocked)
 }
 
-/// Rejects explicit sensitive dictionary meanings, including secondary senses.
-/// This guard is conservative; it is not a general semantic classifier.
+/// Rejects explicit sexual/vulgar/slur senses and conservative sensitive markers.
+/// Ordinary animal/object metaphors alone do not force A under the lead rubric.
+/// Existing stricter blocks remain; this is not a general semantic classifier.
 pub fn sensitive_gloss(gloss: &str) -> bool {
     let gloss = gloss.to_ascii_lowercase();
     distressing_terms(&gloss)
         || gloss
             .split(|ch: char| !ch.is_ascii_alphabetic())
-            .any(|token| ["scrotum", "testes", "penis", "phallus"].contains(&token))
+            .any(|token| {
+                [
+                    "scrotum",
+                    "testes",
+                    "penis",
+                    "phallus",
+                    "slave",
+                    "slaves",
+                    "slavery",
+                    "enslave",
+                    "enslaved",
+                    "enslaving",
+                    "bondslave",
+                    "bondman",
+                    "bondwoman",
+                    "serf",
+                    "serfdom",
+                ]
+                .contains(&token)
+            })
         || [
             "(rude)",
             "(somewhat rude)",
@@ -195,6 +220,14 @@ pub fn sensitive_gloss(gloss: &str) -> bool {
             "rude expression",
             "vulgar",
             "obscene",
+            "racial slur",
+            "ethnic slur",
+            "religious slur",
+            "ableist slur",
+            "sexist slur",
+            "homophobic slur",
+            "transphobic slur",
+            "slur against",
             "genital",
             "urinat",
             "sodomy",
@@ -518,6 +551,119 @@ fn output(words: impl IntoIterator<Item = String>) -> String {
     words.into_iter().map(|word| word + "\n").collect()
 }
 
+/// Pinned WordNet definitions and explicit EFF Large membership, including gaps.
+/// The extract is independently reproducible with prepare-english-senses.mjs.
+pub fn english_sources() -> Result<BTreeMap<String, String>> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/languages/upstream");
+    let manifest = fs::read_to_string(root.join("SHA256SUMS"))?;
+    for name in ["wordnet/LICENSE", "wordnet/WordNet-3.0.tar.gz"] {
+        read_verified(&root, name, &manifest)?;
+    }
+    let raw = String::from_utf8(read_verified(
+        &root,
+        "wordnet/candidate-senses.tsv.gz",
+        &manifest,
+    )?)?;
+    let mut sources = BTreeMap::new();
+    let mut previous = "";
+    for row in raw.lines() {
+        let (word, meanings) = row.split_once('\t').ok_or("invalid English source row")?;
+        if !eligible(word)
+            || word <= previous
+            || !meanings.starts_with(&format!("{word} | EFF-large="))
+            || !meanings.contains(" | WordNet-3.0 ")
+            || meanings.contains('\t')
+        {
+            return Err(format!("invalid or unordered English source: {word}").into());
+        }
+        sources.insert(word.to_owned(), meanings.to_owned());
+        previous = word;
+    }
+    let evidence = fs::read_to_string(root.join("../english-extra-evidence.tsv"))?;
+    let mut extra_words = BTreeSet::new();
+    for row in evidence.lines() {
+        let fields: Vec<_> = row.split('\t').collect();
+        if fields.len() != 5 || !extra_words.insert(fields[0]) {
+            return Err("invalid or duplicate additional English evidence".into());
+        }
+        let expected = format!(
+            " | Zusatzbeleg {} {}: {} ({})",
+            fields[1], fields[2], fields[3], fields[4]
+        );
+        if !sources
+            .get(fields[0])
+            .is_some_and(|source| source.ends_with(&expected))
+        {
+            return Err(format!("additional English evidence is stale: {}", fields[0]).into());
+        }
+    }
+    for (word, source) in &sources {
+        if source.contains(" | Zusatzbeleg ") && !extra_words.contains(word.as_str()) {
+            return Err(format!("unaccounted additional English evidence: {word}").into());
+        }
+    }
+    Ok(sources)
+}
+
+/// EFF membership is a positive signal, not an A/B verdict.
+pub fn english_has_evidence(source: &str) -> bool {
+    !source.contains("WordNet-3.0 NO_ENTRY") || source.contains(" | EFF-large=yes | ")
+}
+
+/// Every allowed noun.person association needs a source-bound explicit reading.
+pub fn verify_english_person_review(
+    sources: &BTreeMap<String, String>,
+    blocked: &BTreeSet<String>,
+    review: &str,
+) -> Result<()> {
+    let mut seen = BTreeSet::new();
+    let mut previous = "";
+    for row in review.lines() {
+        let fields: Vec<_> = row.split('\t').collect();
+        if fields.len() != 7 {
+            return Err("invalid English person review row".into());
+        }
+        let word = fields[0];
+        let source = sources
+            .get(word)
+            .ok_or("unknown English person review word")?;
+        let meanings = source
+            .split(" | ")
+            .filter(|meaning| meaning.contains(":noun.person]"))
+            .collect::<Vec<_>>()
+            .join(" | ");
+        if word <= previous
+            || !seen.insert(word)
+            || meanings.is_empty()
+            || fields[6] != meanings
+            || fields[5] != checksum(source.as_bytes())
+            || fields[4].trim().is_empty()
+            || !matches!(
+                (fields[1], fields[2]),
+                ("A", "block") | ("B", "block" | "allow") | ("N", "allow")
+            )
+            || (fields[2] == "block") != blocked.contains(word)
+        {
+            return Err(format!("invalid or stale English person review: {word}").into());
+        }
+        previous = word;
+    }
+    for (word, source) in sources {
+        if !blocked.contains(word)
+            && source.contains(":noun.person]")
+            && !seen.contains(word.as_str())
+        {
+            return Err(format!("unreviewed English person meaning: {word}").into());
+        }
+        if !blocked.contains(word) && !english_has_evidence(source) {
+            return Err(
+                format!("English word has neither WordNet nor EFF Large evidence: {word}").into(),
+            );
+        }
+    }
+    Ok(())
+}
+
 fn select(
     mut words: Vec<(u8, String)>,
     excluded: &BTreeSet<String>,
@@ -556,6 +702,10 @@ pub fn build() -> Result<Build> {
     let german: BTreeSet<String> = german.lines().map(str::to_owned).collect();
     let german_size = german.len();
     let mut report = format!("German retained: {german_size}\n");
+    report.push_str(&format!(
+        "Acceptance rubric A/B sha256: {}\n",
+        checksum(&fs::read(data.join("curation-rubric.md"))?)
+    ));
     let decisions = fs::read_to_string(root.join("semantic-decisions.tsv"))?;
     report.push_str(&format!(
         "Semantic decisions sha256: {}\n",
@@ -616,14 +766,33 @@ pub fn build() -> Result<Build> {
         "English Wordnik selected additions: {}\n",
         supplement.lines().count()
     ));
-    let semantic = semantic_blocks(
-        &decisions,
-        "en",
-        &english
-            .iter()
-            .map(|word| (word.clone(), word.clone()))
-            .collect(),
-    )?;
+    let sources = english_sources()?;
+    if sources.keys().cloned().collect::<BTreeSet<_>>() != english {
+        return Err("English meaning extract does not cover the exact candidate pool".into());
+    }
+    report.push_str(&format!(
+        "English WordNet covered: {}; explicit no-entry: {}; EFF Large positive signals: {}\n",
+        sources
+            .values()
+            .filter(|source| !source.contains("WordNet-3.0 NO_ENTRY"))
+            .count(),
+        sources
+            .values()
+            .filter(|source| source.contains("WordNet-3.0 NO_ENTRY"))
+            .count(),
+        sources
+            .values()
+            .filter(|source| source.contains(" | EFF-large=yes | "))
+            .count()
+    ));
+    let semantic = semantic_blocks(&decisions, "en", &sources)?;
+    let person_review = fs::read_to_string(root.join("stage2-person-senses.tsv"))?;
+    verify_english_person_review(&sources, &semantic, &person_review)?;
+    report.push_str(&format!(
+        "English person meanings review: {} candidates; sha256: {}\n",
+        person_review.lines().count(),
+        checksum(person_review.as_bytes())
+    ));
     report.push_str(&format!(
         "English semantic decisions: {}; blocked: {}\n",
         english.len(),

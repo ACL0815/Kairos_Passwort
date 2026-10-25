@@ -1,223 +1,90 @@
 # kairos-wordlists
 
-**Mehrsprachige Erweiterung (PR-7), Arbeitsstand mit STOP:** `english()`,
-`latin()` und `combined()` ergänzen die unveränderte deutsche Quelle.
-DE **7.130**, EN/LA **je 6.966**, zusammen **21.062 eindeutige Wörter** mit
-Sprachflag. Mittlere Länge EN **6,541**, LA **6,990**. Die zweite eigene
-semantische Abnahme ist trotz grünem Build und grünem 14-Wörter-Gate
-fehlgeschlagen; gemäß Auftrag werden keine weiteren semantischen Reparaturen
-in dieser Leiterstufe vorgenommen. **Keine fachliche Freigabe.**
-[Diagnose, Stop-Regel und Befunde](data/curation-diagnosis.md),
-[API, Datenlizenzen und Offline-Pipeline](data/languages/README.md).
-Die deutsche Wortliste ist mit `include_str!` in die Anwendung eingebettet.
-`german() -> &'static EmbeddedWordList` stellt `kairos_core::WordSource`
-bereit: **7.130 eindeutige Wörter**, je Wort `Language::German`, nur `a`–`z`,
-3–9 Buchstaben, durchschnittlich **6,565** Buchstaben. `OnceLock` erzeugt
-einmalig einen Index aus geliehenen Zeichenketten. Die Anwendung benötigt
-weder Wortlistendateien noch Netzwerkzugriff. Der Core-Vertrag bleibt unverändert.
+**Bereit zur unabhängigen Prüfung (präzisierte Rubrik).** Der Lead stuft
+`reptile` als B ein; die eigene zweite Probe bleibt unvollständig.
+[Lead-Entscheid, Proben und Prüfgrenzen](data/curation-stage-two.md).
+
+`german()`, `english()`, `latin()` und `combined()` liefern gemeinsam
+`&'static EmbeddedWordList` nach dem Vertrag von `kairos_core::WordSource`.
+Die drei Listen sind paarweise disjunkt und enthalten zusammen **20.703**
+Schreibweisen. Jedes Wort besteht aus 3–9 ASCII-Kleinbuchstaben und trägt sein
+Sprachflag. `include_str!` und `OnceLock` erzeugen einmalig einen Index aus
+geliehenen Zeichenketten. Zur Laufzeit sind weder Dateien noch Netzwerk nötig.
+
+| Sprache | Wörter | Mittelwert | SHA-256 |
+|---|---:|---:|---|
+| DE | 6.909 | 6,577 | `02911732a22dbba0967453121e60d245bc7452e13383d808acfbbef47efb2ed0` |
+| EN | 6.897 | 6,659 | `8aae2952cab7bb2406864e7f87b685f8f5c3ced1d7c7b4f04d4a666f9253899a` |
+| LA | 6.897 | 6,988 | `7ccd0262310397edb42e1c65e33d5a781a4426fd84ad14d7edf8bedee28fd8c3` |
+
+Der aktuelle Standard ist die [A/B-Rubrik](data/curation-rubric.md).
+Entscheidungen, Proben, Review und Prüfstand stehen in
+[Stufe 2](data/curation-stage-two.md). Der STOP in
+[Stufe 1](data/curation-diagnosis.md) beschreibt den historischen Head `691860b`.
 
 ```rust
 use kairos_core::WordSource;
 let words = kairos_wordlists::german();
-assert_eq!(words.len(), 7_130);
+assert_eq!(words.len(), 6_909);
 assert_eq!(words.word(0), "aal");
 ```
 
-## Auswahl und redaktionelle Regeln
+## Deutsche Auswahl
 
-Die Basis sind dys2p `de-7776-v1.txt` und `de-2048-v1.txt`. Nach Zeichen- und
-Längenfilter sowie Deduplizierung bleiben 6.867 Wörter. Die redaktionellen
-Entscheidungen stehen in [`data/rejected.tsv`](data/rejected.tsv): insgesamt
-1.306 Sperren aus beiden Quellen, davon greifen 782 im Basisbestand.
-Die Pipeline prüft genau fünf Kategorien:
+Basis sind die beiden fest versionierten dys2p-Listen unter CC0. Von 9.824
+Rohzeilen erfüllen 7.853 die Zeichen-/Längenregeln; daraus entstehen 6.867
+eindeutige Kandidaten. Die aktuelle Sperrliste hat 1.566 Einträge, davon greifen
+982 in der Basis. Zu 5.885 Basiswörtern kommen 1.906 ausdrückliche enz-Ergänzungen.
+Der Endungsfilter entfernt 882 Varianten. Im Ergebnis stammen 5.283 Wörter aus
+der Basis und 1.626 aus den Ergänzungen.
 
-| Kategorie | Bedeutung | Anzahl |
-|---|---|---:|
-| vulgär | Grobe/vulgäre Ausdrücke | 2 |
-| beleidigend | Herabsetzende Ausdrücke | 17 |
-| belastend | Insbesondere Gewalt, Krankheit, Tod und Rauschmittel | 707 |
-| Eigenname | Reine Personen-, Orts- oder andere Eigennamen | 11 |
-| Schreibbarkeit | Fehler, schwierige, seltene oder ungebräuchliche Schreibweisen | 569 |
+Die fünf redaktionellen Kategorien bleiben `vulgär` (2), `beleidigend` (17),
+`belastend` (967), `Eigenname` (11) und `Schreibbarkeit` (569).
+Der A/B-Standard ist davon getrennt. Die zusätzliche deutsche A-Triage nutzt
+die bestehende Pipeline-Sperrliste; konservative Grenzfälle sind im Bericht
+kenntlich. 224 alte Endwörter entfallen. Die nach der Sperrung sichtbar
+gewordenen Formen wurden ebenfalls geprüft und bei Bedarf gesperrt;
+`bares`, `burgen` und `coupe` kommen als neutrale B-Wörter hinzu.
+[299er-Triage](data/languages/stage2-german-triage.tsv),
+[Nachrücker](data/languages/stage2-german-followup.tsv).
 
-Diese Kategorien sind redaktionelle Entscheidungen, keine Bewertung von
-Menschen oder Weltanschauungen. `atheismus`, `glaube` und `engel` bleiben
-beispielsweise gleichberechtigt enthalten. Gewöhnliche Wörter, die zugleich
-Namen sein können (etwa `wolf` oder `iris`), gelten als gewöhnliche Wörter.
+Die Ergänzungen sind höchstens sieben Buchstaben lang und müssen in der
+vendorten enz-Quelle enthalten sein. ASCII-Großbuchstaben werden kleingeschrieben;
+Umlaute, ß, Akzente, Zahlen und Satzzeichen werden ausgeschlossen. Es gibt keine
+Transliteration. Der Endungsfilter behält die zuerst gerankte kürzere Form für
+`e/n/s/en/er/es/em/r`. Dies ist eine Schreibhilfe, keine vollständige Lemmatisierung.
+Namenhomographen mit gewöhnlicher Wortbedeutung sind zulässig.
 
-Zu den zunächst verbleibenden 6.085 Basiswörtern kommen 1.966 ausgewählte
-Kandidaten aus enz/german-wordlist. Nur diese
-[`Positivliste`](data/supplement.txt) wird zugelassen, der große Rohbestand
-wird nicht vollständig zum Passwortvokabular. Ergänzungen sind auf sieben
-Buchstaben begrenzt. Im Original muss ein Wort kleingeschrieben sein oder
-nur einen großen Anfangsbuchstaben haben; reine Großbuchstaben-Abkürzungen
-werden verworfen. Diese Prüfung ersetzt keine redaktionelle Namensprüfung.
-ASCII-Großbuchstaben werden kleingeschrieben. `ä`, `ö`, `ü`, `ß`, Akzente,
-Zahlen und Satzzeichen werden ausgeschlossen. Es gibt **keine Transliteration**.
+## Englisch, Latein und Wortwahl
 
-Ein Endungsfilter entfernt anschließend 921 nahe Schreibvarianten. Er
-verarbeitet kürzere Wörter zuerst, bei gleicher Länge ordinal. Existiert
-bereits die kürzere Schreibweise, entfallen längere Varianten mit angehängtem
-`e`, `n`, `s`, `en`, `er`, `es`, `em` oder `r`. So bleibt etwa `tag`, aber
-nicht `tage`, `tags` oder `tages`. Dies ist eine konservative Schreibhilfe,
-keine linguistische Behauptung über gemeinsame Lemmata: auch unabhängige
-Wörter wie `auto`/`autor` können betroffen sein. Das spart ein eigenes
-Morphologie-System. Übrig bleiben **5.453 Basiswörter und 1.677 Ergänzungen**.
+Englisch nutzt EFF und ausdrücklich ausgewählte Wordnik-Ergänzungen. Princeton
+WordNet 3.0 liefert zusätzlich fest gebundene Bedeutungen; Lücken und das
+EFF-Large-Positivsignal bleiben sichtbar. Latein nutzt Whitaker mit einem
+begrenzten eigenen Decoder und sämtlichen verfügbaren Glossen jeder
+Kandidatenschreibweise. Alle 21.190 EN/LA-Kandidaten einschließlich Reserven
+benötigen gültige quellgebundene Entscheidungen vor der Auswahl.
+[Auswahl, Grenzen und Offline-Pipeline](data/languages/README.md).
 
-Bekannte deutsche Lehnwörter und alleinstehende Wortformen bleiben enthalten,
-etwa `cloud`, `laptop` und `gebogen`. Reine englische Ergänzungen wie `first`,
-`range`, `page` und `type` wurden gestrichen. Für die spätere englische Liste
-müssen **alle bereits deutschen Einträge vor der Freigabe entfernt werden**;
-weitere Sprachlisten müssen ebenfalls paarweise disjunkt sein. Das Sprachflag
-bezeichnet den deutschen Wortgebrauch, nicht die historische Herkunft.
-Überlappende Sprachen liefern keinen zusätzlichen Entropiebonus.
+Vier unabhängig und gleichverteilt aus der Vereinigung gezogene Wörter ergeben bei festem Trenner **57,350 Bit**. Der Größenfaktor gegenüber DE ist **80,625**; der Sprachanteil ist bereits enthalten und darf nicht nochmals addiert werden.
 
-Die Bewertung ist redaktionell und keine Garantie gegen jede regionale oder
-kontextuelle Nebenbedeutung. Änderungen bleiben über die versionierten
-Positiv-/Ausschlusslisten und den Endungsfilter nachvollziehbar. Eindeutige
-Kurzpräfixe, allgemeine Präfixfreiheit, ein garantierter Editierabstand und
-automatische Tippfehlerkorrektur werden nicht zugesichert. Feste Trenner
-halten die Wortgrenzen eindeutig; dies ist kein direktes Würfelwörterbuch
-mit genau `6^5` Einträgen. Gleichverteilte Indexwahl gehört zu `kairos-core`.
+Sechs Buchstaben bleiben ein Komfortziel. Die aktuellen Mittelwerte stehen
+oben. Allgemeine Präfixfreiheit, eindeutige Kurzpräfixe, Mindest-Editierabstand
+und automatische Tippfehlerkorrektur werden nicht zugesichert. Feste Trenner
+halten Wortgrenzen eindeutig. Zufallsauswahl und Profilregeln gehören zu Core.
 
-Die D1-Nachprüfung sperrt `drink`, `bowle`, `hanf` und `prost` dauerhaft
-über die Pipeline-Eingaben. Die systematische Suche und die Bewertung
-neutraler Teilworttreffer stehen im [Kuratierungsbericht](data/curation-review.md).
-
-Die Mindestgröße von Profil 0 ist erreicht. Die kombinierte Quelle aus PR-7
-erreicht numerisch den Umfang von Profil 1, ist aber semantisch nicht abgenommen; die folgende Rechnung betrifft die deutsche Einzelquelle. Vier unabhängig
-gleichverteilt gezogene Wörter ergeben bei festem Trenner rund **51,199 Bit**.
-Die durchschnittlichen **6,565 statt sechs Buchstaben** sind eine begründete
-Zielabweichung: unterscheidbare Wörter und Grundformen haben Vorrang vor
-kurzen Flexionsformen. 2.243 Wörter (31,4 %) haben acht oder neun Buchstaben.
-Eine weitere Kürzung dieses Anteils wird nicht durch seltene Kurzformen oder
-eine Wortzahl unter dem Mindestumfang erkauft.
-
-## Reproduzierbare Offline-Pipeline
-
-Alle Rohdaten und Lizenztexte sind lokal vorhanden. Die 8,64-MB-Datei `words`
-ist verlustfrei als `words.gz` abgelegt (rund 1,90 MB). Der Quellhash bezieht
-sich auf die **dekomprimierten Originalbytes** einschließlich Zeilenende.
-`.gitattributes` bewahrt die Rohdatenbytes auch auf Windows.
+## Reproduktion und Datenlizenzen
 
 ```powershell
-. 'C:\Users\Axel_desktop\.t3\projects\kairos-password\target\Enter-KairosBuildEnv.ps1'
-cargo run -p kairos-wordlists --example rebuild-german
 cargo run -p kairos-wordlists --example rebuild-german -- --check
+cargo run -p kairos-wordlists --example rebuild-languages -- --check
+node crates/kairos-wordlists/tools/prepare-english-senses.mjs --check
+pwsh -NoProfile -File crates/kairos-wordlists/tools/check-semantic-sample.ps1
 ```
 
-Das erste Kommando erzeugt `data/german.txt`, das zweite prüft ohne Schreiben.
-[`tools/pipeline.rs`](tools/pipeline.rs) ist die gemeinsame kleine
-Implementierung für Werkzeug und Tests. Sie prüft zuerst die Rohquellen
-gegen [`data/upstream/SHA256SUMS`](data/upstream/SHA256SUMS), filtert Zeichen,
-Länge und Duplikate, validiert die Kuratierung und Originalschreibweisen,
-wendet Sperren und Endungsfilter an und schreibt UTF-8 mit LF, genau einem
-Wort pro Zeile und ordinaler Sortierung. Sperren gelten für beide Quellen;
-sie können auch nur im enz-Bestand vorkommende Wörter dauerhaft sperren.
-Unbekannte Kategorien, unbekannte oder doppelte Sperren sowie fehlerhafte
-oder doppelte Ergänzungen brechen den Lauf ab.
-
-| Stufe | Verbleibend | Veränderung |
-|---|---:|---|
-| dys2p, beide Rohlisten | 9.824 | 7.776 + 2.048 |
-| Nur Kleinbuchstaben a–z | 9.824 | 0 entfernt |
-| Länge 3–9 | 7.853 | 1.971 entfernt |
-| Vereinigung, eindeutig | 6.867 | 986 Duplikate entfernt |
-| Redaktionell bereinigte Basis | 6.085 | 782 Basis-Ausschlüsse |
-| enz, Rohbestand | 685.829 | Nur Kandidatenpool |
-| enz-Positivliste, 3–7 Buchstaben | 1.966 zusätzlich | Originalschreibweisen und Sperren geprüft |
-| Vereinigte Vorauswahl | 8.051 | Keine Duplikate |
-| Endungsfilter | **7.130** | 921 Schreibvarianten entfernt |
-| Finale sortierte Liste | **7.130** | 5.453 Basiswörter + 1.677 Ergänzungen |
-
-Längenverteilung: 3: 119; 4: 632; 5: 1.299; 6: 1.351; 7: 1.486;
-8: 1.263; 9: 980.
-
-Der freigegebene Ergebnis-Hash steht in [`data/german.sha256`](data/german.sha256):
-
-```text
-c740ce05d355b2296c2feb940733f84f9bc3e1972fcfad9cbfdf5e4236bf3175
-```
-
-Bei einer beabsichtigten Kuratierungsänderung: neu erzeugen, Wortdiff prüfen,
-Anzahl/Statistik in Doku und Test anpassen und den Ergebnis-Hash nach Prüfung
-aktualisieren. Die Pipeline aktualisiert den Prüfwert absichtlich nicht selbst.
-Die Rohquellen-Hashes bleiben bei reiner Kuratierung unverändert.
-
-Die sortierte Ablage dient Reproduzierbarkeit und Review. Das im Grundkonzept
-genannte spätere randomisierte Speichern betrifft die künftige Speicherung;
-bei gleichverteilter Indexwahl ändert die heutige Sortierung weder Auswahl-
-wahrscheinlichkeit noch Entropie. Die vollständige komprimierte Rohquelle
-bleibt bewusst erhalten, weil ein Auszug mit Download-Link die vollständige
-Offline-Mitgliedsprüfung nicht leisten würde. `flate2` wird nicht als
-Laufzeitabhängigkeit oder Entpacker in die EXE eingebunden.
-
-## Herkunft und Datenlizenz der deutschen Liste
-
-Abruf: **25.10.2026**. Original-Lizenzdateien und Projekt-READMEs liegen neben
-den Rohdaten. Crate-Software: MIT OR Apache-2.0. Wortdaten: separat **CC0-1.0**.
-Es werden keine Copyleft-Wortdaten übernommen.
-
-| Quelle und fester Stand | Dateien | Gewählte Datenlizenz | Lokaler Lizenztext |
-|---|---|---|---|
-| [dys2p/wordlists-de, `6ef31b9aefb8735a7b066592393d12843ec502cd`](https://github.com/dys2p/wordlists-de/tree/6ef31b9aefb8735a7b066592393d12843ec502cd) | `de-7776-v1.txt`, `de-2048-v1.txt` | CC0-1.0; alternativ bietet Upstream Unlicense/BSD-3-Clause | [LICENSE](data/upstream/dys2p/LICENSE) |
-| [Markus Enzenberger und Beitragende, german-wordlist, `1071d87d9535b57b80ec076c699f2578a28ee9dc`](https://github.com/enz/german-wordlist/tree/1071d87d9535b57b80ec076c699f2578a28ee9dc) | `words` (komprimiert) | CC0-1.0 | [COPYING](data/upstream/enz/COPYING) |
-
-Original-Download-Permalinks und SHA-256-Werte stehen in
-[`data/PROVENANCE.md`](data/PROVENANCE.md). Auswahl, Zusammenführung und
-Endungsfilter sind Änderungen des Kairos-Projekts.
-
-## Open-Source-Vorbilder
-
-- **dys2p/wordlists-de:** deutsche ASCII-Basis und redaktionelle Auswahlregeln;
-  zusätzliche Durchsicht, Längengrenze und Endungsfilter in Kairos.
-- **enz/german-wordlist:** lizenzklarer Kandidatenpool, nur explizite Auswahl,
-  da Wortspiele andere Qualitätsziele als Passphrasen haben.
-- **xkcdpass:** Zeichen-/Längenfilter und Deduplizierung vor Auswahl; keine
-  Generatorlogik und kein fremder Implementierungscode übernommen.
-- **pwgen-go:** eingebettete Listen getrennt vom Generator halten; Rust nutzt
-  `include_str!` statt generierter Quellcodearrays.
-- **passalong-core 0.3.0:** Text mit `OnceLock` einmal indexieren und
-  Wortreferenzen statt einzelner String-Allokationen halten; nur dieses Prinzip.
-- **EFF/Diceware:** Schreibbarkeit und manuelle Prüfung. PR-7 übernimmt
-  die EFF-Wortdaten direkt unter deren aktueller CC-BY-4.0-Freigabe;
-  Präfix-/Editierabstandsgarantien werden nicht übernommen.
-- **Wordnik (MIT):** nur ausdrückliche kurze Ergänzungen gegen das
-  Originalwörterbuch prüfen, keinen ungeprüften Restpool aufnehmen.
-- **Whitaker's WORDS:** lateinische Grammatik, Frequenz und Bedeutungen als
-  Auswahlsignale; eigener begrenzter Decoder, nur Wortdaten übernommen.
-- **sts10/tidy:** Filter-/Sperrlisten und Deduplizierung vor Zufallsauswahl.
-  Quellenbewertung für diese Erweiterung: [languages.md](../../docs/sources/languages.md).
-
-Feste Quellstände, dateispezifische Lizenzen und Bewertung:
-[`docs/sources/wordlists.md`](../../docs/sources/wordlists.md).
-`sha2` und `flate2` sind MIT/Apache-2.0-Abhängigkeiten ausschließlich für
-Werkzeuge und Tests; zur Laufzeit genügen Core und Standardbibliothek.
-
-## Tests
-
-Die folgenden elf Integrationstests und ein Rustdoc-Test aus PR-2 prüfen mit
-`cargo test -p kairos-wordlists` Anzahl, Eindeutigkeit, Zeichensatz, Längen,
-Mittelwert, Sprache jedes Eintrags, Leerzeilen, Sortierung, Sperren,
-Indexgrenzen, threadsichere Initialisierung, sortierte/eindeutige
-Kuratierungseingaben und gültige Kategorien. Sie prüfen außerdem die
-Originalschreibweise ohne Großbuchstaben-Abkürzungen, fehlende
-Endungsnachbarn und eine unabhängige redaktionelle Regressionsliste.
-Pipelinegleichheit, Ergebnis-Hash und sämtliche Rohquellen-Hashes werden
-im Offline-Lauf geprüft. Der Mittelwert darf höchstens 6,6 betragen; die
-engere ±0,5-Spanne um sechs wird zugunsten der erläuterten Grundformauswahl
-nicht erzwungen.
-
-PR-7 ergänzt achtzehn Integrationstests und einen Rustdoc-Test, insgesamt **29 + 2**.
-Sie prüfen die drei disjunkten Sprachmengen, alle Flags, vollständige Union,
-Größen, Interleaving, Platzhalter, Glossen-/Variantenfilter, Prüfsummen und
-Offline-Reproduktion einschließlich
-Bedeutungsregister. Die zweite Abnahmerunde ergänzt quellengebundene
-semantische Einzelentscheidungen für jeden EN-/LA-Kandidaten einschließlich
-aller Reserven; fehlende oder veraltete Entscheidungen brechen den Build ab.
-Tests sichern die 14 Re-Verifier-Fälle, die vollständige Freigabeabdeckung und
-ungültige Entscheidungsdaten. [Diagnose und Stichprobe](data/curation-diagnosis.md),
-[Details](data/languages/README.md).
-
-Für die Weitergabe der neuen englischen/lateinischen Wortdaten liegt eine
-[NOTICE.txt](data/languages/NOTICE.txt) mit Attribution, Änderungen und
-vollständigen Lizenztexten bei; der spätere Release muss sie mit der EXE ausliefern.
+Quellen, Original-Lizenzen und Hashes stehen in
+[DE-Provenienz](data/PROVENANCE.md) und [EN/LA-Provenienz](data/languages/PROVENANCE.md).
+Die Softwarelizenz MIT OR Apache-2.0 ersetzt keine Datenlizenz.
+[NOTICE.txt](data/languages/NOTICE.txt) enthält EFF CC BY 4.0, Wordnik MIT,
+Whitakers individuelle Freigabe und die vollständige Princeton-WordNet-Lizenz.
+Die Release-Integration muss diese Angaben mit der Anwendung ausliefern.
+Die aktuelle Prüfung dieser PR ändert ausschließlich den freigegebenen Bereich.

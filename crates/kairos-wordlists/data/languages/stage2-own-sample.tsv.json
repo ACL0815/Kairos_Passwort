@@ -1,0 +1,39 @@
+{
+  "seed": "20261025-kairos-stage2-own-ab-v2",
+  "perLanguage": 300,
+  "listHashes": {
+    "en": "8aae2952cab7bb2406864e7f87b685f8f5c3ced1d7c7b4f04d4a666f9253899a",
+    "la": "7ccd0262310397edb42e1c65e33d5a781a4426fd84ad14d7edf8bedee28fd8c3"
+  },
+  "status": "INCOMPLETE_PENDING_INDEPENDENT_REVIEW",
+  "assessment": {
+    "en": {
+      "A": 0,
+      "B": 96,
+      "N": 55,
+      "pending": 149
+    },
+    "la": {
+      "A": 0,
+      "B": 0,
+      "N": 0,
+      "pending": 300
+    }
+  },
+  "historicalStop": {
+    "status": "STOP_SECOND_SAMPLE_A",
+    "stopWord": "en/reptile",
+    "stopSource": "https://www.merriam-webster.com/dictionary/reptile",
+    "originalVerdict": "A",
+    "supersededBy": "Lead decision 2026-10-25: reptile is B"
+  },
+  "rubricDecision": {
+    "date": "2026-10-25",
+    "authority": "Lead",
+    "word": "en/reptile",
+    "verdict": "B",
+    "category": "Nebenbedeutung:Tier-Gegenstandsmetapher",
+    "newSampleDrawn": false,
+    "pendingRowsAssessed": false
+  }
+}

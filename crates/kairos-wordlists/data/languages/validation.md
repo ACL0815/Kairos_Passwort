@@ -1,5 +1,9 @@
 # Prüfstand: Diagnoseleiter Stufe 1, STOP
 
+**Historischer Prüfstand, kein aktueller STOP-Vermerk.** Die nachfolgende
+Matrix gehört zu `691860b`. Der neue Standard und der aktuelle Prüfstand
+werden in [Stufe 2](../curation-stage-two.md) dokumentiert.
+
 25.10.2026, Europe/Berlin. Ausgangshead `ec6a9562dbda9bab3742b6d3f766d8f11d289a6b`.
 Ausführung ausschließlich im eigenen Worktree `t3-139781e4` mit der Build-Umgebung
 aus `C:\Users\Axel_desktop\.t3\projects\kairos-password\target\Enter-KairosBuildEnv.ps1`.

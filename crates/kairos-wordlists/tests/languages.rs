@@ -10,6 +10,8 @@ const SOURCES: [fn() -> &'static EmbeddedWordList; 4] = [german, english, latin,
 
 #[test]
 fn single_language_sources_have_equal_sizes_and_valid_spelling() {
+    assert_eq!(english().len(), 6_897);
+    assert_eq!(latin().len(), 6_897);
     assert_eq!(english().len(), latin().len());
     assert!(english().len() <= german().len());
     for (source, language, text, max_mean) in [
@@ -17,7 +19,7 @@ fn single_language_sources_have_equal_sizes_and_valid_spelling() {
             english(),
             Language::English,
             include_str!("../data/languages/english.txt"),
-            6.6,
+            6.7,
         ),
         (
             latin(),
@@ -464,7 +466,7 @@ fn re_verifier_round_two_findings_have_semantic_blocks() {
             latin(),
             &[
                 "scrotum", "follis", "motio", "inustum", "tardipes", "viduitas", "hydromel",
-                "potor", "merso", "bardus", "morio", "botulus", "hasta",
+                "potor", "merso", "bardus", "morio", "botulus", "hasta", "servula",
             ][..],
         ),
     ] {
@@ -485,6 +487,7 @@ fn re_verifier_round_two_findings_have_semantic_blocks() {
 
 #[test]
 fn every_embedded_english_and_latin_word_has_a_source_bound_semantic_approval() {
+    let english_sources = pipeline::english_sources().unwrap();
     let decisions: BTreeMap<_, _> = include_str!("../data/languages/semantic-decisions.tsv")
         .lines()
         .map(|row| {
@@ -506,7 +509,7 @@ fn every_embedded_english_and_latin_word_has_a_source_bound_semantic_approval() 
                 "unapproved {language}/{word}"
             );
             let meaning = if language == "en" {
-                word
+                &english_sources[word]
             } else {
                 glosses[word]
             };
@@ -516,6 +519,241 @@ fn every_embedded_english_and_latin_word_has_a_source_bound_semantic_approval() 
                 "stale review: {word}"
             );
         }
+    }
+}
+
+#[test]
+fn rubric_b_examples_remain_available_and_slavery_is_rejected() {
+    for (source, words) in [
+        (english(), &["pouncing", "bladder", "reptile"][..]),
+        (latin(), &["absurde", "situs"][..]),
+    ] {
+        for word in words {
+            assert!(
+                (0..source.len()).any(|index| source.word(index) == *word),
+                "rubric B regression: {word}"
+            );
+        }
+    }
+    for gloss in [
+        "young female slave",
+        "freedman; ex-slave",
+        "slavery; bondage",
+        "enslaved captive",
+        "serf; serfdom",
+    ] {
+        assert!(pipeline::sensitive_gloss(gloss), "slavery escaped: {gloss}");
+    }
+    for gloss in ["bladder; knee", "pounce; leap", "absurd", "place; position"] {
+        assert!(
+            !pipeline::sensitive_gloss(gloss),
+            "neutral B gloss: {gloss}"
+        );
+    }
+}
+
+#[test]
+fn secondary_senses_distinguish_metaphors_from_sexual_vulgar_and_slur_senses() {
+    for gloss in [
+        "reptile; a groveling or despised person",
+        "snake; a deceitful person",
+        "pig; a greedy person",
+        "rat; an untrustworthy person",
+        "cow; an unpleasant person",
+        "worm; a contemptible person",
+        "weasel; an evasive person",
+    ] {
+        assert!(!pipeline::sensitive_gloss(gloss), "B metaphor: {gloss}");
+    }
+    for gloss in [
+        "animal; sexual slang",
+        "object; vulgar expression",
+        "animal; obscene usage",
+        "racial slur",
+        "ethnic slur",
+        "religious slur",
+        "ableist slur",
+        "sexist slur",
+        "homophobic slur",
+        "transphobic slur",
+        "slur against people of a particular origin",
+    ] {
+        assert!(pipeline::sensitive_gloss(gloss), "A sense: {gloss}");
+    }
+    // Retain the strict A guard for primary meanings.
+    for gloss in ["death", "wound", "slavery", "scrotum"] {
+        assert!(pipeline::sensitive_gloss(gloss), "A primary sense: {gloss}");
+    }
+}
+
+#[test]
+fn english_meanings_include_secondary_senses_and_expose_coverage_gaps() {
+    let sources = pipeline::english_sources().unwrap();
+    assert_eq!(sources.len(), 9_558);
+    assert!(sources["bladder"].contains("noun:"));
+    assert!(sources["pouncing"].contains(":pounce:"));
+    assert!(sources["dagger"].contains(":dagger: a short knife"));
+    assert!(sources["cat"].contains("[lex=18:noun.person]"));
+    assert!(sources["cyber"].contains("Zusatzbeleg 2026-10-25 Sexualitaet:"));
+    assert!(sources["maroon"].contains("93472515"));
+    assert!(sources.values().any(|source| source.ends_with("NO_ENTRY")));
+    let decisions = include_str!("../data/languages/semantic-decisions.tsv");
+    assert!(pipeline::semantic_blocks(decisions, "en", &sources).is_ok());
+    let mut changed = sources;
+    changed
+        .get_mut("bladder")
+        .unwrap()
+        .push_str(" changed secondary meaning");
+    assert!(pipeline::semantic_blocks(decisions, "en", &changed).is_err());
+}
+
+#[test]
+fn existing_conservative_blocks_and_a_families_cannot_reenter_the_lists() {
+    for (source, words) in [
+        (
+            english(),
+            &[
+                "angler",
+                "blabber",
+                "cat",
+                "copper",
+                "crawlers",
+                "creature",
+                "culprit",
+                "deceiver",
+                "doormat",
+                "exile",
+                "flop",
+                "fossil",
+                "gull",
+                "jaywalker",
+                "jinx",
+                "junior",
+                "lamb",
+                "lizard",
+                "maid",
+                "maroon",
+                "ostrich",
+                "parrot",
+                "pretender",
+                "pseudo",
+                "puppet",
+                "pushover",
+                "renegade",
+                "shark",
+                "simple",
+                "skirt",
+                "sponge",
+                "stowaway",
+                "trickster",
+                "unicorn",
+                "cyber",
+                "dirtiness",
+                "banana",
+                "clam",
+                "eggplant",
+                "fluff",
+                "kitty",
+                "meat",
+                "pearl",
+                "salami",
+                "starfish",
+                "tap",
+                "tapping",
+                "taps",
+                "laxative",
+            ][..],
+        ),
+        (
+            latin(),
+            &[
+                "hera",
+                "era",
+                "erus",
+                "erilis",
+                "ipsimus",
+                "domina",
+                "dominus",
+                "famulor",
+                "relegatio",
+                "exsul",
+                "exsulo",
+                "extorris",
+                "exul",
+                "exulo",
+                "extermino",
+                "dolus",
+                "reus",
+            ][..],
+        ),
+    ] {
+        for word in words {
+            assert!(
+                !(0..source.len()).any(|index| source.word(index) == *word),
+                "stage-two cause regression: {word}"
+            );
+        }
+    }
+}
+
+#[test]
+fn person_review_and_evidence_gaps_fail_closed() {
+    let meaning = "[lex=18:noun.person] noun:00000000:alpha: an ordinary participant";
+    let source = format!("alpha | EFF-large=no | WordNet-3.0 {meaning}");
+    let sources = BTreeMap::from([("alpha".to_owned(), source.clone())]);
+    let digest = pipeline::checksum(source.as_bytes());
+    let review = format!(
+        "alpha\tN\tallow\tneutral\tAll person senses read.\t{digest}\tWordNet-3.0 {meaning}\n"
+    );
+    assert!(pipeline::verify_english_person_review(&sources, &BTreeSet::new(), &review).is_ok());
+    assert!(pipeline::verify_english_person_review(&sources, &BTreeSet::new(), "").is_err());
+    assert!(pipeline::verify_english_person_review(
+        &sources,
+        &BTreeSet::new(),
+        &review.replace(&digest, &"0".repeat(64)),
+    )
+    .is_err());
+    let mut expanded = sources.clone();
+    expanded.insert("beta".to_owned(), source.replace("alpha", "beta"));
+    assert!(pipeline::verify_english_person_review(&expanded, &BTreeSet::new(), &review).is_err());
+    let gap = "beta | EFF-large=no | WordNet-3.0 NO_ENTRY";
+    assert!(!pipeline::english_has_evidence(gap));
+    let gap_sources = BTreeMap::from([("beta".to_owned(), gap.to_owned())]);
+    assert!(pipeline::verify_english_person_review(&gap_sources, &BTreeSet::new(), "").is_err());
+    assert!(pipeline::verify_english_person_review(
+        &gap_sources,
+        &BTreeSet::from(["beta".to_owned()]),
+        ""
+    )
+    .is_ok());
+    assert!(pipeline::english_has_evidence(
+        "beta | EFF-large=yes | WordNet-3.0 NO_ENTRY"
+    ));
+}
+
+#[test]
+fn stage_two_exclusions_cover_embedded_words_and_reserves() {
+    let decisions = include_str!("../data/languages/semantic-decisions.tsv");
+    for row in include_str!("../data/languages/stage2-decisions.tsv").lines() {
+        let fields: Vec<_> = row.split('\t').collect();
+        assert_eq!(fields.len(), 6);
+        let source = match fields[1] {
+            "en" => english(),
+            "la" => latin(),
+            other => panic!("unexpected language: {other}"),
+        };
+        assert!(["allow", "block"].contains(&fields[3]));
+        if fields[3] == "block" {
+            assert!(!(0..source.len()).any(|index| source.word(index) == fields[0]));
+        } else {
+            assert_eq!(fields[2], "B");
+            assert_eq!(fields[4], "neutral");
+        }
+        let prefix = format!(
+            "{}\t{}\t{}\t{}\t",
+            fields[0], fields[1], fields[3], fields[4]
+        );
+        assert!(decisions.lines().any(|entry| entry.starts_with(&prefix)));
     }
 }
 

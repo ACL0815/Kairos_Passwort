@@ -1,5 +1,9 @@
 # Fixdiff-Review ENLA-Semantikkuration (gegen `ec6a956`)
 
+**Historisches Review der Stufe 1 bei `691860b`.** Es benutzt die damals
+strengere Rubrik. Die Fortsetzung nach verbindlicher A/B-Entscheidung steht
+in [Stufe 2](../curation-stage-two.md).
+
 ## Urteil
 
 **Nicht abnahmefähig.** Die Technik ist sauber: Entscheidungen werden deterministisch und quellgebunden konsumiert, und Lücken brechen den Build ab. Die semantische Richtigkeit ist aber weiter nicht belegt. Die bekannte Stop-Regel greift zu Recht: Die 5 bekannten Restfälle sind noch eingebettet. Meine eigene Stichprobe hat einen weiteren Zweifelfall gefunden und einen Grenzfall der Rubrik. Eine fachliche Abnahme spreche ich ausdrücklich nicht aus.

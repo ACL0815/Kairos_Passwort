@@ -47,11 +47,25 @@ foreach($line in ($raw -split "`n")) {
     if($freq -cmatch '^[A-D]$'){[void]$eligible.Add($word)}
 }
 $rows=[Collections.Generic.List[string]]::new()
-foreach($word in $en){$rows.Add("$word`ten`t$(Hash $word)`t$word")}
+$stream=[IO.File]::OpenRead((Join-Path $langRoot 'upstream/wordnet/candidate-senses.tsv.gz'))
+$zip=[IO.Compression.GZipStream]::new($stream,[IO.Compression.CompressionMode]::Decompress)
+$reader=[IO.StreamReader]::new($zip,[Text.Encoding]::UTF8)
+$englishSources=@{}
+try {
+    foreach($line in ($reader.ReadToEnd() -split "`n")) {
+        if($line){$fields=$line -split "`t",2;$englishSources[$fields[0]]=$fields[1]}
+    }
+} finally {$reader.Dispose();$stream.Dispose()}
+foreach($word in $en){
+    $source=$englishSources[$word]
+    if(!$source){throw "Missing English meaning source: $word"}
+    $rows.Add("$word`ten`t$(Hash $source)`t$source")
+}
 foreach($word in $eligible){$meaning=$gloss[$word] -join ' | ';$rows.Add("$word`tla`t$(Hash $meaning)`t$meaning")}
-foreach($word in [IO.File]::ReadAllLines((Join-Path $root 'german.txt'))){$rows.Add("$word`tde`t$(Hash $word)`t$word")}
+$german=[IO.File]::ReadAllLines((Join-Path $root 'german.txt'))
+foreach($word in $german){$rows.Add("$word`tde`t$(Hash $word)`t$word")}
 $sorted=@($rows.ToArray() | Sort-Object -CaseSensitive)
 $mid=[int][Math]::Ceiling($sorted.Count/2)
 [IO.File]::WriteAllLines((Join-Path $langRoot 'review-input-1.tsv'),$sorted[0..($mid-1)],[Text.UTF8Encoding]::new($false))
 [IO.File]::WriteAllLines((Join-Path $langRoot 'review-input-2.tsv'),$sorted[$mid..($sorted.Count-1)],[Text.UTF8Encoding]::new($false))
-"EN=$($en.Count) LA=$($eligible.Count) DE=7130 total=$($sorted.Count) half=$mid"
+"EN=$($en.Count) LA=$($eligible.Count) DE=$($german.Count) total=$($sorted.Count) half=$mid"
