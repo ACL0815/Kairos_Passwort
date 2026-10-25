@@ -247,7 +247,6 @@ borte
 boss
 botin
 boule
-bowle
 brache
 brause
 bravo
@@ -403,7 +402,6 @@ drall
 drehort
 dreidel
 drift
-drink
 drittel
 drums
 dual
@@ -824,7 +822,6 @@ halte
 hammel
 handout
 handy
-hanf
 hang
 haptik
 hardtop

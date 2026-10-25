@@ -11,7 +11,7 @@ const TEXT: &str = include_str!("../data/german.txt");
 #[test]
 fn embedded_words_satisfy_source_contract_and_typing_rules() {
     let words: &dyn WordSource = kairos_wordlists::german();
-    assert_eq!(words.len(), 7_134);
+    assert_eq!(words.len(), 7_130);
     assert!((7_000..=21_000).contains(&words.len()));
     assert!(!words.is_empty());
     let mut seen = HashSet::new();
@@ -123,6 +123,25 @@ fn dictionary_validation_preserves_word_case_rules() {
     assert_eq!(pipeline::dictionary_word("apfel").as_deref(), Some("apfel"));
     for invalid in ["ROM", "U-Boot", "Menü", "123", "fooBAR", ""] {
         assert!(pipeline::dictionary_word(invalid).is_none());
+    }
+}
+
+#[test]
+fn intoxicant_review_excludes_ambiguous_drug_and_alcohol_terms() {
+    let words: HashSet<_> = TEXT.lines().collect();
+    let rejections = include_str!("../data/rejected.tsv");
+    for word in ["drink", "bowle", "hanf", "prost"] {
+        assert!(!words.contains(word), "intoxicant regression: {word}");
+        assert!(rejections
+            .lines()
+            .any(|line| line == format!("{word}\tbelastend")));
+    }
+    // Ingredients, animals, smoke, instruments, and travel retain ordinary
+    // meanings; matching a fragment alone is not an editorial rejection.
+    for word in [
+        "hopfen", "malz", "bock", "rauch", "pfeife", "trinken", "trip",
+    ] {
+        assert!(words.contains(word), "neutral word removed: {word}");
     }
 }
 
