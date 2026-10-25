@@ -54,8 +54,10 @@ Newline-Trenner. Das vier Byte lange Native-Messaging-Präfix gehört zur separa
 Browser-STDIO-Verbindung von `keepassxc-proxy`.
 
 Eine Anfrage gleichzeitig, maximal 1 MiB äußere Nachricht, insgesamt 1 ms bis
-120 Sekunden Deadline je Austausch, maximal 16 übersprungene Lock-/Unlock-
-Broadcasts. Empfangene Fragmente und zusammengefasste JSON-Objekte werden anhand
+120 Sekunden Deadline je Austausch, einschließlich bereits aufgelaufener Lock-/
+Unlock-Broadcasts. Die Deadline wird auch beim Abarbeiten gepufferter Ereignisse
+geprüft; eine reine Zählgrenze verwirft keine gültige Antwort. Empfangene Fragmente
+und zusammengefasste JSON-Objekte werden anhand
 der JSON-Struktur getrennt. KeePassXC 2.7.12 selbst liest mit `readAll` ohne
 vollständige Stream-Rahmung; fragmentierte große Anfragen können dort scheitern.
 Es gibt deshalb auch bei diesem Fehler keinen automatischen Wiederholungsversuch.
@@ -76,6 +78,12 @@ vorhandene Dateien werden nicht überschrieben. Ein Store enthält eine Zuordnun
 Für mehrere bewusst gekoppelte Datenbanken sind getrennte explizite Pfade nötig.
 Verzeichnisse erben Eltern-ACLs. Verlust/Korruption benötigt bewusste Neukopplung
 und gegebenenfalls das manuelle Widerrufen einer verwaisten KeePassXC-Zuordnung.
+Auch nach Widerruf einer Verbindung wird eine vorhandene Datei nicht ersetzt.
+Derzeit gibt es bewusst keine `forget`-/`replace`-API: Für eine Neukopplung einen
+neuen expliziten Store-Pfad verwenden oder die bisherige DPAPI-Datei selbst als
+Backup umbenennen und danach einen neuen Client koppeln. Das ist eine manuelle
+Wiederherstellungsentscheidung; diese Crate löscht keine Zuordnung. Ein geführter
+Widerrufs-/Neukopplungsablauf bleibt beim App-Folge-PR.
 
 Der dauerhaft gespeicherte `idKey` ist laut Protokoll die **öffentliche** Hälfte
 eines separaten Identifikationspaars, wirkt aber als Bearer-Geheimnis; dessen
@@ -127,6 +135,8 @@ formulierte Protokoll-JSON-Fixtures, Nonce-Replay/Manipulation, vollständiger
 Mock-Rundlauf mit In-Memory-Store und Sitzungswechsel, DB-Wechsel, redigierte
 Fehler, kein Retry, DPAPI-/Korruptions-/Überschreibschutz und echte private
 Dummy-Pipes mit Fragmenten/Broadcasts/Timeout. Diese Pipes berühren KeePassXC nicht.
+Ein Regressionstest prüft 40 während einer Leerlaufphase angesammelte Lock-/Unlock-
+Broadcasts vor einer weiterhin gültigen Antwort.
 
 Ein echter KeePassXC-Test ist absichtlich `#[ignore]`, nur lesend: Handshake,
 Hash und optional Prüfung einer **bereits vorhandenen Test-Assoziation**. Er

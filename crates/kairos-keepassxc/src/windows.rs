@@ -67,14 +67,19 @@ impl Transport for NamedPipeTransport {
         let pipe = self.pipe.as_mut().ok_or(Error::SessionClosed)?;
         let pending = &mut self.pending;
         let result = self.runtime.block_on(async {
-            tokio::time::timeout(self.timeout, async {
+            let deadline = tokio::time::Instant::now() + self.timeout;
+            tokio::time::timeout_at(deadline, async {
                 // Raw compact UTF-8 JSON, no u32 prefix or newline delimiter.
                 // The server's readAll parser expects one outstanding request.
                 pipe.write_all(request)
                     .await
                     .map_err(|_| Error::Transport)?;
-                let mut broadcasts = 0;
                 loop {
+                    // Also enforce the deadline while processing an already
+                    // buffered backlog, without waiting for another I/O poll.
+                    if tokio::time::Instant::now() >= deadline {
+                        return Err(Error::Timeout);
+                    }
                     if let Some(length) = frame_length(pending)? {
                         let reply = Zeroizing::new(pending[..length].to_vec());
                         pending.drain(..length);
@@ -83,10 +88,6 @@ impl Transport for NamedPipeTransport {
                             envelope.action.as_deref(),
                             Some("database-locked" | "database-unlocked")
                         ) {
-                            broadcasts += 1;
-                            if broadcasts > 16 {
-                                return Err(Error::UnexpectedAction);
-                            }
                             continue;
                         }
                         return Ok(reply);
@@ -217,6 +218,13 @@ mod tests {
                     .unwrap();
                 ready.send(()).unwrap();
                 pipe.connect().await.unwrap();
+                if mode == 2 {
+                    // Lock/unlock broadcasts accumulated while the application
+                    // was idle, before the server even reads its next request.
+                    let backlog =
+                        br#"{"action":"database-locked"}{"action":"database-unlocked"}"#.repeat(20);
+                    pipe.write_all(&backlog).await.unwrap();
+                }
                 let mut request = [0; 1024];
                 assert!(pipe.read(&mut request).await.unwrap() > 0);
                 if mode == 1 {
@@ -262,5 +270,21 @@ mod tests {
             Err(Error::SessionClosed)
         ));
         server.join().unwrap();
+    }
+
+    #[test]
+    fn idle_broadcast_backlog_does_not_discard_a_valid_reply() {
+        let (path, server) = test_server(2);
+        let mut transport =
+            NamedPipeTransport::connect_path(&path, Duration::from_secs(2)).unwrap();
+        let response = transport.exchange(br#"{"action":"dummy"}"#);
+        // Close before joining even on failure, so the server cannot hang.
+        drop(transport);
+        let server_result = server.join();
+        assert_eq!(
+            response.unwrap().as_slice(),
+            br#"{"action":"dummy","nonce":"ab"}"#
+        );
+        server_result.unwrap();
     }
 }

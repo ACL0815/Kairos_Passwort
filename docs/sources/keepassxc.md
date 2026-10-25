@@ -66,7 +66,10 @@ Socket. `transferSocketMessage` ergänzt erst für Browser-STDOUT eine native
 Die direkte Pipe hat **kein** Präfix und keinen Newline-Delimiter. Der Client
 erkennt JSON-Grenzen und erhält Restbytes. Genau eine Anfrage ist offen; bekannte
 `database-locked`-/`database-unlocked`-Events werden unter derselben Deadline
-übersprungen (höchstens 16). Jede Antwort muss die erwartete Action besitzen.
+übersprungen. Eine Zählgrenze wird nicht verwendet, da diese nach längerer
+Leerlaufphase gültige Antworten verwerfen könnte. Die monotone Gesamtdeadline
+wird auch während der Verarbeitung bereits gepufferter Ereignisse geprüft.
+Jede Antwort muss die erwartete Action besitzen.
 Äußere Nachrichten sind auf 1 MiB und Eingabefelder auf 16 KiB begrenzt; die
 maximale serialisierte Anfrage liegt unter KeePassXCs innerem 655360-Byte-Limit.
 Der 2.7.12-Host verwendet selbst `readAll` statt vollständiger Stream-Rahmung;
@@ -104,6 +107,12 @@ Salsa20-Zeroize ist aktiviert. Vollständige Dump-/Compiler-/OS-Kopienlöschung
 wird nicht behauptet. Andere Prozesse desselben Benutzers können grundsätzlich
 DPAPI verwenden oder lokale IPC angreifen.
 [Microsoft-DPAPI-Grenze](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata).
+
+Aktuell ist eine bewusste Neukopplung manuell: neuer expliziter Store-Pfad oder
+bisherige DPAPI-Datei als Backup umbenennen und einen neuen Client koppeln;
+gegebenenfalls die alte Verbindung in KeePassXC widerrufen. Es gibt noch keine
+`forget`-/`replace`-API und keine automatische Löschung. Ein geführter Ablauf ist
+eine Aufgabe des späteren App-PRs.
 
 Generische Protokollfehler sind unverschlüsselt. `errorCode` wird als String
 oder Zahl akzeptiert und nur numerisch weitergegeben; Servertexte werden nie
