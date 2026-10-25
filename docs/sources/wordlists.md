@@ -1,6 +1,8 @@
 # Eingebettete deutsche Wortliste
 
-Zuständig: **nur PR-2** (`feat/wordlist-de`), Prio 1, Basis `main` @ `42a2137`.
+Ursprüngliche Umsetzung in **PR #2** (`feat/wordlist-de`), inzwischen gemergt.
+Die deutsche A/B-Nachtriage der 299 Meldungen erfolgt gemäß Auftrag in PR #7.
+[Standard und aktueller Prüfstand](../../crates/kairos-wordlists/data/curation-stage-two.md).
 Abruf und Bewertung: **25.10.2026**. Die Umsetzung übernimmt ausschließlich
 Wortdaten unter CC0-1.0; fremder Implementierungscode wurde nicht kopiert.
 
@@ -31,86 +33,29 @@ sind sämtlich auf vollständige Commit-IDs und SHA-256 festgelegt.
 
 ## Entscheidung und eigene Umsetzung
 
-Die D1-Nachbesserung aus Verifier A sperrt `drink`, `bowle`, `hanf` und
-`prost` über die bestehende Pipeline. Vollbestandssuche, neutrale
-Vergleichsfälle und aktualisierte Stufenzahlen stehen im
-[Kuratierungsbericht](../../crates/kairos-wordlists/data/curation-review.md).
+Die ursprüngliche Umsetzung aus PR #2 ist gemergt. PR #7 übernimmt main und
+setzt die A/B-Nachtriage um. Von 299 Meldungen werden 224 zur Sperrung adjudiziert
+und 75 als B beibehalten; konservative Grenzen sind im Einzelbericht kenntlich.
+Nach der Filteränderung sichtbare Formen wurden zusätzlich geprüft.
+[Rubrik und Belege](../../crates/kairos-wordlists/data/curation-stage-two.md).
 
-**Übernommen:** die CC0-Daten von dys2p und eine explizite Auswahl aus dem
-CC0-Wörterbuch von Markus Enzenberger und Beitragenden. Die ungeänderten
-Rohquellen, festen Revisionen, Original-Lizenztexte und SHA-256-Werte sind
-in der Crate vorhanden. Der große enz-Bestand liegt platzsparend als Gzip
-vor; der Hash wird auf den dekomprimierten Originalbytes geprüft.
+Von 9.824 Rohzeilen bleiben 6.867 passende eindeutige dys2p-Kandidaten. Die
+Sperrliste enthält 1.568 Wörter, davon greifen 984 in der Basis. 5.883 kuratierte
+Basiswörter plus 1.906 explizite enz-Ergänzungen ergeben nach 882 entfernten
+Endungsvarianten **6.907 Wörter**. Davon stammen 5.281 aus der Basis und
+1.626 aus der Ergänzung. Der Mittelwert beträgt **6,577 Buchstaben**.
 
-Aus 9.824 dys2p-Rohzeilen werden nach `a-z`, Länge 3–9 und Deduplizierung
-6.867 Wörter. Aus beiden Quellen sind 1.306 Einträge kategorisiert gesperrt;
-782 Sperren greifen in der Basis, sodass 6.085 Wörter übrig bleiben.
-1.966 gegen die enz-Rohquelle geprüfte Ergänzungskandidaten kommen hinzu.
-Ein konservativer Endungsfilter entfernt 921 Schreibvarianten. Das Ergebnis:
-**7.130 Wörter**, durchschnittlich **6,565 Buchstaben**, davon 5.453 aus der
-Basis und 1.677 Ergänzungen. Die Ergänzungen dürfen höchstens sieben
-Buchstaben haben. Großgeschriebene
-Wörter werden nur ASCII-kleingeschrieben; Umlaute/ß werden ausgeschlossen
-und niemals umgeschrieben. Jedes Laufzeitwort liefert `Language::German`.
+Die Daten sind CC0, die Rohquellen und Original-Lizenzen bleiben unverändert.
+Der große enz-Rohbestand ist kein ungeprüfter Passwortpool. ASCII-Regeln und
+die begrenzte Endungsheuristik bleiben erhalten. Die A-Sperren wirken auf
+Pipeline-Eingaben, nicht durch Handänderungen der Endliste. Vollständige
+Wortdeltas und Nachrücker sind unter der Stufe-2-Dokumentation verlinkt.
 
-Die kleine Rust-Pipeline nutzt Standard-Sets zur Sortierung/Deduplizierung;
-`flate2` und `sha2` sparen eigene Kompressions-/Prüfsummenimplementierungen
-und sind nur Entwicklungsabhängigkeiten. Der Laufzeitcode nutzt das bei
-passalong-core verifizierte Prinzip aus eingebettetem Text und einmaligem
-Index; der Algorithmus wurde eigenständig formuliert.
+Die Runtime indiziert eingebetteten Text einmalig mit OnceLock. Nur
+Entwicklungswerkzeuge brauchen flate2/sha2. Zufallsauswahl gehört zu Core.
+Keine allgemeine Präfixfreiheit, kein Mindest-Editierabstand und keine automatische
+Tippkorrektur werden zugesichert. Trenner halten Wortgrenzen eindeutig.
 
-**Nicht übernommen:** fremder Implementierungscode, Generatorfunktionen,
-ungeprüfte Wörterbuchreste, xkcdpass-GPL-Daten und Daten mit ungeklärter
-Lizenz. Ein Buildskript oder PHF würde für `word(index)` zusätzlichen Code
-ohne nötigen Nutzen bringen. Es gibt weder eine Rückwärtssuche noch einen
-Grund für einen perfekten Hash. Die 21.000 Wörter aus dem Konzept bleiben
-ein Beispiel; dieser PR dokumentiert den kleineren, geprüften Bestand.
-
-**Bewusste Grenzen:** Präfixfreiheit, eindeutige Drei-Zeichen-Präfixe und
-ein Mindest-Editierabstand werden nicht zugesichert. Die Zusammenführung
-und kurze Wortformen heben solche Eigenschaften der Ursprungslisten auf.
-Feste Trenner halten Wortgrenzen beim Abschreiben eindeutig. Redaktionelle
-Kuratierung bildet keine vollständige Klassifikation aller möglichen
-Nebenbedeutungen; gewöhnliche Wörter mit Namenshomographen bleiben erlaubt.
-
-## Entscheidungen nach dem unabhängigen Review
-
-Der Endungsfilter bevorzugt kürzere Schreibweisen gegenüber Varianten mit
-`e`, `n`, `s`, `en`, `er`, `es`, `em` oder `r`. Er verhindert beispielsweise
-`tag/tage/tages`. Er ist keine linguistische Stammworterkennung und kann
-vorsorglich auch unabhängige Wörter wie `auto/autor` ausdünnen. Ein eigenes
-Morphologie-System wäre hier unverhältnismäßig. Die geringfügig höhere
-mittlere Länge ist offengelegt; wir erreichen die Mindestgröße nicht durch
-zusätzliche kurze Flexionsformen. 31,4 % der Wörter haben acht oder neun
-Buchstaben; Ziel sechs ist mit 6,565 nicht exakt erreicht und begründet.
-
-Die Ausschlusskategorien `vulgär`, `beleidigend`, `belastend`, `Eigenname` und
-`Schreibbarkeit` sind in der Pipeline festgelegt. Sie gelten für beide
-Quellen und werden gegen deren Vereinigung geprüft. Weltanschauungen werden
-nicht als Belastung klassifiziert: `atheismus`, `glaube` und `engel` bleiben
-enthalten. Beanstandete Rauschmittel-/Gewaltbegriffe und problematische
-Schreibvarianten sind zusätzlich durch unabhängige Regressionstests gesperrt.
-
-Nur originale Kleinschreibung oder ein großer Anfangsbuchstabe werden für
-enz-Kandidaten anerkannt, keine Großbuchstaben-Abkürzungen. Das bestätigt
-keine Bedeutung automatisch; diese bleibt eine redaktionelle Entscheidung.
-Reine englische Ergänzungen wurden gestrichen. Bekannte deutsche Lehnwörter
-bleiben erlaubt; **PR-7 muss seine englischen und weiteren Sprachlisten um
-alle bereits deutschen Einträge bereinigen**, bevor eine Sprachmischung
-freigegeben wird. Gleichlautende Wörter dürfen keinen Sprachbonus erzeugen.
-
-Ordinale Ablage ermöglicht reproduzierbare Diffs. Die spätere randomisierte
-Speicherung aus dem Grundkonzept ist keine Voraussetzung dieser eingebetteten
-Quelle; bei gleichverteilter Indexwahl ist die Reihenfolge entropieneutral.
-Die komprimierte vollständige Rohquelle bleibt für Offline-Reproduktion
-erhalten. Ein Auszug würde diese Prüfung schwächen, ohne die lizenzierte
-Originalquelle lokal belegbar zu halten. Eine strengere Mittelwertgrenze
-von 6,5 wird zugunsten der erläuterten Auswahl nicht erzwungen; der Test
-sichert maximal 6,6 und die reale Wortzahl sowie die Endungsregel ab.
-
-API, vollständiger Filterbericht, Tests und alle lokalen Belege:
-[`kairos-wordlists/README.md`](../../crates/kairos-wordlists/README.md),
-[`Provenienz`](../../crates/kairos-wordlists/data/PROVENANCE.md),
-[`Ausschlüsse mit Grund`](../../crates/kairos-wordlists/data/rejected.tsv),
-[`Positivliste`](../../crates/kairos-wordlists/data/supplement.txt),
-[`Pipeline`](../../crates/kairos-wordlists/tools/pipeline.rs).
+[Aktuelles README](../../crates/kairos-wordlists/README.md), [Provenienz](../../crates/kairos-wordlists/data/PROVENANCE.md),
+[299er-Triage](../../crates/kairos-wordlists/data/languages/stage2-german-triage.tsv),
+[Nachrücker](../../crates/kairos-wordlists/data/languages/stage2-german-followup.tsv).

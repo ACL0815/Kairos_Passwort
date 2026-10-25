@@ -32,12 +32,10 @@ abfolge
 abfrage
 abfuhr
 abgabe
-abgang
 abgas
 abgebaut
 abgedankt
 abgeebbt
-abgehackt
 abgeladen
 abgemacht
 abgeneigt
@@ -55,7 +53,6 @@ abhaken
 abhalten
 abhandeln
 abhang
-abhauen
 abheben
 abhelfen
 abhielt
@@ -99,7 +96,6 @@ abraten
 abraum
 abrechnen
 abrede
-abreibung
 abreise
 abrieb
 abringen
@@ -160,7 +156,6 @@ abwirft
 abwurf
 abzeichen
 abziehen
-abzug
 abzweig
 aceton
 achat
@@ -193,7 +188,6 @@ advent
 adverb
 advokat
 aerob
-affe
 affekt
 affin
 affix
@@ -211,7 +205,6 @@ ahnung
 ahoi
 ahorn
 ahornbaum
-aikido
 aioli
 airbag
 akademie
@@ -222,7 +215,6 @@ akku
 akkurat
 akkusativ
 akribisch
-akt
 akteur
 aktie
 aktion
@@ -321,12 +313,9 @@ andre
 aneignen
 anekdote
 anerkannt
-anfahren
-anfallen
 anfang
 anfassen
 anfeuern
-anfielen
 anfingen
 anfliegen
 anflug
@@ -337,7 +326,6 @@ angebahnt
 angedacht
 angekauft
 angel
-angemacht
 angenehm
 angepackt
 angesagt
@@ -378,7 +366,6 @@ anleiten
 anlief
 anliegen
 anlocken
-anmachen
 anmarsch
 anmelden
 anmeldung
@@ -428,7 +415,6 @@ ansporn
 anspruch
 anstalt
 anstand
-anstecken
 anstieg
 anstreben
 ansturm
@@ -575,7 +561,6 @@ aufwand
 aufwiegen
 aufwind
 aufwuchs
-aufziehen
 aufzug
 augapfel
 auge
@@ -686,7 +671,6 @@ ballon
 ballt
 balsa
 balsam
-balz
 bambus
 banal
 banane
@@ -702,9 +686,9 @@ bankwesen
 bannen
 bannmeile
 baobab
-bar
 baracken
 barde
+bares
 bargeld
 barhocker
 barke
@@ -725,7 +709,6 @@ basta
 basteln
 baten
 batik
-batterie
 batzen
 bauamt
 bauart
@@ -837,7 +820,6 @@ beigaben
 beige
 beihilfe
 beikommen
-beil
 beilagen
 beilegen
 beim
@@ -848,13 +830,11 @@ beirat
 beirren
 beisammen
 beisein
-beisel
 beispiel
 beistand
 beitrag
 beiwagen
 beiwerk
-beiwohnen
 beizeiten
 bejahen
 bejubeln
@@ -891,7 +871,6 @@ benehmen
 beneiden
 benennen
 benimm
-benommen
 benoten
 benutzbar
 benutzen
@@ -922,17 +901,14 @@ beryll
 besagen
 besang
 besatz
-besatzung
 bescheid
 beseelt
 besehen
 besen
-besetzen
 besiedeln
 besingen
 besitz
 besoldung
-besorgen
 bespannt
 besprach
 besser
@@ -959,7 +935,6 @@ bettzeug
 betuchte
 beuge
 beugt
-beule
 beute
 beutel
 bevor
@@ -1046,11 +1021,9 @@ bitumen
 biwak
 bizone
 blank
-blase
 blasmusik
 blass
 blatt
-blau
 blaulicht
 blaumeise
 blech
@@ -1078,12 +1051,9 @@ bluse
 boa
 bob
 boccia
-bock
 bockig
-bodega
 boden
 bodennah
-bogen
 bohle
 bohne
 bohren
@@ -1092,7 +1062,6 @@ bohrloch
 bohrung
 boiler
 boje
-bollwerk
 bolzen
 bonbon
 bongo
@@ -1116,10 +1085,6 @@ bote
 botin
 botschaft
 boule
-boxen
-boxkampf
-boxring
-boxte
 brache
 brachten
 branche
@@ -1131,9 +1096,7 @@ brause
 braut
 brav
 bravo
-brechen
 brei
-breit
 bremse
 brett
 breze
@@ -1145,7 +1108,6 @@ brief
 brillant
 brille
 bringen
-brisant
 brise
 brodeln
 brokat
@@ -1154,7 +1116,6 @@ bronze
 brosche
 brot
 brotzeit
-bruch
 bruchfest
 bruder
 brummen
@@ -1166,7 +1127,6 @@ buchladen
 buchpreis
 bucht
 buchung
-buckel
 buddel
 bude
 budget
@@ -1182,7 +1142,7 @@ bund
 bungalow
 bunt
 buntstift
-burg
+burgen
 bus
 busch
 busfahren
@@ -1232,16 +1192,13 @@ chor
 choral
 chorprobe
 chrom
-cidre
 circa
 city
 clever
-clinchen
 clip
 clique
 clou
 cloud
-clown
 club
 clubhaus
 coach
@@ -1262,7 +1219,7 @@ cornet
 corsage
 corso
 couch
-coup
+coupe
 courage
 cousin
 cover
@@ -1307,7 +1264,6 @@ darbieten
 darfst
 darin
 darlegen
-darnieder
 dart
 darum
 darunter
@@ -1336,7 +1292,6 @@ deckname
 deckung
 defekt
 deftig
-degen
 degu
 dehnen
 dehnt
@@ -1506,9 +1461,7 @@ dreimal
 dreirad
 dreisatz
 dreizehn
-dreschen
 drift
-drillen
 dringend
 drinnen
 drittel
@@ -1577,7 +1530,6 @@ egal
 egge
 ego
 ehe
-ehebett
 ehebuch
 ehebund
 ehefrau
@@ -1597,11 +1549,9 @@ ehrung
 eibe
 eichamt
 eiche
-eichel
 eichhorn
 eichung
 eidechse
-eier
 eiertanz
 eieruhr
 eifer
@@ -1631,7 +1581,6 @@ eindecken
 eindruck
 einer
 einfach
-einfall
 einfang
 einfiel
 einflug
@@ -1656,8 +1605,6 @@ einlud
 einmal
 einmieten
 einnahme
-einnehmen
-einnimmt
 einordnen
 einpacken
 einplanen
@@ -1709,7 +1656,6 @@ eiswasser
 eiszapfen
 eiszeit
 eitel
-eizelle
 eklat
 eklipse
 ekstase
@@ -1721,7 +1667,6 @@ elch
 elefant
 elegant
 eleganz
-elegie
 element
 elfe
 elfmal
@@ -1795,7 +1740,6 @@ entbinden
 entbunden
 entdecken
 ente
-entern
 entfachen
 entfernen
 entfiel
@@ -1828,7 +1772,6 @@ entwurf
 entziehen
 entzogen
 entzwei
-enzian
 enzym
 epen
 epik
@@ -1844,24 +1787,18 @@ erachten
 erahnen
 erbarmen
 erbauen
-erbe
 erbeben
 erbeten
 erbeuten
-erbfolge
 erbgut
 erbhof
-erbin
 erbitten
 erblassen
 erbost
 erbpacht
 erbracht
 erbringen
-erbschaft
 erbse
-erbteil
-erbten
 erbwort
 erdacht
 erdaushub
@@ -1936,7 +1873,6 @@ erlauben
 erle
 erleben
 erlebnis
-erledigen
 erlenholz
 erlesen
 erlischt
@@ -1950,14 +1886,12 @@ ernennen
 erneut
 ernst
 ernte
-erobern
 erosion
 erpel
 erpicht
 erproben
 erraten
 errechnen
-erregen
 errichten
 ersatz
 ersatzlos
@@ -2000,7 +1934,6 @@ erziehen
 erzielen
 erzogen
 esche
-esel
 eselei
 eselsfell
 esprit
@@ -2074,7 +2007,6 @@ fackel
 faden
 fado
 fagott
-fahne
 fahrbahn
 fahren
 fahrgast
@@ -2119,7 +2051,6 @@ fantasie
 fanzone
 farbdia
 farbe
-farbig
 farblich
 farbton
 farce
@@ -2146,7 +2077,6 @@ fax
 faxnummer
 fazit
 februar
-fechten
 feder
 fee
 fegen
@@ -2178,7 +2108,6 @@ felswand
 fenchel
 fenster
 ferien
-ferkel
 fern
 fernab
 fernamt
@@ -2202,12 +2131,9 @@ festzelt
 festzug
 feta
 fete
-fett
 fettarme
 fetzen
 fetzig
-feucht
-feuer
 feuerzeug
 feurig
 fiasko
@@ -2242,7 +2168,6 @@ finesse
 fingen
 finger
 fingiert
-fink
 finte
 firma
 firmen
@@ -2269,15 +2194,12 @@ flanieren
 flanke
 flansch
 flapsig
-flasche
 flaum
 flausch
 flausen
 flaute
-flechte
 fleck
 fleece
-flegel
 flehen
 fleht
 fleisch
@@ -2313,7 +2235,6 @@ fluss
 flut
 flutlicht
 flyer
-fochten
 fokus
 folge
 folglich
@@ -2355,7 +2276,6 @@ fragst
 fragt
 fraktal
 fraktion
-fraktur
 franse
 frau
 frech
@@ -2456,7 +2376,6 @@ gar
 garage
 garant
 garbe
-garde
 gardine
 garnele
 garnieren
@@ -2498,7 +2417,6 @@ gealtert
 geangelt
 gebacken
 gebadet
-gebaggert
 gebahnt
 geballt
 gebangt
@@ -2513,15 +2431,12 @@ gebilde
 gebinde
 gebirge
 gebiss
-geblasen
-geblendet
 geblickt
 geblockt
 gebogen
 gebohrt
 geboren
 gebot
-geboxt
 gebracht
 gebrumm
 gebucht
@@ -2543,7 +2458,6 @@ gedicht
 gediegen
 gedonnert
 gedreht
-gedrillt
 gedruckt
 geduckt
 gedudel
@@ -2555,10 +2469,7 @@ geeicht
 geeignet
 geeilt
 geeinigt
-geek
-geerbt
 geerntet
-gefallen
 gefasst
 gefaxt
 gefegt
@@ -2569,7 +2480,6 @@ gefieder
 gefilde
 gefischt
 geflecht
-gefochten
 gefolge
 gefordert
 gefragt
@@ -2590,7 +2500,6 @@ gegriffen
 gehackt
 gehalt
 gehandelt
-gehauen
 geheftet
 gehege
 geheilt
@@ -2612,10 +2521,8 @@ gehst
 gehuldigt
 gehupe
 gehweg
-geier
 geige
 geimpft
-geist
 gejohle
 gejubel
 gejubelt
@@ -2640,8 +2547,6 @@ gekriegt
 gekrochen
 gel
 gelacht
-geladen
-gelage
 gelandet
 gelassen
 gelaufen
@@ -2694,7 +2599,6 @@ gemunkelt
 gemurmel
 gemustert
 gen
-genagelt
 genannt
 genau
 genbank
@@ -2717,8 +2621,6 @@ geometrie
 geophysik
 geordert
 geortet
-geoutet
-gepaart
 gepachtet
 gepard
 gepasst
@@ -2735,8 +2637,6 @@ gepumpt
 gepunktet
 gerade
 gerahmt
-gerammt
-gerangel
 geranie
 gerast
 geraten
@@ -2754,7 +2654,6 @@ gern
 gerochen
 gerodet
 gerste
-gerte
 geruch
 gerudert
 gerufen
@@ -2786,7 +2685,6 @@ gespann
 gespickt
 gesponnen
 gespreizt
-gespuckt
 gestalt
 geste
 gesteck
@@ -2818,12 +2716,10 @@ getoppt
 getragen
 getreide
 getrickst
-getrunken
 geurteilt
 gewachsen
 gewagt
 gewand
-gewappnet
 gewarnt
 gewaschen
 gewebe
@@ -2854,7 +2750,6 @@ gezahlt
 gezapft
 gezaubert
 gezeter
-gezeugt
 gezielt
 gezimmert
 gezittert
@@ -2866,7 +2761,6 @@ giebel
 gigant
 gilde
 gimmick
-gimpel
 gingen
 ginkgo
 ginseng
@@ -2944,7 +2838,6 @@ granit
 granola
 granulat
 graph
-gras
 grashalm
 grat
 gratin
@@ -2979,11 +2872,9 @@ gruppe
 guave
 gulasch
 gully
-gummi
 gunst
 guppy
 gurgel
-gurke
 gurt
 guss
 gusto
@@ -3043,7 +2934,6 @@ halt
 haltbar
 haltlos
 haltung
-hammel
 hammer
 hamster
 hand
@@ -3082,7 +2972,6 @@ hatten
 haube
 hauch
 haudegen
-hauen
 hauer
 haufen
 haupt
@@ -3153,7 +3042,6 @@ hemmen
 hemmnis
 hemmt
 hemmung
-hengst
 henkel
 henna
 henne
@@ -3186,7 +3074,6 @@ hervor
 herz
 herzform
 herzhaft
-herziehen
 herzog
 herzton
 heterogen
@@ -3229,9 +3116,7 @@ hingen
 hingibt
 hingucken
 hinhalten
-hinken
 hinkommen
-hinkt
 hinlegen
 hinnimmt
 hinrunde
@@ -3285,7 +3170,6 @@ hofraum
 hoftor
 hofweg
 hoheit
-hohl
 hohlraum
 hohlweg
 holen
@@ -3333,8 +3217,6 @@ human
 hummel
 hummer
 humor
-humpelt
-hund
 hundert
 hundstage
 hupe
@@ -3473,7 +3355,6 @@ jemals
 jemand
 jene
 jenem
-jenseits
 jersey
 jetboot
 jethelm
@@ -3524,7 +3405,6 @@ kabine
 kabuff
 kachel
 kadenz
-kadett
 kaffee
 kaftan
 kahl
@@ -3536,7 +3416,6 @@ kakadu
 kakao
 kakteen
 kaktus
-kalb
 kalender
 kalium
 kalk
@@ -3546,7 +3425,6 @@ kalorie
 kalt
 kaltfront
 kaltstart
-kamel
 kamelie
 kamera
 kamille
@@ -3576,7 +3454,6 @@ kanuten
 kanzel
 kanzlei
 kapelle
-kapern
 kapieren
 kapital
 kapitel
@@ -3613,7 +3490,6 @@ kasko
 kasse
 kassieren
 kastanie
-kastell
 kasten
 katalog
 kategorie
@@ -3630,7 +3506,6 @@ kauft
 kaum
 kaut
 kaution
-kauz
 kaverne
 kaviar
 kebab
@@ -3646,7 +3521,6 @@ keil
 keim
 keimt
 keimung
-keimzelle
 kein
 keks
 kelch
@@ -3686,7 +3560,6 @@ kilobit
 kilogramm
 kilometer
 kilowatt
-kimme
 kimono
 kind
 kindheit
@@ -3695,7 +3568,6 @@ kino
 kinofilm
 kinowelt
 kiosk
-kippen
 kippt
 kirmes
 kirsche
@@ -3716,7 +3588,6 @@ klamm
 klamotten
 klampfe
 klang
-klappe
 klar
 klarheit
 klartext
@@ -3748,7 +3619,6 @@ klientel
 kliff
 klima
 klimbim
-klinge
 klingel
 klinik
 klinisch
@@ -3761,9 +3631,7 @@ klobigen
 klon
 klopapier
 klopfen
-klops
 klosett
-klotz
 klub
 klubhaus
 kluft
@@ -3773,13 +3641,9 @@ klumpen
 knabbern
 knabe
 knacken
-knallen
 knapp
-knarren
 knattern
 knauf
-kneifen
-kneipe
 knete
 knick
 knie
@@ -3879,7 +3743,6 @@ kordel
 koriander
 kork
 kormoran
-korn
 kornfeld
 korpulent
 korrekt
@@ -3911,10 +3774,8 @@ kranz
 krapfen
 krass
 krater
-kratzen
 kraulen
 krause
-kraut
 krawatte
 kreatur
 kredenzen
@@ -3927,7 +3788,6 @@ krempe
 krempel
 krepp
 kresse
-kreuz
 kribbeln
 kriechen
 kriegen
@@ -3952,14 +3812,11 @@ kubus
 kuchen
 kuckuck
 kufe
-kugel
-kuh
 kuhle
 kuhmilch
 kuhstall
 kulant
 kulanz
-kuli
 kulisse
 kultfigur
 kultserie
@@ -4037,13 +3894,11 @@ lampion
 land
 landbau
 landbrot
-landei
 landgut
 landhaus
 landkarte
 landleben
 landrat
-landratte
 landsee
 landtag
 landung
@@ -4051,11 +3906,9 @@ landweg
 landzunge
 lang
 langmut
-langohr
 languste
 lapidar
 lappalie
-lappen
 laptop
 larve
 lasagne
@@ -4087,7 +3940,6 @@ laufzeit
 lauge
 laune
 launig
-lausbub
 laut
 lauthals
 lautlos
@@ -4120,7 +3972,6 @@ legen
 legende
 leger
 legieren
-legion
 legitim
 legten
 leguan
@@ -4265,7 +4116,6 @@ losfahren
 losging
 loslassen
 loslegen
-losung
 loswerden
 losziehen
 lot
@@ -4294,7 +4144,6 @@ lupe
 lupenrein
 lupine
 lurch
-lust
 lustig
 lustspiel
 luxus
@@ -4306,8 +4155,6 @@ machbar
 machen
 machst
 macht
-macke
-magazin
 magen
 magenta
 magie
@@ -4419,7 +4266,6 @@ meiden
 meile
 meinen
 meinung
-meise
 meistens
 meister
 melange
@@ -4480,11 +4326,9 @@ milieu
 million
 mime
 mimik
-mimose
 mineral
 mini
 miniatur
-minibar
 minigolf
 minimum
 minus
@@ -4570,7 +4414,6 @@ moor
 moos
 moped
 mopp
-mops
 moral
 morchel
 morgen
@@ -4624,7 +4467,6 @@ nachbar
 nachbau
 nachhaken
 nachkam
-nachlass
 nachname
 nacho
 nachsagen
@@ -4725,7 +4567,6 @@ niedrig
 niemals
 niemand
 niere
-niete
 nilpferd
 nimmst
 nimmt
@@ -4911,7 +4752,6 @@ ozonwerte
 paar
 paarlauf
 paarmal
-paarung
 paarweise
 pachten
 pack
@@ -4924,7 +4764,6 @@ paella
 pagode
 paket
 paktieren
-paladin
 palast
 palette
 palladium
@@ -4947,7 +4786,6 @@ parallel
 parameter
 pardon
 parfum
-parieren
 park
 parka
 parkbank
@@ -5010,7 +4848,6 @@ pep
 perfekt
 pergament
 pergola
-periode
 perle
 permanent
 perplex
@@ -5024,21 +4861,17 @@ pfand
 pfanne
 pfau
 pfeffer
-pfeife
-pfeil
 pfennig
 pferd
 pfiff
 pfirsich
 pflanzen
 pflaster
-pflaume
 pflegen
 pflicht
 pflock
 pflug
 pforte
-pfosten
 pfote
 pfropf
 pfund
@@ -5050,7 +4883,6 @@ physik
 pianist
 piano
 pick
-pickel
 picknick
 pickt
 pidgin
@@ -5061,7 +4893,6 @@ pigment
 pikant
 pikiert
 pilot
-pilz
 piment
 pin
 pinguin
@@ -5164,7 +4995,6 @@ posten
 postfach
 postieren
 postweg
-potenz
 pott
 pottwal
 pracht
@@ -5188,7 +5018,6 @@ prinz
 prinzip
 prise
 prisma
-pritsche
 privat
 privileg
 probanden
@@ -5232,7 +5061,6 @@ puma
 pumpe
 pumpt
 pumpwerk
-punch
 punk
 punkband
 punkrock
@@ -5241,7 +5069,6 @@ puppe
 purpur
 puschel
 pusten
-pute
 putt
 putz
 putzfee
@@ -5287,11 +5114,8 @@ radstand
 radtour
 radweg
 rahm
-rakete
 rally
 ramen
-rammen
-rammt
 rampe
 ranch
 rand
@@ -5398,7 +5222,6 @@ reiten
 reiz
 reizfigur
 reizt
-reizung
 reizvoll
 rekord
 rektor
@@ -5453,18 +5276,15 @@ riff
 rille
 rind
 ring
-ringkampf
 ringt
 rinne
 rinnsal
 rippe
 risiken
 rispe
-riss
 ritt
 ritual
 rituell
-ritze
 robbe
 robe
 roboter
@@ -5478,8 +5298,6 @@ rodung
 roggen
 rohbau
 rohkost
-rohling
-rohr
 rohstoff
 rollbahn
 rolle
@@ -5539,7 +5357,6 @@ rune
 runter
 rupfen
 rustikal
-rute
 rutsche
 saal
 saat
@@ -5548,7 +5365,6 @@ sache
 sachlage
 sachpreis
 sachte
-sack
 sackkarre
 safe
 safran
@@ -5569,14 +5385,12 @@ salat
 salbe
 saldo
 salon
-saloon
 salopp
 salsa
 salto
 salz
 salzig
 samba
-same
 sammeln
 samstag
 samt
@@ -5614,8 +5428,6 @@ saurier
 sause
 scan
 schaben
-schaf
-schakal
 schal
 schar
 scharren
@@ -5624,7 +5436,6 @@ schau
 schaukeln
 scheckig
 scheiben
-schellen
 scheppern
 schere
 scherzen
@@ -5636,7 +5447,6 @@ schindel
 schippen
 schirm
 schlamm
-schlange
 schloss
 schlucht
 schmal
@@ -5704,7 +5514,6 @@ seitdem
 seite
 seither
 seitlich
-sektion
 sektor
 sekunde
 selber
@@ -5773,7 +5582,6 @@ sinn
 sinnbild
 sinnfrei
 sinnieren
-sinnlich
 sinnvoll
 sinus
 sippe
@@ -5935,7 +5743,6 @@ stegreif
 stehen
 stehplatz
 steht
-steif
 steigen
 steil
 stein
@@ -5965,7 +5772,6 @@ stinktier
 stirn
 stochern
 stock
-stoff
 stola
 stollen
 stolz
@@ -5979,7 +5785,6 @@ streben
 strecke
 streng
 streuen
-strich
 stroh
 strom
 strophen
@@ -5991,13 +5796,10 @@ student
 studi
 studium
 stufe
-stuhl
-stumm
 stumpf
 stunde
 stups
 sturheit
-sturm
 stute
 stutzen
 subjekt
@@ -6080,14 +5882,12 @@ tatsache
 tattoo
 tatze
 tau
-taube
 tauchen
 tauglich
 tausch
 tausend
 tauwetter
 tauziehen
-taverne
 taxen
 taxi
 taxifahrt
@@ -6144,7 +5944,6 @@ thermal
 these
 thron
 thunfisch
-tick
 tide
 tief
 tiefbau
@@ -6176,7 +5975,6 @@ toga
 toilette
 tolerant
 toleranz
-toll
 tomate
 ton
 tonart
@@ -6231,21 +6029,17 @@ trennen
 treppe
 tresen
 tresor
-treten
 treu
 treuhand
 trial
 triangel
 trick
 tricksen
-trieb
 trifft
 trike
 trimmen
-trinken
 trio
 trip
-tritt
 trivial
 trocken
 trollen
@@ -6259,7 +6053,6 @@ trubel
 trugen
 truhe
 trumpf
-trunk
 truthahn
 tuba
 tube
@@ -6309,7 +6102,6 @@ umbruch
 umdenken
 umdeuten
 umdrehen
-umfahren
 umfallen
 umfang
 umfassen
@@ -6337,7 +6129,6 @@ umkurven
 umlagen
 umland
 umlaufen
-umlegen
 umleiten
 umnutzung
 umrahmen
@@ -6361,7 +6152,6 @@ umstieg
 umtausch
 umtreiben
 umtriebe
-umtrunk
 umwandeln
 umweg
 umweht
@@ -6475,7 +6265,6 @@ verebben
 veredeln
 verehren
 verein
-vererben
 verewigen
 verfassen
 verfiel
@@ -6488,12 +6277,10 @@ vergolden
 verhielt
 verirren
 verkabeln
-verkehr
 verlassen
 verlegen
 verlieben
 verlosen
-vermachen
 vermied
 vermocht
 verneinen
@@ -6540,7 +6327,6 @@ viola
 virologen
 virtuell
 visa
-visier
 vision
 visite
 visuell
@@ -6549,12 +6335,10 @@ vita
 vitamine
 vitrine
 vlies
-vogel
 vokabel
 vokal
 voliere
 volk
-voll
 vollbad
 volldampf
 vollmond
@@ -6582,7 +6366,6 @@ vorhang
 vorher
 vorhielt
 vorhof
-vorhut
 vorjahr
 vorkam
 vorkommen
@@ -6668,7 +6451,6 @@ wankt
 wanne
 wanze
 wappen
-wappnen
 waran
 warben
 ware
@@ -6801,7 +6583,6 @@ wink
 winkel
 winkt
 winter
-winzer
 winzig
 wipfel
 wippe
@@ -6879,8 +6660,6 @@ wunder
 wunsch
 wurde
 wurf
-wurm
-wurst
 wurzel
 wuseln
 wusste
@@ -7115,8 +6894,6 @@ zweig
 zweimal
 zweirad
 zweit
-zwerg
-zwicken
 zwieback
 zwiebel
 zwilling

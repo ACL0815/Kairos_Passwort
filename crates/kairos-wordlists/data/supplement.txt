@@ -41,15 +41,12 @@ agave
 agil
 agile
 ahoi
-aikido
 aioli
 airbag
 akazie
 akelei
 akku
 akkus
-akt
-akten
 aktion
 aktiv
 akut
@@ -145,12 +142,10 @@ bald
 ballett
 ballt
 balsa
-balz
 bandage
 bande
 banjo
 baobab
-bar
 barde
 barke
 barock
@@ -182,9 +177,7 @@ beet
 beete
 behelf
 bei
-beile
 beim
-beisel
 belang
 beleg
 beluga
@@ -214,7 +207,6 @@ bitte
 biwak
 bizone
 blank
-blase
 blei
 bleib
 bleibe
@@ -232,8 +224,6 @@ bluse
 boa
 bob
 boccia
-bock
-bodega
 bohle
 bonbon
 bongo
@@ -250,7 +240,6 @@ boule
 brache
 brause
 bravo
-breit
 bremse
 breze
 brezel
@@ -262,7 +251,6 @@ brunch
 bub
 buben
 buchs
-buckel
 buddel
 buffet
 buggy
@@ -301,7 +289,6 @@ chip
 chips
 chitin
 choral
-cidre
 circa
 city
 clip
@@ -324,7 +311,6 @@ corgi
 cornet
 corsage
 corso
-coup
 coupe
 courage
 cousin
@@ -435,7 +421,6 @@ eibe
 eiben
 eichamt
 eiche
-eicheln
 eichung
 eieruhr
 eifer
@@ -446,7 +431,6 @@ eilpost
 einbau
 einbaum
 einer
-einfall
 einfang
 einflug
 eingabe
@@ -467,13 +451,11 @@ eiskorn
 eismond
 eistag
 eistanz
-eizelle
 eklipse
 elan
 elastan
 elastik
 eleganz
-elegie
 elfe
 elfen
 elftel
@@ -506,7 +488,6 @@ engen
 enigma
 enter
 entgelt
-enzian
 enzym
 epen
 epik
@@ -514,8 +495,6 @@ episode
 epistel
 epsilon
 erbhof
-erbin
-erbteil
 erbwort
 erdfeld
 erdkern
@@ -534,7 +513,6 @@ erze
 erzgang
 esche
 eselei
-eseln
 esprit
 essay
 essecke
@@ -627,7 +605,6 @@ flanell
 flansch
 flaum
 flausch
-flechte
 fleece
 fliese
 flirt
@@ -653,7 +630,6 @@ fossil
 foton
 frack
 fraktal
-fraktur
 franse
 freesie
 frei
@@ -697,7 +673,6 @@ gams
 ganzton
 gar
 garbe
-garde
 garnele
 garzeit
 gas
@@ -723,8 +698,6 @@ gebell
 gebirge
 gebrumm
 gedudel
-geek
-geeks
 gehilfe
 gehopse
 gehrung
@@ -747,7 +720,6 @@ genese
 genre
 geranie
 gerbera
-gerte
 gesang
 gespann
 gesteck
@@ -762,7 +734,6 @@ geysir
 gibbon
 gilde
 gimmick
-gimpel
 ginkgo
 ginseng
 giro
@@ -819,7 +790,6 @@ halma
 halo
 halt
 halte
-hammel
 handout
 handy
 hang
@@ -956,13 +926,10 @@ jute
 kabuff
 kachel
 kadenz
-kadett
 kaftan
 kai
 kais
 kajal
-kalb
-kalbe
 kalk
 kalmar
 kalorie
@@ -989,7 +956,6 @@ karton
 kasino
 kaskade
 kasko
-kastell
 kaufe
 kaum
 kaut
@@ -1018,7 +984,6 @@ kiepe
 kies
 kiez
 kilobit
-kimme
 kimono
 kirmes
 kitsch
@@ -1041,10 +1006,8 @@ klette
 klick
 kliff
 klimbim
-klinge
 klingel
 klips
-klops
 klosett
 klub
 knappe
@@ -1110,11 +1073,8 @@ krume
 kubus
 kuckuck
 kufe
-kuh
 kuhle
 kulanz
-kuli
-kulis
 kumpane
 kuppel
 kur
@@ -1140,14 +1100,12 @@ lametta
 laminat
 lampion
 landbau
-landei
 landgut
 landrat
 landsee
 landtag
 lange
 langmut
-langohr
 laptop
 lasagne
 lasche
@@ -1169,7 +1127,6 @@ leergut
 legato
 legende
 leger
-legion
 lehre
 lehrort
 leihe
@@ -1231,9 +1188,7 @@ lumen
 lupen
 lupine
 lurch
-lust
 luzerne
-macke
 magenta
 mahl
 mai
@@ -1290,7 +1245,6 @@ meere
 megafon
 mehr
 meile
-meise
 melange
 melisse
 meme
@@ -1313,7 +1267,6 @@ mikro
 mikron
 million
 mime
-mimose
 mini
 minimum
 minis
@@ -1346,7 +1299,6 @@ moore
 moose
 mopp
 mopps
-mops
 morchel
 mosaik
 motel
@@ -1398,7 +1350,6 @@ neuware
 neuwert
 nichte
 niere
-niete
 nische
 nixe
 nixen
@@ -1482,7 +1433,6 @@ outlet
 overall
 oxid
 ozean
-paarung
 pack
 pad
 paddel
@@ -1490,7 +1440,6 @@ paddock
 pads
 paella
 pagode
-paladin
 panade
 panel
 papa
@@ -1528,7 +1477,6 @@ persona
 pesto
 petunie
 pfaue
-pfeife
 pfennig
 pflock
 pfropf
@@ -1537,7 +1485,6 @@ phrase
 pianist
 piano
 pick
-pickel
 pidgin
 piep
 piepton
@@ -1594,7 +1541,6 @@ porto
 posaune
 pose
 postamt
-potenz
 pott
 pottwal
 praline
@@ -1614,7 +1560,6 @@ pulse
 pult
 pulte
 pumas
-punch
 punk
 purpur
 puschel
@@ -1703,7 +1648,6 @@ salon
 salsa
 salto
 samba
-same
 satin
 sauce
 saum
@@ -1824,8 +1768,6 @@ tests
 texte
 theke
 thron
-tick
-ticks
 tide
 tiefe
 tiere
@@ -1939,7 +1881,6 @@ woge
 wok
 wonne
 wurf
-wurst
 xenon
 yak
 yaks
@@ -1963,4 +1904,3 @@ zoom
 zoos
 zopf
 zug
-zwerg

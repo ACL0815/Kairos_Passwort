@@ -11,8 +11,8 @@ const TEXT: &str = include_str!("../data/german.txt");
 #[test]
 fn embedded_words_satisfy_source_contract_and_typing_rules() {
     let words: &dyn WordSource = kairos_wordlists::german();
-    assert_eq!(words.len(), 7_130);
-    assert!((7_000..=21_000).contains(&words.len()));
+    assert_eq!(words.len(), 6_907);
+    assert!((5_000..=21_000).contains(&words.len()));
     assert!(!words.is_empty());
     let mut seen = HashSet::new();
     for (index, line) in TEXT.lines().enumerate() {
@@ -138,10 +138,36 @@ fn intoxicant_review_excludes_ambiguous_drug_and_alcohol_terms() {
     }
     // Ingredients, animals, smoke, instruments, and travel retain ordinary
     // meanings; matching a fragment alone is not an editorial rejection.
-    for word in [
-        "hopfen", "malz", "bock", "rauch", "pfeife", "trinken", "trip",
-    ] {
+    for word in ["hopfen", "malz", "rauch", "trip"] {
         assert!(words.contains(word), "neutral word removed: {word}");
+    }
+}
+
+#[test]
+fn stage_two_german_triage_is_applied_before_embedding() {
+    let words: HashSet<_> = TEXT.lines().collect();
+    for text in [
+        include_str!("../data/languages/stage2-german-triage.tsv"),
+        include_str!("../data/languages/stage2-german-followup.tsv"),
+    ] {
+        for row in text.lines() {
+            let fields: Vec<_> = row.split('\t').collect();
+            assert_eq!(fields.len(), 5);
+            assert!(["A", "B"].contains(&fields[1]));
+            match fields[2] {
+                "block" => assert!(
+                    !words.contains(fields[0]),
+                    "German A regression: {}",
+                    fields[0]
+                ),
+                "allow" => assert!(
+                    words.contains(fields[0]),
+                    "German B regression: {}",
+                    fields[0]
+                ),
+                other => panic!("invalid triage action: {other}"),
+            }
+        }
     }
 }
 

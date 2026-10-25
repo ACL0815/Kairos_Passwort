@@ -1,0 +1,121 @@
+{
+  "de": {
+    "size": 6909,
+    "mean": 6.577073382544508,
+    "sha256": "02911732a22dbba0967453121e60d245bc7452e13383d808acfbbef47efb2ed0",
+    "removed": 224,
+    "added": 3
+  },
+  "en": {
+    "size": 6897,
+    "mean": 6.6586921850079746,
+    "sha256": "8aae2952cab7bb2406864e7f87b685f8f5c3ced1d7c7b4f04d4a666f9253899a",
+    "removed": 287,
+    "added": 218
+  },
+  "la": {
+    "size": 6897,
+    "mean": 6.987530810497318,
+    "sha256": "7ccd0262310397edb42e1c65e33d5a781a4426fd84ad14d7edf8bedee28fd8c3",
+    "removed": 77,
+    "added": 8
+  },
+  "combined": 20703,
+  "bits4": 57.35020887344859,
+  "factor4": 80.62548827322924,
+  "englishEvidence": {
+    "wordnet": 6493,
+    "gaps": 404,
+    "effLarge": 5573
+  },
+  "acceptance": {
+    "status": "READY_FOR_INDEPENDENT_REVIEW_REFINED_RUBRIC",
+    "reference": "https://www.merriam-webster.com/dictionary/reptile",
+    "firstSample": {
+      "seed": "20261025-kairos-stage2-own-ab-v1",
+      "en": {
+        "A": 2,
+        "B": 147,
+        "N": 151
+      },
+      "la": {
+        "A": 2,
+        "B": 142,
+        "N": 156
+      }
+    },
+    "secondSample": {
+      "seed": "20261025-kairos-stage2-own-ab-v2",
+      "perLanguage": 300,
+      "listHashes": {
+        "en": "8aae2952cab7bb2406864e7f87b685f8f5c3ced1d7c7b4f04d4a666f9253899a",
+        "la": "7ccd0262310397edb42e1c65e33d5a781a4426fd84ad14d7edf8bedee28fd8c3"
+      },
+      "status": "INCOMPLETE_PENDING_INDEPENDENT_REVIEW",
+      "assessment": {
+        "en": {
+          "A": 0,
+          "B": 96,
+          "N": 55,
+          "pending": 149
+        },
+        "la": {
+          "A": 0,
+          "B": 0,
+          "N": 0,
+          "pending": 300
+        }
+      },
+      "historicalStop": {
+        "status": "STOP_SECOND_SAMPLE_A",
+        "stopWord": "en/reptile",
+        "stopSource": "https://www.merriam-webster.com/dictionary/reptile",
+        "originalVerdict": "A",
+        "supersededBy": "Lead decision 2026-10-25: reptile is B"
+      },
+      "rubricDecision": {
+        "date": "2026-10-25",
+        "authority": "Lead",
+        "word": "en/reptile",
+        "verdict": "B",
+        "category": "Nebenbedeutung:Tier-Gegenstandsmetapher",
+        "newSampleDrawn": false,
+        "pendingRowsAssessed": false
+      }
+    },
+    "finalWorkspaceChecksComplete": true,
+    "leadDecision": {
+      "date": "2026-10-25",
+      "authority": "Lead",
+      "word": "en/reptile",
+      "verdict": "B",
+      "category": "Nebenbedeutung:Tier-Gegenstandsmetapher",
+      "newSampleDrawn": false,
+      "pendingRowsAssessed": false
+    },
+    "technicalValidation": {
+      "date": "2026-10-25",
+      "timezone": "Europe/Berlin",
+      "cargoTargetDir": "target/stage2-build",
+      "profile": "debug/test",
+      "fmtExit": 0,
+      "clippyExit": 0,
+      "workspaceTestsExit": 0,
+      "testsPassed": 148,
+      "testsIgnored": 7,
+      "testsFailed": 0,
+      "unitAndIntegrationPassed": 140,
+      "doctestsPassed": 8,
+      "germanPipelineCheckExit": 0,
+      "languagesPipelineCheckExit": 0,
+      "reVerifier14Exit": 0,
+      "reVerifierFindings": 0,
+      "wordnetExtractCheckExit": 0,
+      "structuralAndDeltaCheckExit": 0,
+      "syntheticRubricGateCases": 8,
+      "syntheticRubricGateExit": 0,
+      "completeOwnSemanticSamplePassed": false,
+      "report": "../curation-stage-two.md"
+    }
+  }
+}

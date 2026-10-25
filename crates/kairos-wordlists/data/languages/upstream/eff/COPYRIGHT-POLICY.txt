@@ -1,0 +1,8 @@
+EFF's Copyright Policy
+Source: https://www.eff.org/copyright
+Retrieved: 2026-10-25
+Section: Creative Commons (verbatim excerpt)
+
+Any and all original material on the EFF website may be freely distributed at will under the Creative Commons Attribution 4.0 International License (CC-BY), unless otherwise noted. All material that is not original to EFF may require permission from the copyright holder to redistribute.
+
+If you redistribute something you got from the EFF site, it is appreciated if you make it known where the file originated, so people can get more info or updated versions.

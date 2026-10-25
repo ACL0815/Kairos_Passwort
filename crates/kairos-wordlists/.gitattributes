@@ -1,3 +1,5 @@
 * text eol=lf
 data/upstream/** -text
 *.gz binary
+# Preserve original bytes, including upstream CRLF and trailing whitespace.
+data/languages/upstream/** -text -whitespace
