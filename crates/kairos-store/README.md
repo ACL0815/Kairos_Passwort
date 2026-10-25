@@ -37,11 +37,10 @@ legen immer eine neue Liste an, auch bei identischem Namen oder Quellhash.
 
 Listen enthalten Name, Importzeit als Unix-Sekunden, Wortanzahl und SHA-256 der
 unveränderten Quelldatei einschließlich BOM und Zeilenenden. Dieser Hash dient
-PR-9 als Grundlage; PR-5 implementiert keinen Vergleich mit einer später
-veränderten Quelldatei.
+der optionalen Prüfung der ursprünglichen Importdatei.
 Dateiimporte speichern zusätzlich den kanonischen UTF-8-Quellpfad innerhalb der
-verschlüsselten Metadaten. In-Memory-Importe haben keinen Quellpfad. So kann PR-9
-die ursprüngliche Datei später erneut prüfen; verschobene Dateien benötigen dann
+verschlüsselten Metadaten. In-Memory-Importe haben keinen Quellpfad.
+`verify_original_sources()` prüft die ursprüngliche Datei; verschobene Dateien benötigen dann
 eine neue Zuordnung.
 
 ## Verschlüsselung und Schlüssel
@@ -79,12 +78,94 @@ DPAPI schützt vor dem Zugriff eines anderen Benutzerkontexts, nicht vor Code,
 der bereits als derselbe Benutzer läuft. Importdateien bleiben beim Aufrufer im
 Klartext. Parser und Deduplizierung benötigen vorübergehende Klartextwörter;
 `StoredWordList` löscht seine eigenen Strings beim Freigeben. Vollständige
-RAM-/Dump-/Auslagerungshärtung gehört zu PR-9. Keine Passwörter werden gespeichert.
+RAM-/Dump-/Auslagerungshärtung liefert ergänzend `kairos-hardening` in PR-9a;
+die App-Integration folgt separat. Keine Passwörter werden gespeichert.
 Bei extern bereitgestellten Schlüsseln bleiben frühere Kopien des Aufrufers
 einschließlich möglicher Stack-Kopien in dessen Verantwortung. Deduplizierung beim
 Laden erfolgt in SQL und erzeugt keine zusätzliche Rust-Kopie jedes Wortes.
 `AuthenticationFailed` bezeichnet einen falschen Schlüssel oder eine beschädigte
 Datei; kryptografisch lassen sich diese beiden Ursachen nicht sicher trennen.
+
+## Manipulationserkennung beim Start (PR-9a, Prio 5)
+
+Die App soll unmittelbar nach `open` `verify_integrity()` auswerten und
+`Changed` oder `ManifestMissing` als Warnung anzeigen. `lists`, `load` und Import prüfen
+zusätzlich selbst und liefern bei Warnungen `StoreError::IntegrityWarning`.
+So können Aufrufer einen vergessenen Startup-Check nicht zum stillen Laden nutzen.
+Datenbank-/SQLCipher-Fehler sind ebenfalls Fehler und kein erfolgreicher Check.
+Die UI und der tatsächliche Startup-Aufruf sind Teil des späteren Integrations-PR.
+
+Das Manifest liegt in `integrity_manifest` innerhalb der verschlüsselten DB.
+Ein neuer leerer Store erhält einen authentisierten leeren Ausgangsstand.
+Neue Stores verwenden `user_version = 2`; ältere Binaries, die nur Schema 1
+verstehen, lehnen sie als `UnsupportedSchema` ab. Echte Schema-1-Datenbanken ohne
+Manifesttabelle bleiben bis zur ausdrücklichen Migration `ManifestMissing`.
+`accept_current_integrity()` übernimmt nur diesen zuvor geprüften Altbestand und
+schreibt Version 2 und Manifest in einer Transaktion. Niemals automatisch beim
+Start aufrufen. Bei Schema 2 bedeutet eine fehlende Manifesttabelle oder -zeile
+`Changed`, auch nach erneutem Öffnen. Dieser Zustand lässt sich nicht durch
+`accept_current_integrity()` akzeptieren; geprüfte Originale müssen in einen
+neuen Store importiert werden. Eine auf Schema 1 zurückgesetzte Version mit noch
+vorhandener Manifesttabelle gilt ebenfalls als `Changed`.
+
+Das versionierte Binärformat (Manifestdomäne v2) bindet zuerst `user_version`,
+`application_id` und alle `sqlite_master`-Objekte (Typ, Name, zugehörige Tabelle und
+SQL einschließlich Trigger, Views, Indizes und Constraints) in stabiler Reihenfolge.
+Es bindet außerdem Listenanzahl, Gesamtwortanzahl und je Liste
+ID, Name, Importzeit, bytegenauen Quell-SHA-256, optionalen Quellpfad, Wortanzahl
+und SHA-256 der gespeicherten Wortzeilen. Die Wort-Hashes binden Zeilen-ID,
+Wortbytes und Sprache in stabiler ID-Reihenfolge. Diese Entscheidung bindet auch
+die bestehende Reihenfolge und die Sprachwahl bei Überschneidungen. Sie ändert
+das Import-Shuffle nicht. Bytefelder haben eine u64-Längenpräfixkodierung in
+Little Endian, IDs/Zeitstempel sind i64 Little Endian. Pfadabwesenheit erhält ein
+zusätzliches Optionsbyte. Die Manifestversion ist Teil der authentisierten
+Domänenkennung. Importregeln werden bisher nicht gespeichert; geprüft wird der
+tatsächliche normalisierte Bestand, keine rückwirkende Rekonstruktion des Imports.
+
+RustCrypto `hmac`/`sha2` authentisieren das vollständige Manifest mit HMAC-SHA-256
+und prüfen den Tag zeitkonstant. Der Manifest-Schlüssel wird mit einer eigenen
+festen Domänenkennung als HMAC-PRF aus dem vorhandenen gleichverteilten 256-Bit-
+Datenbankschlüssel abgeleitet. Im normalen `open`-Pfad ist damit auch dieser
+Schlüssel durch CurrentUser-DPAPI geschützt. Die getrennte Domäne vermeidet
+direkte Wiederverwendung des SQLCipher-Raw-Keys und eine zweite Schlüsseldatei
+mit eigenem Lebenszyklus. `open_with_key` überträgt die Verantwortung für den
+Schlüsselschutz ausdrücklich auf den Aufrufer. Der abgeleitete Schlüssel liegt
+in einem festen `Box<Zeroizing<[u8; 32]>>`; kurzfristige Kopien in kryptografischen
+Kontexten und nativen Bibliotheken können damit nicht vollständig gelöscht werden.
+
+Importe prüfen den vorherigen Zustand, speichern Listen/Wörter und aktualisieren
+das Manifest innerhalb einer IMMEDIATE-Transaktion. Fehler rollen alles zurück.
+Verifikation und Laden lesen Manifest und Wörter aus derselben DB-Sicht.
+Es gibt keinen separaten Manifestdatei-Rename und damit keinen Zwei-Dateien-
+Commit. SHA-256 allein reicht nicht, wenn der Angreifer die Referenz ändern kann.
+
+Jeder `load()`- und `lists()`-Aufruf liest und hasht den gesamten Wortbestand
+(O(N)), auch bei einem Filter auf eine einzelne Liste. Eine defekte Liste sperrt
+bewusst alle Listen des Stores. Für wiederholte Generierung soll die App einmal
+beim Start laden und den unabhängigen, unveränderlichen `StoredWordList`-Snapshot
+weiterverwenden, statt pro Passwort neu zu laden. Ein späteres erneutes Laden
+prüft wieder vollständig; es gibt keinen veraltbaren „bereits geprüft“-Cache.
+
+Modelled after: KeePassXC KDBX4 für authentisierte Metadaten und reihenfolgegebundene
+Inhalte; TUF und Paket-Manifeste für Identität, Länge und Hash je Objekt;
+SQLCipher für transaktionalen Seitenschutz. Kein Vorbildcode wurde kopiert.
+Alle Kandidaten, Lizenzen und Bewertungen stehen in
+[protection.md](../../docs/sources/protection.md).
+
+Grenzen: Ein Angreifer mit Nutzerrechten kann DPAPI benutzen oder den laufenden
+Prozess manipulieren und damit gültige Manifeste erzeugen. HMAC beweist keine
+Herausgeberidentität und keine Qualität/Entropie einer importierten Liste.
+SQLCipher authentisiert bereits Seiten; das Manifest ergänzt die logische
+Bestandsprüfung und schafft keine neue Grenze gegen denselben Benutzer.
+Ein alter, gemeinsam gültiger Stand von DB und Schlüssel besteht die Prüfung.
+Ohne externen monotonen Vertrauensanker gibt es keinen Rollback-/Freeze-Schutz.
+Eine vollständige Löschung des Stores kann wie ein neuer Store aussehen.
+
+Die optionale Originaldateiprüfung ist davon getrennt. Geänderte Dateien liefern
+`SourceStatus::Changed`, gelöschte oder unlesbare `Unavailable`, In-Memory-Importe
+`NoSourcePath`. Sie importiert nie automatisch und ändert die DB nicht. Sie folgt
+nur zuvor authentisierten Pfaden; die App soll sie wegen möglicher Netzwerk-/
+Wechselmedienzugriffe ausschließlich bewusst für vertraute Pfade starten.
 
 ## Build und Prüfung
 

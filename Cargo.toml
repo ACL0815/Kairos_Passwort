@@ -3,6 +3,7 @@ members = [
     "crates/kairos-core",
     "crates/kairos-wordlists",
     "crates/kairos-store",
+    "crates/kairos-hardening",
     "crates/kairos-platform",
     "crates/kairos-keepassxc",
     "apps/kairos",
@@ -19,6 +20,7 @@ publish = false
 kairos-core = { path = "crates/kairos-core" }
 kairos-wordlists = { path = "crates/kairos-wordlists" }
 kairos-store = { path = "crates/kairos-store" }
+kairos-hardening = { path = "crates/kairos-hardening" }
 kairos-platform = { path = "crates/kairos-platform" }
 kairos-keepassxc = { path = "crates/kairos-keepassxc" }
 # Workspace MSRV: Rust 1.95 (verified dependency requirement).

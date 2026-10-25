@@ -10,6 +10,7 @@ rust-version = "1.89"
 [dependencies]
 kairos-core.workspace = true
 hex = "0.4.3"
+hmac = "0.12.1"
 rand = { version = "=0.9.5", default-features = false, features = ["os_rng", "std", "std_rng", "unbiased"] }
 rusqlite = { version = "0.41.0", default-features = false, features = ["libsqlite3-sys", "bundled-sqlcipher-vendored-openssl"] }
 sha2 = "0.10.9"
