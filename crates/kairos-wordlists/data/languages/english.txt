@@ -1758,7 +1758,6 @@ dazzler
 dazzling
 deacon
 deafening
-deafness
 dealer
 dealing
 dealt
@@ -2010,8 +2009,6 @@ divinity
 divisible
 divisibly
 divisive
-dizziness
-dizzy
 doable
 docile
 doctor
@@ -2965,7 +2962,6 @@ giant
 gibberish
 giblet
 giddily
-giddiness
 giddy
 gift
 giftshop
@@ -3172,6 +3168,7 @@ gulp
 gum
 gumball
 gumdrop
+gumminess
 gumming
 gummy
 gurgle
@@ -3186,6 +3183,7 @@ gymnast
 gyration
 gyre
 habit
+habitable
 habitant
 habitual
 hacksaw
@@ -3198,11 +3196,13 @@ halogen
 halved
 halves
 ham
+hamburger
 hamlet
 hammock
 hamper
 handbag
 handbook
+handbrake
 handcart
 handclap
 handed
@@ -4487,7 +4487,6 @@ papyrus
 parabola
 paradox
 parakeet
-paralyze
 parasail
 parcel
 parched
@@ -5312,7 +5311,6 @@ ropelike
 roping
 roster
 rosy
-rot
 rotunda
 rounding
 roundish
@@ -5414,8 +5412,6 @@ savor
 saw
 sax
 say
-scabbed
-scabby
 scale
 scaling
 scallion

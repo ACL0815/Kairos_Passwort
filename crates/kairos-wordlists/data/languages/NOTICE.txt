@@ -16,6 +16,11 @@ lemmas, apply editorial exclusions and a sensitive-gloss guard, remove spelling
 variants with identical glosses, remove cross-language overlaps, select equal
 list sizes, interleave with language metadata. No endorsement by source authors.
 
+Curation revision 2026-10-25 (Verifier A): extend disease, injury, pus/ulcer,
+itch/mange/leprosy, decay and death filters, including secondary Latin meanings;
+apply the same English term classes before selection. Regenerate English and
+Latin at 7,130 words each, disjoint from the corrected 7,130-word German list.
+
 The software license does not replace these word-data licenses. Include this
 notice with binary distributions that embed the English or Latin word data.
 German word-data provenance is documented separately in data/PROVENANCE.md.

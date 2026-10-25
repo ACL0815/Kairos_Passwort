@@ -1,14 +1,14 @@
 # Englisch, Latein und die kombinierte Quelle
 
 PR-7, Prio 4, gestapelt auf PR-2. Die deutsche Liste bleibt bytegleich.
-Alle drei eingebetteten Quellen haben **je 7.134 eindeutige Wörter** und
-sind paarweise disjunkt. `combined()` enthält **21.402 verschiedene Wörter**,
+Alle drei eingebetteten Quellen haben **je 7.130 eindeutige Wörter** und
+sind paarweise disjunkt. `combined()` enthält **21.390 verschiedene Wörter**,
 jeweils mit `Language::German`, `Language::English` oder `Language::Latin`.
 
 ```rust
 use kairos_core::{Language, WordSource};
 let source: &dyn WordSource = kairos_wordlists::combined();
-assert_eq!(source.len(), 21_402);
+assert_eq!(source.len(), 21_390);
 assert_eq!(source.language(1), Language::English);
 ```
 
@@ -37,9 +37,9 @@ bleibt als Flag erhalten. Die konkrete gleichverteilte Auswahl gehört zu Core;
 die Crate verdrahtet weder Profile noch GUI außerhalb ihres Schreibbereichs.
 
 Für Profil 1 sind bei vier Wörtern mit festem Trenner tatsächlich
-`4 * log2(21402) = 57,542 Bit` verfügbar. Der Sprachgewinn ist darin bereits
+`4 * log2(21390) = 57,539 Bit` verfügbar. Der Sprachgewinn ist darin bereits
 enthalten und darf nicht noch einmal addiert werden. Aus 21.000 im Konzept
-werden hier reale 21.402 Wörter; weitere Profilregeln berechnet Core getrennt.
+werden hier reale 21.390 Wörter; weitere Profilregeln berechnet Core getrennt.
 
 ## Quellen und Auswahl
 
@@ -55,9 +55,14 @@ nicht; beispielsweise bleiben `douche`, `badass` und `cancer` ausgeschlossen.
 Die kontextgebundenen Labels `islamist` und `marxism` sind als
 Schreibbarkeitsentscheidung für zufällige Passwortausgaben gesperrt, ohne die
 bezeichneten Überzeugungen zu bewerten. `faith` bleibt erlaubt.
-Nach Sperren und 383 deutschen Überschneidungen bleiben 7.949 Kandidaten.
+Nach Sperren entfernt derselbe Krankheits-/Wund-/Verwesungs-/Todeswächter wie
+bei den englischen Lateinglossen neun weitere englische Kandidaten. Darunter
+sind acht zuvor gewählte Wörter: `deafness`, `dizziness`, `dizzy`, `giddiness`,
+`paralyze`, `rot`, `scabbed`, `scabby`; außerdem wird der sonst nachrückende
+Verletzungsbegriff `hamstring` gesperrt. Nach 383 deutschen Überschneidungen
+bleiben 7.940 Kandidaten.
 Die Pipeline bevorzugt kurze Wörter, bei gleicher Länge ordinal, und wählt
-7.134. Mittlere Länge: **6,283 Buchstaben**.
+7.130. Mittlere Länge: **6,284 Buchstaben**.
 
 **Latein:** Whitaker's WORDS bietet ausreichend lizenzierte Daten. Deshalb
 werden Esperanto/Italienisch nicht als Ausweichsprache benötigt. Der feste
@@ -85,7 +90,7 @@ Die Durchsicht nutzt Bedeutungen und berücksichtigt auch belastende
 Nebenbedeutungen konservativ. Gewöhnliche positive Begriffe wie `pax` (Frieden),
 `aqua` (Wasser) und `amor` (Liebe) bleiben trotz einzelner kontextueller
 Nebenbedeutungen erlaubt. Weltanschauungen werden nicht pauschal gesperrt.
-Ein zusätzlicher deterministischer Glossenwächter entfernt 35 weitere Kandidaten
+Ein zusätzlicher deterministischer Glossenwächter entfernt 183 weitere Kandidaten
 mit expliziten Markierungen/Bedeutungen wie `(rude)`, Genitalien, Urinieren,
 Bordell, Zuhälter, Sodomie oder Einlauf. Er prüft alle berücksichtigten Glossen
 eines Wortes einschließlich Nebenbedeutungen; es gibt keine Ausnahmeliste.
@@ -93,10 +98,20 @@ eines Wortes einschließlich Nebenbedeutungen; es gibt keine Ausnahmeliste.
 problematische Schreibweisen gesperrt. Dies ist ein konservativer Markerfilter,
 kein allgemeiner semantischer Klassifikator.
 
-Nach Sperren, Wächter und Überschneidungen stehen 9.041 Kandidaten bereit.
+Die L1-Nachbesserung erweitert ihn um Krankheiten, Wunden, Eiter, Geschwüre,
+Seuchen, Juckreiz/Aussatz, Verwesung und Tod einschließlich Flexionsformen,
+typischer Symptome und expliziter Bestattungsbegriffe. Alle berücksichtigten
+Nebenbedeutungen werden geprüft. Neue Klassen treffen ganze englische Tokens
+oder ausdrücklich definierte Wortfamilien; `rotation`, `pestle`, `manger`,
+`push`, `skill` und `stitch` bleiben als bloße Teilworttreffer erlaubt.
+Konservative Mehrdeutigkeiten und sämtliche 121 entfernten lateinischen
+Wörter mit Originalglossen sind im [Abnahmebericht](../curation-review.md)
+und [Entfernungsregister](curation-removed-latin.tsv) dokumentiert.
+
+Nach Sperren, Wächter und Überschneidungen stehen 8.895 Kandidaten bereit.
 Von Wörtern mit identischer vollständiger erster Glosse bleibt jeweils eine
-Schreibweise: höhere Frequenz, dann kürzer, dann ordinal. Das entfernt 902
-Varianten; 8.139 Kandidaten bleiben. Die Regel kann vorsorglich auch echte
+Schreibweise: höhere Frequenz, dann kürzer, dann ordinal. Das entfernt 889
+Varianten; 8.006 Kandidaten bleiben. Die Regel kann vorsorglich auch echte
 Synonyme entfernen und erkennt nicht alle linguistischen Varianten.
 Abhängige Präfixformen wie `plo` und bekannte irritierende Schreibweisen wie
 `arcs`/`apes` sind ausdrücklich gesperrt. Der Sprachflag bezeichnet den
@@ -107,10 +122,10 @@ Sprachen. Die Auswahl
 bevorzugt A vor B vor C vor D, innerhalb der Gruppe kurze Wörter und ordinale
 Reihenfolge. Am Größenlimit bevorzugt diese Regel alphabetisch frühe Wörter
 gleicher Länge/Frequenz; sie ist kein Repräsentativitätsversprechen für die
-Sprache. Englisch hat beispielsweise 506 gewählte Neunbuchstabenwörter von
-`abdominal` bis `guileless`. Diese Auswahlverzerrung des festen Vokabulars ist
+Sprache. Englisch hat beispielsweise 508 gewählte Neunbuchstabenwörter von
+`abdominal` bis `handbrake`. Diese Auswahlverzerrung des festen Vokabulars ist
 öffentlich und verändert die Gleichverteilung innerhalb der Endliste nicht.
-Die 7.134 Endwörter haben durchschnittlich **6,725 Buchstaben**.
+Die 7.130 Endwörter haben durchschnittlich **6,744 Buchstaben**.
 
 Alle ausgewählten lateinischen Wörter sind im reproduzierten
 [Bedeutungsregister](latin-glosses.tsv) mit Zeilennummer des Originaldatensatzes,
@@ -119,11 +134,11 @@ Schreibweise stehen mit ` | ` getrennt in derselben Zeile. Dieses Register
 gehört zur Datenprüfung und wird nicht in die Laufzeitquelle eingebettet.
 
 **Zielabweichungen:** Sechs Buchstaben bleiben ein Komfortziel. Die
-Abweichungen Deutsch 6,564 und Latein 6,725 sind offengelegt. Die Variantenbereinigung
+Abweichungen Deutsch 6,565 und Latein 6,744 sind offengelegt. Die Variantenbereinigung
 erhöht den lateinischen Mittelwert gegenüber dem ersten Stand 6,618 leicht;
 unterscheidbare Schreibweisen und zuverlässigere Lemmata haben Vorrang vor
 einer künstlich auf sechs gedrückten Länge. Der Test sichert maximal 6,8. Latein enthält
-auch weniger verbreitete Lemmata; 7.134 einfache lateinische Alltagswörter werden
+auch weniger verbreitete Lemmata; 7.130 einfache lateinische Alltagswörter werden
 nicht behauptet. Keine Zusicherung allgemeiner Präfixfreiheit, eindeutiger
 Dreizeichenpräfixe, eines Editierabstands oder völliger Abwesenheit jeder
 regionalen/kontextuellen Nebenbedeutung. Durch Kombination und Filter gelten
@@ -141,19 +156,19 @@ Größenbegrenzung, nicht auf die unbereinigten Wörterbücher.
 
 | Schritt | Deutsch | Englisch | Latein |
 |---|---:|---:|---:|
-| Kuratierter Pool nach Glossenwächter, vor Sprachabzug | 7.134 | 8.332 | 9.245 |
+| Kuratierter Pool nach Glossenwächter, vor Sprachabzug | 7.130 | 8.323 | 9.097 |
 | Wegen Deutsch entfernt | 0 | 383 | 83 |
-| Wegen endgültigem Englisch entfernt | 0 | 0 | 121 |
-| Verfügbare disjunkte Kandidaten | 7.134 | 7.949 | 9.041 |
-| Wegen identischer erster Glosse entfernt | 0 | 0 | 902 |
-| Nach Variantenbereinigung verfügbar | 7.134 | 7.949 | 8.139 |
-| Wegen gleicher Zielgröße nicht gewählt | 0 | 815 | 1.005 |
-| Endgröße | **7.134** | **7.134** | **7.134** |
+| Wegen endgültigem Englisch entfernt | 0 | 0 | 119 |
+| Verfügbare disjunkte Kandidaten | 7.130 | 7.940 | 8.895 |
+| Wegen identischer erster Glosse entfernt | 0 | 0 | 889 |
+| Nach Variantenbereinigung verfügbar | 7.130 | 7.940 | 8.006 |
+| Wegen gleicher Zielgröße nicht gewählt | 0 | 810 | 876 |
+| Endgröße | **7.130** | **7.130** | **7.130** |
 
 Eine bereits bei der Kuratierung ausgeschlossene gemeinsame Schreibweise zählt
 nicht noch einmal als Sprachüberschneidung. Deutsch und endgültiges Englisch
 sind bereits disjunkt, weshalb die beiden lateinischen Abzüge keine gemeinsame
-Schreibweise doppelt zählen. Die gemeinsame Quelle hat insgesamt 21.402 Wörter.
+Schreibweise doppelt zählen. Die gemeinsame Quelle hat insgesamt 21.390 Wörter.
 
 ## Reproduzierbare Offline-Pipeline
 
@@ -180,13 +195,13 @@ Gzip spart Platz, seine Containerbytes dürfen variieren; maßgeblich bleiben di
 dekomprimierten Originalbytes. Latin-1 der WORDS-Datei wird nur beim Werkzeug
 gelesen, Laufzeitlisten sind ASCII mit LF. Es gibt keine Transliteration.
 
-Zwölf zusätzliche Integrationstests prüfen vollständige paarweise Disjunktheit,
+Fünfzehn zusätzliche Integrationstests prüfen vollständige paarweise Disjunktheit,
 Endgrößen, Zeichen/Längen/Mittelwerte, Quellen- und Endprüfsummen, Register,
 Sprachflags jedes Wortes, vollständige Union, Verschachtelung, Indexgrenzen,
 threadsichere Einmalinitialisierung, ausgewählte Decoderbeispiele und
 unabhängige redaktionelle Regressionen. Neue Prüfungen sichern insbesondere
 fehlende `zzz`-Stämme, alle konkret beanstandeten Wörter, den Glossenwächter
-und eindeutige erste Glossen gegen Varianten ab. Zusammen mit PR-2 sind es **22
+und eindeutige erste Glossen gegen Varianten ab. Zusammen mit PR-2 sind es **26
 Integrationstests und zwei Rustdoc-Tests**. Die Tests ersetzen keine vollständige
 sprachwissenschaftliche oder semantische Begutachtung.
 

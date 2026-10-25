@@ -24,7 +24,7 @@ fn single_language_sources_have_equal_sizes_and_valid_spelling() {
             6.8,
         ),
     ] {
-        assert_eq!(source.len(), 7_134);
+        assert_eq!(source.len(), 7_130);
         assert!(!source.is_empty());
         let mut seen = BTreeSet::new();
         for (index, word) in text.lines().enumerate() {
@@ -58,7 +58,7 @@ fn all_spelling_sets_are_pairwise_disjoint_and_union_keeps_every_flag() {
         }
     }
     let union: &dyn WordSource = combined();
-    assert_eq!(union.len(), 21_402);
+    assert_eq!(union.len(), 21_390);
     let mut seen = BTreeSet::new();
     let mut counts = [0; 3];
     for index in 0..union.len() {
@@ -72,7 +72,7 @@ fn all_spelling_sets_are_pairwise_disjoint_and_union_keeps_every_flag() {
             other => panic!("unexpected language: {other:?}"),
         }
     }
-    assert_eq!(counts, [7_134; 3]);
+    assert_eq!(counts, [7_130; 3]);
     assert_eq!(seen.len(), expected.len());
 }
 
@@ -261,18 +261,142 @@ fn sensitive_latin_meanings_and_reviewed_spellings_are_excluded() {
     for word in [
         "culus", "cunnus", "pedico", "percido", "meio", "mingo", "mio", "lupanar", "leno", "lena",
         "natis", "ile", "ilum", "sulcus", "vagina", "semen", "genital", "cluster", "plo", "arcs",
-        "apes",
+        "apes", "scabies", "ulcero", "suppuro", "pusula", "putesco", "putidus", "tabidus",
     ] {
         assert!(!words.contains(word), "review regression: {word}");
     }
     for row in include_str!("../data/languages/latin-glosses.tsv").lines() {
+        // The spelling is not an English gloss (Latin `dies` means day).
+        let (_, records) = row.split_once('\t').unwrap();
         assert!(
-            !pipeline::sensitive_gloss(row),
+            !pipeline::sensitive_gloss(records),
             "sensitive selected entry: {row}"
         );
     }
     for word in ["islamist", "marxism"] {
         assert!(!(0..english().len()).any(|index| english().word(index) == word));
+    }
+}
+
+#[test]
+fn disease_injury_decay_and_death_classes_cover_meanings_and_inflections() {
+    for gloss in [
+        "DISEASE; diseased",
+        "sick; sickness; sickening",
+        "plagues; plagued; plaguing",
+        "pest; pestilence; pestilential",
+        "ulceration; ulcerous",
+        "sores; soreness",
+        "wounds; wounded; wounding",
+        "pus",
+        "suppurate; suppuration; suppurating",
+        "fester; festering",
+        "itch; itching; itchy",
+        "mange; mangy",
+        "scab; scabies; scabby",
+        "leprosy; leprous; lepers",
+        "rot; rotten; rotting",
+        "putrid; putrefying",
+        "corpse; corpses; cadaver",
+        "death; deaths; dead",
+        "die; dies; died; dying",
+        "kill; kills; killed; killing",
+        "slain; perish",
+        "decayed; infection; fever",
+        "pustule; abscess; gangrene; necrotic",
+        "illness; ailment; infirmity; lesion; purulent; putrescent",
+        "hemorrhoids; inflammation; morbid; paralysis; diarrhea; dizzy",
+        "tomb; coffin; burial; funerary; end of life; inflamed eyes",
+        "prolapse; convulse; tetanus; catarrh; gout; wart; deafness; wasting away",
+        "hamstring; hamstrung",
+    ] {
+        for term in gloss.split(';').map(str::trim) {
+            assert!(pipeline::distressing_terms(term), "class missed: {term}");
+            assert!(pipeline::sensitive_gloss(term), "gloss missed: {term}");
+        }
+    }
+    for neutral in [
+        "rotation; rotate; rotunda; carrot",
+        "pestle; tapestry",
+        "manger; management",
+        "octopus; push; campus",
+        "stitch; ditch; kitchen",
+        "skill; skillet",
+        "audience; diet; soldier",
+        "undying love; antivirus; germless; germproof",
+        "unwound thread; withered leaf; scratch, scrape",
+        "made of wood; boil food; inflamed with love; grave, serious; by decree of fate",
+    ] {
+        assert!(
+            !pipeline::distressing_terms(neutral),
+            "fragment false positive: {neutral}"
+        );
+        assert!(
+            !pipeline::sensitive_gloss(neutral),
+            "gloss false positive: {neutral}"
+        );
+    }
+}
+
+#[test]
+fn verifier_disease_findings_are_caught_in_original_dictionary_records() {
+    use std::io::Read;
+    let mut raw = flate2::read::GzDecoder::new(
+        &include_bytes!("../data/languages/upstream/whitaker/DICTLINE.GEN.gz")[..],
+    );
+    let mut bytes = Vec::new();
+    raw.read_to_end(&mut bytes).unwrap();
+    let text: String = bytes.into_iter().map(char::from).collect();
+    for word in ["scabies", "ulcero", "suppuro"] {
+        let records: Vec<_> = text
+            .lines()
+            .filter(|line| line.get(..110).and_then(pipeline::latin_lemma).as_deref() == Some(word))
+            .collect();
+        assert!(!records.is_empty(), "source regression: {word}");
+        assert!(
+            records
+                .iter()
+                .any(|line| pipeline::sensitive_gloss(&line[110..])),
+            "source meaning escaped guard: {word}"
+        );
+        assert!(!(0..latin().len()).any(|index| latin().word(index) == word));
+    }
+}
+
+#[test]
+fn english_selection_passes_the_same_disease_classes_as_latin_glosses() {
+    let words: BTreeSet<_> = (0..english().len())
+        .map(|index| english().word(index))
+        .collect();
+    for word in &words {
+        assert!(
+            !pipeline::distressing_terms(word),
+            "English class regression: {word}"
+        );
+    }
+    for word in [
+        "rot", "scabbed", "scabby", "disease", "sick", "plague", "wound", "death", "kill",
+    ] {
+        assert!(!words.contains(word), "English review regression: {word}");
+    }
+    for word in [
+        "rotunda",
+        "carrot",
+        "push",
+        "manger",
+        "skill",
+        "undying",
+        "antivirus",
+        "unwound",
+    ] {
+        assert!(words.contains(word), "neutral English word removed: {word}");
+    }
+    assert!(!words.contains("hamstring"));
+    for word in ["dies", "rota", "roto", "rotundus", "scabo"] {
+        assert!(
+            (0..latin().len()).any(|index| latin().word(index) == word),
+            "Latin spelling treated as an English gloss: {word}"
+        );
     }
 }
 

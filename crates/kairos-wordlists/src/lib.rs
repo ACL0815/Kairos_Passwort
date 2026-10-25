@@ -103,7 +103,7 @@ pub fn latin() -> &'static EmbeddedWordList {
 /// ```
 /// use kairos_core::WordSource;
 /// let source: &dyn WordSource = kairos_wordlists::combined();
-/// assert_eq!(source.len(), 21_402);
+/// assert_eq!(source.len(), 21_390);
 /// assert_eq!(source.word(1), kairos_wordlists::english().word(0));
 /// ```
 pub fn combined() -> &'static EmbeddedWordList {

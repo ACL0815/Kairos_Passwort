@@ -1,7 +1,7 @@
 # Englisch und Latein
 
 PR-7, **Prio 4**, `feat/languages-en-la`, **gestapelt auf #2** (`feat/wordlist-de`
-@ `f35f842d50436492b31d4dfa6a789dbb66112d6f`). Abruf/Stichproben: **25.10.2026**.
+@ `4b10929d339dc8741fc844186a40cd385e507839`). Abruf/Stichproben: **25.10.2026**.
 Bewertung nach Prüfung der Primärquellen am 25.10.2026.
 
 Code- und Datenlizenzen werden getrennt betrachtet. **Kein fremder
@@ -31,6 +31,14 @@ Aufbereitungsaufwand zusammen. Alle Zeilen wurden am 25.10.2026 abgerufen.
 
 ## Entscheidung und Konzepttreue
 
+Verifier A L1 ist durch erweiterte Glossenklassen für Krankheit, Wunde,
+Eiter/Geschwür, Seuche, Juckreiz/Aussatz, Verwesung und Tod behoben.
+Dieselben Klassen filtern englische Schreibweisen vor der Auswahl.
+`scabies`, `ulcero` und `suppuro` werden auch anhand ihrer Originaldatensätze
+als Regressionen geprüft. Die vollständige Änderungsliste samt Bewertung
+konservativer Fehlpositiver steht im
+[Abnahmebericht](../../crates/kairos-wordlists/data/curation-review.md).
+
 Latein hat eine brauchbare redistribuierbare Quelle mit ausreichend Wörtern.
 Deshalb sind Esperanto/Italienisch als Ausweichsprachen nicht erforderlich.
 Übernommen werden EFF (CC BY 4.0), ausgewählte Wordnik-Daten (MIT) und WORDS
@@ -39,15 +47,15 @@ Originaltexte, Namensnennungen und Änderungshinweise liegen bei und müssen bei
 einer Binärdistribution mitgeliefert werden. Die Crate-Software bleibt MIT OR
 Apache-2.0; diese Lizenz ersetzt keine Datenlizenz.
 
-Deutsch bleibt bytegleich bei 7.134 Wörtern. Nach Kuratierung entfernt Englisch
-383 deutsche Überschneidungen; Latein entfernt 83 deutsche und 121 endgültig
+Deutsch bleibt bytegleich bei 7.130 Wörtern. Nach Kuratierung entfernt Englisch
+383 deutsche Überschneidungen; Latein entfernt 83 deutsche und 119 endgültig
 englische. Vorrang ist Deutsch vor Englisch vor Latein. Die anschließend gleich
-großen Endlisten haben **je 7.134 Wörter**. `combined()` enthält **21.402
+großen Endlisten haben **je 7.130 Wörter**. `combined()` enthält **21.390
 verschiedene Schreibweisen** und erhält die Sprache jedes Eintrags. Für jede
 Passwortposition unabhängig einen gleichverteilten Index aus der Vereinigung zu
 ziehen erfüllt die Konzeptrechnung: Faktor **3⁴ = 81** bei vier Wörtern, gegenüber
 einer Einzelquelle. Eine zusätzliche Sprachziehung ist bei diesen gleich großen
-Listen unnötig. Der Sprachgewinn ist in `4 * log2(21402) = 57,542 Bit` mit festem
+Listen unnötig. Der Sprachgewinn ist in `4 * log2(21390) = 57,539 Bit` mit festem
 Trenner schon enthalten und darf nicht doppelt addiert werden.
 
 Die kombinierte Ablage verschränkt Deutsch/Englisch/Latein deterministisch,
@@ -56,7 +64,7 @@ Indexwahl ist die Reihenfolge entropieneutral. Jeder Wortaufruf liefert das
 passende Sprachflag. Core, Profile und GUI werden in diesem Bereichs-PR nicht
 außerhalb der Crate geändert.
 
-Mittlere Länge: Englisch **6,283**, Latein **6,725**, Deutsch unverändert **6,564**.
+Mittlere Länge: Englisch **6,284**, Latein **6,744**, Deutsch unverändert **6,565**.
 Sechs Buchstaben bleiben ein Komfortziel. Latein enthält auch weniger bekannte
 Lemmata. Der Decoder verwirft fehlende `zzz`-Stämme, ein zusätzlicher Glossenwächter
 entfernt explizit sensible Bedeutungen und identische erste Glossen werden auf
