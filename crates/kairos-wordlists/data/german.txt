@@ -1116,7 +1116,6 @@ bote
 botin
 botschaft
 boule
-bowle
 boxen
 boxkampf
 boxring
@@ -1511,7 +1510,6 @@ dreschen
 drift
 drillen
 dringend
-drink
 drinnen
 drittel
 drohne
@@ -3056,7 +3054,6 @@ handhaben
 handout
 handwagen
 handy
-hanf
 hang
 hangar
 hangeln
@@ -5211,7 +5208,6 @@ prompt
 propeller
 prosa
 prospekt
-prost
 proviant
 provinz
 prozedere

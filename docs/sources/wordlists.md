@@ -31,6 +31,11 @@ sind sämtlich auf vollständige Commit-IDs und SHA-256 festgelegt.
 
 ## Entscheidung und eigene Umsetzung
 
+Die D1-Nachbesserung aus Verifier A sperrt `drink`, `bowle`, `hanf` und
+`prost` über die bestehende Pipeline. Vollbestandssuche, neutrale
+Vergleichsfälle und aktualisierte Stufenzahlen stehen im
+[Kuratierungsbericht](../../crates/kairos-wordlists/data/curation-review.md).
+
 **Übernommen:** die CC0-Daten von dys2p und eine explizite Auswahl aus dem
 CC0-Wörterbuch von Markus Enzenberger und Beitragenden. Die ungeänderten
 Rohquellen, festen Revisionen, Original-Lizenztexte und SHA-256-Werte sind
@@ -38,12 +43,12 @@ in der Crate vorhanden. Der große enz-Bestand liegt platzsparend als Gzip
 vor; der Hash wird auf den dekomprimierten Originalbytes geprüft.
 
 Aus 9.824 dys2p-Rohzeilen werden nach `a-z`, Länge 3–9 und Deduplizierung
-6.867 Wörter. Aus beiden Quellen sind 1.302 Einträge kategorisiert gesperrt;
-781 Sperren greifen in der Basis, sodass 6.086 Wörter übrig bleiben.
-1.969 gegen die enz-Rohquelle geprüfte Ergänzungskandidaten kommen hinzu.
+6.867 Wörter. Aus beiden Quellen sind 1.306 Einträge kategorisiert gesperrt;
+782 Sperren greifen in der Basis, sodass 6.085 Wörter übrig bleiben.
+1.966 gegen die enz-Rohquelle geprüfte Ergänzungskandidaten kommen hinzu.
 Ein konservativer Endungsfilter entfernt 921 Schreibvarianten. Das Ergebnis:
-**7.134 Wörter**, durchschnittlich **6,564 Buchstaben**, davon 5.454 aus der
-Basis und 1.680 Ergänzungen. Die Ergänzungen dürfen höchstens sieben
+**7.130 Wörter**, durchschnittlich **6,565 Buchstaben**, davon 5.453 aus der
+Basis und 1.677 Ergänzungen. Die Ergänzungen dürfen höchstens sieben
 Buchstaben haben. Großgeschriebene
 Wörter werden nur ASCII-kleingeschrieben; Umlaute/ß werden ausgeschlossen
 und niemals umgeschrieben. Jedes Laufzeitwort liefert `Language::German`.
@@ -77,7 +82,7 @@ vorsorglich auch unabhängige Wörter wie `auto/autor` ausdünnen. Ein eigenes
 Morphologie-System wäre hier unverhältnismäßig. Die geringfügig höhere
 mittlere Länge ist offengelegt; wir erreichen die Mindestgröße nicht durch
 zusätzliche kurze Flexionsformen. 31,4 % der Wörter haben acht oder neun
-Buchstaben; Ziel sechs ist mit 6,564 nicht exakt erreicht und begründet.
+Buchstaben; Ziel sechs ist mit 6,565 nicht exakt erreicht und begründet.
 
 Die Ausschlusskategorien `vulgär`, `beleidigend`, `belastend`, `Eigenname` und
 `Schreibbarkeit` sind in der Pipeline festgelegt. Sie gelten für beide

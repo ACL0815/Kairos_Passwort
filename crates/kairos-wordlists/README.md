@@ -10,15 +10,15 @@ Latein **6,725** Buchstaben.
 
 Die deutsche Wortliste ist mit `include_str!` in die Anwendung eingebettet.
 `german() -> &'static EmbeddedWordList` stellt `kairos_core::WordSource`
-bereit: **7.134 eindeutige Wörter**, je Wort `Language::German`, nur `a`–`z`,
-3–9 Buchstaben, durchschnittlich **6,564** Buchstaben. `OnceLock` erzeugt
+bereit: **7.130 eindeutige Wörter**, je Wort `Language::German`, nur `a`–`z`,
+3–9 Buchstaben, durchschnittlich **6,565** Buchstaben. `OnceLock` erzeugt
 einmalig einen Index aus geliehenen Zeichenketten. Die Anwendung benötigt
 weder Wortlistendateien noch Netzwerkzugriff. Der Core-Vertrag bleibt unverändert.
 
 ```rust
 use kairos_core::WordSource;
 let words = kairos_wordlists::german();
-assert_eq!(words.len(), 7_134);
+assert_eq!(words.len(), 7_130);
 assert_eq!(words.word(0), "aal");
 ```
 
@@ -27,14 +27,14 @@ assert_eq!(words.word(0), "aal");
 Die Basis sind dys2p `de-7776-v1.txt` und `de-2048-v1.txt`. Nach Zeichen- und
 Längenfilter sowie Deduplizierung bleiben 6.867 Wörter. Die redaktionellen
 Entscheidungen stehen in [`data/rejected.tsv`](data/rejected.tsv): insgesamt
-1.302 Sperren aus beiden Quellen, davon greifen 781 im Basisbestand.
+1.306 Sperren aus beiden Quellen, davon greifen 782 im Basisbestand.
 Die Pipeline prüft genau fünf Kategorien:
 
 | Kategorie | Bedeutung | Anzahl |
 |---|---|---:|
 | vulgär | Grobe/vulgäre Ausdrücke | 2 |
 | beleidigend | Herabsetzende Ausdrücke | 17 |
-| belastend | Insbesondere Gewalt, Krankheit, Tod und Rauschmittel | 703 |
+| belastend | Insbesondere Gewalt, Krankheit, Tod und Rauschmittel | 707 |
 | Eigenname | Reine Personen-, Orts- oder andere Eigennamen | 11 |
 | Schreibbarkeit | Fehler, schwierige, seltene oder ungebräuchliche Schreibweisen | 569 |
 
@@ -43,7 +43,7 @@ Menschen oder Weltanschauungen. `atheismus`, `glaube` und `engel` bleiben
 beispielsweise gleichberechtigt enthalten. Gewöhnliche Wörter, die zugleich
 Namen sein können (etwa `wolf` oder `iris`), gelten als gewöhnliche Wörter.
 
-Zu den zunächst verbleibenden 6.086 Basiswörtern kommen 1.969 ausgewählte
+Zu den zunächst verbleibenden 6.085 Basiswörtern kommen 1.966 ausgewählte
 Kandidaten aus enz/german-wordlist. Nur diese
 [`Positivliste`](data/supplement.txt) wird zugelassen, der große Rohbestand
 wird nicht vollständig zum Passwortvokabular. Ergänzungen sind auf sieben
@@ -60,7 +60,7 @@ bereits die kürzere Schreibweise, entfallen längere Varianten mit angehängtem
 nicht `tage`, `tags` oder `tages`. Dies ist eine konservative Schreibhilfe,
 keine linguistische Behauptung über gemeinsame Lemmata: auch unabhängige
 Wörter wie `auto`/`autor` können betroffen sein. Das spart ein eigenes
-Morphologie-System. Übrig bleiben **5.454 Basiswörter und 1.680 Ergänzungen**.
+Morphologie-System. Übrig bleiben **5.453 Basiswörter und 1.677 Ergänzungen**.
 
 Bekannte deutsche Lehnwörter und alleinstehende Wortformen bleiben enthalten,
 etwa `cloud`, `laptop` und `gebogen`. Reine englische Ergänzungen wie `first`,
@@ -78,10 +78,14 @@ automatische Tippfehlerkorrektur werden nicht zugesichert. Feste Trenner
 halten die Wortgrenzen eindeutig; dies ist kein direktes Würfelwörterbuch
 mit genau `6^5` Einträgen. Gleichverteilte Indexwahl gehört zu `kairos-core`.
 
-Die Mindestgröße von Profil 0 ist erreicht. Die kombinierte Quelle aus PR-7 erreicht Profil 1 mit 21.402 unterschiedlichen
-Wörtern; die folgende Rechnung betrifft die deutsche Einzelquelle. Vier unabhängig
-gleichverteilt gezogene Wörter ergeben bei festem Trenner rund **51,202 Bit**.
-Die durchschnittlichen **6,564 statt sechs Buchstaben** sind eine begründete
+Die D1-Nachprüfung sperrt `drink`, `bowle`, `hanf` und `prost` dauerhaft
+über die Pipeline-Eingaben. Die systematische Suche und die Bewertung
+neutraler Teilworttreffer stehen im [Kuratierungsbericht](data/curation-review.md).
+
+Die Mindestgröße von Profil 0 ist erreicht. Die kombinierte Quelle aus PR-7
+erreicht Profil 1; die folgende Rechnung betrifft die deutsche Einzelquelle. Vier unabhängig
+gleichverteilt gezogene Wörter ergeben bei festem Trenner rund **51,199 Bit**.
+Die durchschnittlichen **6,565 statt sechs Buchstaben** sind eine begründete
 Zielabweichung: unterscheidbare Wörter und Grundformen haben Vorrang vor
 kurzen Flexionsformen. 2.243 Wörter (31,4 %) haben acht oder neun Buchstaben.
 Eine weitere Kürzung dieses Anteils wird nicht durch seltene Kurzformen oder
@@ -117,20 +121,20 @@ oder doppelte Ergänzungen brechen den Lauf ab.
 | Nur Kleinbuchstaben a–z | 9.824 | 0 entfernt |
 | Länge 3–9 | 7.853 | 1.971 entfernt |
 | Vereinigung, eindeutig | 6.867 | 986 Duplikate entfernt |
-| Redaktionell bereinigte Basis | 6.086 | 781 Basis-Ausschlüsse |
+| Redaktionell bereinigte Basis | 6.085 | 782 Basis-Ausschlüsse |
 | enz, Rohbestand | 685.829 | Nur Kandidatenpool |
-| enz-Positivliste, 3–7 Buchstaben | 1.969 zusätzlich | Originalschreibweisen und Sperren geprüft |
-| Vereinigte Vorauswahl | 8.055 | Keine Duplikate |
-| Endungsfilter | **7.134** | 921 Schreibvarianten entfernt |
-| Finale sortierte Liste | **7.134** | 5.454 Basiswörter + 1.680 Ergänzungen |
+| enz-Positivliste, 3–7 Buchstaben | 1.966 zusätzlich | Originalschreibweisen und Sperren geprüft |
+| Vereinigte Vorauswahl | 8.051 | Keine Duplikate |
+| Endungsfilter | **7.130** | 921 Schreibvarianten entfernt |
+| Finale sortierte Liste | **7.130** | 5.453 Basiswörter + 1.677 Ergänzungen |
 
-Längenverteilung: 3: 119; 4: 633; 5: 1.302; 6: 1.351; 7: 1.486;
+Längenverteilung: 3: 119; 4: 632; 5: 1.299; 6: 1.351; 7: 1.486;
 8: 1.263; 9: 980.
 
 Der freigegebene Ergebnis-Hash steht in [`data/german.sha256`](data/german.sha256):
 
 ```text
-773e4f627c44f056424de49528b35d6ac0c0a0526a53950c5545c8831cbd9ab8
+c740ce05d355b2296c2feb940733f84f9bc3e1972fcfad9cbfdf5e4236bf3175
 ```
 
 Bei einer beabsichtigten Kuratierungsänderung: neu erzeugen, Wortdiff prüfen,
@@ -190,7 +194,7 @@ Werkzeuge und Tests; zur Laufzeit genügen Core und Standardbibliothek.
 
 ## Tests
 
-Die folgenden zehn Integrationstests und ein Rustdoc-Test aus PR-2 prüfen mit
+Die folgenden elf Integrationstests und ein Rustdoc-Test aus PR-2 prüfen mit
 `cargo test -p kairos-wordlists` Anzahl, Eindeutigkeit, Zeichensatz, Längen,
 Mittelwert, Sprache jedes Eintrags, Leerzeilen, Sortierung, Sperren,
 Indexgrenzen, threadsichere Initialisierung, sortierte/eindeutige
