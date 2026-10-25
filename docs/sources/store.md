@@ -21,7 +21,7 @@ Implementierungscode und fremde Wortlistendaten werden nicht kopiert.
 | Bitwarden Desktop | [desktop-v2026.9.1](https://github.com/bitwarden/clients/blob/desktop-v2026.9.1/apps/desktop/desktop_native/secure_memory/src/dpapi.rs) | GPL-3.0 | `CryptProtectMemory` / `CryptUnprotectMemory` | Laufzeitschutz von Speicher und dauerhafte Schlüsselablage getrennt beurteilen | 2 |
 | libsodium | [Speicherfunktionen](https://github.com/jedisct1/libsodium/blob/60b751cd14418fae2d17e6f1003e43622b3e5a25/src/libsodium/sodium/utils.c) | ISC | `src/libsodium/sodium/utils.c` | Schlüsselpuffer kurz halten, Sperr-/Löschfehler und Kopien berücksichtigen | 4 |
 | zeroize | [zeroize-v1.8.2](https://github.com/RustCrypto/utils/tree/zeroize-v1.8.2/zeroize) | Apache-2.0 OR MIT | `Zeroizing`, `Zeroize` | Eigene Rust-Schlüsselpuffer beim Freigeben überschreiben, fremde native Puffer zusätzlich behandeln | 5 |
-| rand | [0.8.5](https://github.com/rust-random/rand/blob/0.8.5/src/seq/mod.rs) | MIT OR Apache-2.0 | `SliceRandom::shuffle`, `StdRng::from_rng`, `OsRng` | Bewährte gleichverteilte Shuffle-Implementierung mit Betriebssystem-Zufallsseed verwenden; Zufallsfehler abbrechen | 5 |
+| rand | [0.9.5](https://github.com/rust-random/rand/tree/0.9.5/src/seq) | MIT OR Apache-2.0 | `SliceRandom::shuffle`, `StdRng::try_from_rng`, `OsRng` | Bewährte gleichverteilte Shuffle-Implementierung mit Betriebssystem-Zufallsseed verwenden; Zufallsfehler abbrechen | 5 |
 | xkcdpass | [9db43954 / xkcdpass-1.30.0](https://github.com/redacted/XKCD-password-generator/blob/9db439542d9a156f8a9db56323b459670175c132/xkcdpass/xkcd_password.py) | BSD-3-Clause; Wortlisten separat | `generate_wordlist` | UTF-8-Zeilen, Zeichensatz-/Längenfilter und Mengenbildung gegen doppelte Wörter | 5 |
 | diceware (Uli Fouquet) | [98fa09af / v1.0.1](https://github.com/ulif/diceware/blob/98fa09afd7ab28b6075d771b2c44b0e00479e72f/diceware/wordlist.py) | GPL-3.0-or-later; Wortlisten separat | `WordList.refine_entry` | Nummernpräfix und Wort getrennt lesen; die Würfelziffern in Kairos zusätzlich streng validieren | 4 |
 | Password Tech | [c77cade1 / v3.6.1](https://github.com/cthoeing/passwordtech/blob/c77cade188d9b307302d0f367c4f95ceb3aebc29/src/passw/PasswGen.cpp) | GPL-2.0; Wortlisten separat | `PasswordGenerator::LoadWordListFile`, `StringFileStreamW` | Kodierung/BOM, Längenfilter, Kleinschreibung und Duplikate als bewusste Importentscheidungen behandeln | 4 |
@@ -30,7 +30,7 @@ Implementierungscode und fremde Wortlistendaten werden nicht kopiert.
 
 Gewählt ist **rusqlite 0.41.0 mit `bundled-sqlcipher-vendored-openssl`**.
 `Cargo.lock` fixiert `libsqlite3-sys 0.39.1`, SQLCipher **4.19.0** über
-`sqlcipher-src 419.0.6` und OpenSSL **3.6.3**. Die Luna-Recherche betrachtete
+`sqlcipher-src 419.0.6` und OpenSSL **3.6.3**. Die erste Recherche betrachtete
 rusqlite 0.40.2 mit SQLCipher 4.14.0; die anschließende Stichprobe der tatsächlichen
 0.41.0-Abhängigkeiten belegt den neueren Bundle-Stand. Kein eigenes `build.rs`,
 keine generierten eigenen Bindings und keine Kopie eines SQLite-Forks sind nötig.
@@ -49,34 +49,34 @@ Eine zusätzliche lokale Quellprüfung von `walletkit-sqlite 0.28.0` bestätigt 
 sicheren High-Level-Wrapper für SQLite3MC. Er verwendet eine eigene schmalere
 Abfrage-/Wert-API und lädt im Build per externem `curl` eine separat
 prüfsummengebundene SQLite3MC-2.3.2-/SQLite-3.51.3-Amalgamation nach.
-Er benötigt Rust 1.98.1 und liegt bei der Engine hinter dem geprüften SQLCipher-
-Bundle. Das spart OpenSSL, vergrößert aber gegenüber rusqlite die Wartungs- und
+Sein Engine-Stand liegt hinter dem geprüften SQLCipher-Bundle. Das spart OpenSSL,
+vergrößert aber gegenüber rusqlite die Wartungs- und
 Buildabhängigkeit von einem spezialisierten Wrapper samt zusätzlichem
 Release-Download. Für diesen PR wird deshalb die etablierte rusqlite-API mit
 dem lokal nachgewiesenen Standard-MSVC-Bauweg bevorzugt.
 
-Der lokale Vorversuch ohne natives Perl scheiterte erwartungsgemäß mit
-`Command 'perl' not found`. Das portable Strawberry Perl **5.42.2.1** liegt nur
-unter `%LOCALAPPDATA%\kairos-build-tools`. SHA-256 des offiziellen ZIP-Downloads:
+rusqlite setzt Rust **mindestens 1.89** voraus; die Crate deklariert diese MSRV.
+Der lokale Prüflauf verwendet Rust 1.99.1. WalletKit verlangt 1.98.1; beide
+Varianten passen zur geprüften Umgebung. Ausschlaggebend gegen WalletKit sind
+Wrapper-API, zusätzlicher Download und Engine-Stand. Der historische
+Rust-1.80-Kommentar im Root-Manifest gehört nicht zum Änderungsumfang dieses PRs.
+
+Windows-Builds benötigen vollständiges natives Perl; Git-Perl ist unzureichend.
+Portables Strawberry Perl **5.42.2.1** kann unter einem lokalen Buildpfad
+entpackt werden. SHA-256 des offiziellen ZIP-Downloads:
 `32d83be90cf04b807cfb9477482bc36302cdee6f5b04cf57e81adecbd8f07898`.
-Der Hash wurde vor dem Entpacken geprüft; `perl -MLocale::Maketext::Simple`
-bestätigt das zuvor fehlende Modul. Die
+Der Hash ist vor dem Entpacken zu prüfen; `perl -MLocale::Maketext::Simple`
+prüft das für OpenSSL benötigte Modul. Die
 [offiziellen Release-Metadaten](https://github.com/StrawberryPerl/strawberryperl.com/blob/gh-pages/releases.json)
 veröffentlichen Download und Prüfsumme. Der abschließende Build-/Testbeleg steht
 im PR. Die CI wählt das vorhandene Strawberry Perl explizit und prüft dessen
-Modul; NASM ist optional. Am gemeinsamen Build-Helfer wird nichts geändert.
-
-Nach Behebung des Perl-Problems zeigte MSVC separat `C1083: windows.h`.
-Die vorhandene SDK-Installation enthält keine UM-/Shared-Header. Das offizielle
-[NuGet-SDK-Paket 10.0.22000.196](https://www.nuget.org/packages/Microsoft.Windows.SDK.CPP/10.0.22000.196)
-wurde unter `target/windows-sdk-cpp` entpackt und lokal in `INCLUDE` ergänzt.
-Vorher wurde sein SHA-512 mit dem NuGet-Katalog verglichen:
-`+oA+2mYGdnMhOD59TBkdGkJMipZSthBGQUUOO8xt27eOk8ZIoGQayqmwthVy0mclLiMwB+1Hne3wUNuaT0AfIg==`.
-Auch dafür erfolgt keine Systeminstallation und kein Schreiben im Hauptcheckout.
+Modul; NASM ist optional. Maschinenlokale SDK-/Perl-Ergänzungen sind im PR als
+Prüfbeleg dokumentiert; sie sind keine zusätzliche Voraussetzung des Crates.
 
 Der vollständige lokale MSVC-Bauweg ist anschließend belegt: `cargo fmt --check`,
 `cargo clippy --workspace --all-targets -- -D warnings` und
-`cargo test --workspace` jeweils Exitcode **0**, insgesamt **18 bestandene Tests**.
+`cargo test --workspace` jeweils Exitcode **0**, insgesamt **20 bestandene Tests**
+(19 Unit-/Integrationstests und ein kompiliertes Rustdoc-Beispiel).
 Beim Test-Linken meldet OpenSSL fehlende native PDB-Debugsymbole (`LNK4099`),
 ohne den erfolgreichen Lauf zu verhindern. Die negativen Schlüsseltests erzeugen
 erwartete SQLCipher-HMAC-Fehlermeldungen ohne Schlüssel- oder Wortinhalte.
@@ -96,6 +96,9 @@ Public Domain oder WTFPL. Es werden keine fremden Wortlisten weitergegeben.
   Transaktionen werden als Bibliotheken genutzt. Keine selbst entworfene
   Dateiverschlüsselung. Temp-Tabellen bleiben im RAM; der Test liest ein echtes
   Rollback-Journal und sucht darin die bekannten Wörter.
+  Der mit `Zeroizing` geschützte Raw-Key-Übergabepuffer vermeidet die unnötige
+  Passphrasen-KDF. `cipher_memory_security` wird vor der Schlüsselübergabe
+  aktiviert und verifiziert. Lade-Deduplizierung erfolgt direkt in SQL.
 - **Chromium:** Separater Zufallsschlüssel plus DPAPI wird als Architektur
   übernommen. Browser-Preferences, eigene AES-Schicht und automatisches Ersetzen
   nicht entschlüsselbarer Schlüssel werden nicht übernommen.
@@ -113,6 +116,9 @@ Public Domain oder WTFPL. Es werden keine fremden Wortlisten weitergegeben.
   verwaltet der Codec. Parser-Mengen, Betriebssystem und Abhängigkeiten können
   weitere Klartextkopien von Wortlistendaten halten; vollständige RAM-Bereinigung
   wird nicht behauptet.
+  Der eigene Schlüssel liegt in `Box<Zeroizing<[u8; 32]>>`; Besitzerverschiebungen
+  verschieben dessen Bytes nicht. Frühere externe Aufruferkopien bleiben PR-9-
+  beziehungsweise Aufruferverantwortung.
 - **xkcdpass/diceware/Password Tech:** Zeilenformat, Filter und Deduplizierung
   werden modelliert. Kairos ergänzt strenge 4–6 Würfelziffern aus `1..6`, UTF-8-BOM,
   CRLF und explizite Ablehnungszähler. Kein PGP-Hüllenparser, UTF-16-/ANSI-Fallback,
@@ -120,14 +126,26 @@ Public Domain oder WTFPL. Es werden keine fremden Wortlisten weitergegeben.
   Kleinschreibung, Länge 3–9; Umlaute/ß werden nicht transliteriert. Die Regeln
   sind konfigurierbar und im [Crate-README](../../crates/kairos-store/README.md)
   vollständig beschrieben.
+  Die Eingabereihenfolge bleibt bis zum Shuffle erhalten. Großbuchstaben in der
+  erlaubten Zeichenmenge sind ungültige Regeln; `Other("de"/"en"/"la")` wird auf
+  die entsprechende eingebaute Sprache normalisiert.
 - **rand:** `OsRng` erzeugt den 256-Bit-Schlüssel und initialisiert fallibel einen
   `StdRng` für das unveränderte Bibliotheks-Shuffle. Keine alphabetischen
   Wortindizes und kein Entropiebonus aus der Speicherreihenfolge.
 
+`rand` ist wie in PR-1 auf **=0.9.5** mit `os_rng`/`unbiased` festgelegt; `std_rng`
+liefert zusätzlich den aus dem Betriebssystem initialisierten Shuffle-Generator.
+Es gibt keine zweite rand-Version für den Store.
+
 Implementierung: `crates/kairos-store/src/{lib,import,key}.rs`; Nachweise stehen
 in rustdoc sowie `tests/store.rs`. Listenname, Importzeit und SHA-256 beziehen
-sich auf denselben einmal eingelesenen Quellpuffer. Der spätere Vergleich mit
-extern veränderten Dateien ist ausdrücklich noch nicht implementiert.
+sich auf denselben einmal eingelesenen Quellpuffer. Dateiimporte speichern den
+kanonischen UTF-8-Quellpfad verschlüsselt mit; In-Memory-Importe haben keinen
+Pfad. Der spätere Vergleich mit extern veränderten Dateien ist noch nicht
+implementiert. Die Vorbilder wurden anhand ihrer offenen Quellmodule bewertet.
+Reverse Engineer Anything wurde gemäß seiner Abgrenzung für vollständige
+Quellrepos nicht als Binär-/Runtime-Werkzeug ausgeführt; es gab kein zu
+rekonstruierendes ausgeliefertes Artefakt.
 
 Primäre Windows-API-Verträge:
 [`CryptProtectData`](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata),

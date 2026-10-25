@@ -3,19 +3,34 @@
 //! Modelled after: SQLCipher
 //! <https://github.com/sqlcipher/sqlcipher/tree/v4.19.0>.
 //! Imports are transactional; encryption and random-source errors fail closed.
+//!
+//! ```no_run
+//! use kairos_core::{Language, WordSource};
+//! use kairos_store::{EncryptedStore, ImportRules, StorePaths};
+//! use std::path::Path;
+//!
+//! # fn main() -> Result<(), kairos_store::StoreError> {
+//! let mut store = EncryptedStore::open(&StorePaths::for_current_user()?)?;
+//! let imported = store.import_file(
+//!     Path::new("words.txt"), "My German list", Language::German, &ImportRules::default(),
+//! )?;
+//! let source = store.load(Some(imported.list.id), Some(&Language::German))?;
+//! assert!(!source.is_empty());
+//! # Ok(())
+//! # }
+//! ```
 
 mod import;
 mod key;
 
 use std::{
-    collections::HashSet,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use kairos_core::{Language, WordSource};
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
-use rusqlite::{params, Connection, TransactionBehavior};
+use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
 
@@ -30,6 +45,8 @@ pub enum StoreError {
     Io(#[from] std::io::Error),
     #[error("encrypted database operation failed: {0}")]
     Database(#[from] rusqlite::Error),
+    #[error("the database cannot be authenticated with this key: wrong key or corrupt file")]
+    AuthenticationFailed,
     #[error("the system random source is unavailable")]
     RandomSourceUnavailable,
     #[error("DPAPI protection or key validation failed")]
@@ -38,7 +55,7 @@ pub enum StoreError {
     MissingKey,
     #[error("DPAPI requires Windows")]
     UnsupportedPlatform,
-    #[error("database and key paths must be distinct, with a key parent directory")]
+    #[error("invalid storage or source paths")]
     InvalidPaths,
     #[error("APPDATA is unavailable")]
     MissingAppData,
@@ -56,7 +73,7 @@ pub enum StoreError {
     InvalidLanguage,
     #[error("the system clock or an integer value is out of range")]
     OutOfRange,
-    #[error("SQLCipher is unavailable")]
+    #[error("SQLCipher or its required memory protection is unavailable")]
     EncryptionUnavailable,
 }
 
@@ -89,6 +106,8 @@ pub struct ListMetadata {
     pub name: String,
     pub imported_at_unix_seconds: i64,
     pub source_sha256: [u8; 32],
+    /// Canonical source path for file imports; absent for in-memory imports.
+    pub source_path: Option<PathBuf>,
     pub word_count: usize,
 }
 
@@ -147,24 +166,45 @@ impl EncryptedStore {
             std::fs::create_dir_all(parent)?;
         }
         let mut connection = Connection::open(path)?;
+        // rusqlite's pragma helpers consult SQLite's list, which omits codec pragmas.
+        let cipher: Option<String> = connection
+            .query_row("PRAGMA cipher_version", [], |r| r.get(0))
+            .optional()?;
+        if cipher.as_deref().is_none_or(str::is_empty) {
+            return Err(StoreError::EncryptionUnavailable);
+        }
+        connection.execute_batch("PRAGMA cipher_memory_security = ON;")?;
+        let secured: String =
+            connection.query_row("PRAGMA cipher_memory_security", [], |r| r.get(0))?;
+        if secured != "1" {
+            return Err(StoreError::EncryptionUnavailable);
+        }
+        let mut key_argument = Zeroizing::new(vec![0; 67]);
+        key_argument[..2].copy_from_slice(b"x'");
+        key_argument[66] = b'\'';
+        hex::encode_to_slice(key.0.as_slice(), &mut key_argument[2..66])
+            .map_err(|_| StoreError::KeyProtection)?;
         // SAFETY: The live connection is exclusively borrowed here. sqlite3_key
-        // copies all 32 bytes synchronously, including NULs. No SQL string or
-        // passphrase formatting makes another Rust plaintext key allocation.
-        let status =
-            unsafe { rusqlite::ffi::sqlite3_key(connection.handle(), key.0.as_ptr().cast(), 32) };
+        // synchronously copies the 67-byte raw-key literal. The heap buffer has
+        // fixed length and is zeroized; the key never enters a SQL statement.
+        let status = unsafe {
+            rusqlite::ffi::sqlite3_key(connection.handle(), key_argument.as_ptr().cast(), 67)
+        };
+        drop(key_argument);
         if status != rusqlite::ffi::SQLITE_OK {
             return Err(StoreError::KeyProtection);
         }
-        // rusqlite's pragma helpers consult SQLite's list, which omits codec pragmas.
-        let cipher: String = connection.query_row("PRAGMA cipher_version", [], |r| r.get(0))?;
-        if cipher.is_empty() {
-            return Err(StoreError::EncryptionUnavailable);
-        }
         // Reading a page verifies the key before any schema or file mutation.
-        connection.query_row("SELECT count(*) FROM sqlite_master", [], |_| Ok(()))?;
+        connection
+            .query_row("SELECT count(*) FROM sqlite_master", [], |_| Ok(()))
+            .map_err(|error| match error.sqlite_error_code() {
+                Some(rusqlite::ErrorCode::NotADatabase | rusqlite::ErrorCode::DatabaseCorrupt) => {
+                    StoreError::AuthenticationFailed
+                }
+                _ => StoreError::Database(error),
+            })?;
         connection.execute_batch(
-            "PRAGMA cipher_memory_security = ON;
-             PRAGMA temp_store = MEMORY;
+            "PRAGMA temp_store = MEMORY;
              PRAGMA journal_mode = DELETE;
              PRAGMA foreign_keys = ON;
              PRAGMA secure_delete = ON;",
@@ -184,7 +224,8 @@ impl EncryptedStore {
                         id INTEGER PRIMARY KEY,
                         name TEXT NOT NULL,
                         imported_at INTEGER NOT NULL,
-                        source_sha256 BLOB NOT NULL CHECK(length(source_sha256) = 32)
+                        source_sha256 BLOB NOT NULL CHECK(length(source_sha256) = 32),
+                        source_path TEXT
                      );
                      CREATE TABLE words (
                         id INTEGER PRIMARY KEY,
@@ -212,21 +253,33 @@ impl EncryptedStore {
         language: Language,
         rules: &ImportRules,
     ) -> Result<ImportOutcome, StoreError> {
-        let bytes = Zeroizing::new(std::fs::read(path)?);
-        self.import_bytes(&bytes, name, language, rules)
+        let source_path = path.canonicalize()?;
+        let bytes = Zeroizing::new(std::fs::read(&source_path)?);
+        self.import(&bytes, name, language, rules, Some(source_path))
     }
 
     /// Imports plain lines or 4–6 base-six Diceware digits followed by a word.
     /// All accepted entries are shuffled before receiving row IDs.
     ///
     /// Modelled after: rand SliceRandom
-    /// <https://github.com/rust-random/rand/blob/0.8.5/src/seq/mod.rs>.
+    /// <https://github.com/rust-random/rand/tree/0.9.5/src/seq>.
     pub fn import_bytes(
         &mut self,
         source: &[u8],
         name: &str,
         language: Language,
         rules: &ImportRules,
+    ) -> Result<ImportOutcome, StoreError> {
+        self.import(source, name, language, rules, None)
+    }
+
+    fn import(
+        &mut self,
+        source: &[u8],
+        name: &str,
+        language: Language,
+        rules: &ImportRules,
+        source_path: Option<PathBuf>,
     ) -> Result<ImportOutcome, StoreError> {
         if name.trim().is_empty() {
             return Err(StoreError::InvalidListName);
@@ -236,8 +289,12 @@ impl EncryptedStore {
         if words.is_empty() {
             return Err(StoreError::EmptyImport(report));
         }
-        let mut rng =
-            StdRng::from_rng(rand::rngs::OsRng).map_err(|_| StoreError::RandomSourceUnavailable)?;
+        let source_path_text = source_path
+            .as_ref()
+            .map(|path| path.to_str().ok_or(StoreError::InvalidPaths))
+            .transpose()?;
+        let mut rng = StdRng::try_from_rng(&mut rand::rngs::OsRng)
+            .map_err(|_| StoreError::RandomSourceUnavailable)?;
         words.shuffle(&mut rng);
         let source_sha256: [u8; 32] = Sha256::digest(source).into();
         let imported_at = SystemTime::now()
@@ -248,8 +305,8 @@ impl EncryptedStore {
             .map_err(|_| StoreError::OutOfRange)?;
         let tx = self.connection.transaction()?;
         tx.execute(
-            "INSERT INTO lists(name, imported_at, source_sha256) VALUES (?1, ?2, ?3)",
-            params![name, imported_at, source_sha256.as_slice()],
+            "INSERT INTO lists(name, imported_at, source_sha256, source_path) VALUES (?1, ?2, ?3, ?4)",
+            params![name, imported_at, source_sha256.as_slice(), source_path_text],
         )?;
         let id = tx.last_insert_rowid();
         {
@@ -266,6 +323,7 @@ impl EncryptedStore {
                 name: name.into(),
                 imported_at_unix_seconds: imported_at,
                 source_sha256,
+                source_path,
                 word_count: words.len(),
             },
             report,
@@ -274,7 +332,7 @@ impl EncryptedStore {
 
     pub fn lists(&self) -> Result<Vec<ListMetadata>, StoreError> {
         let mut query = self.connection.prepare(
-            "SELECT l.id, l.name, l.imported_at, l.source_sha256, count(w.id)
+            "SELECT l.id, l.name, l.imported_at, l.source_sha256, count(w.id), l.source_path
              FROM lists l LEFT JOIN words w ON w.list_id = l.id GROUP BY l.id ORDER BY l.id",
         )?;
         let rows = query.query_map([], |row| {
@@ -284,6 +342,7 @@ impl EncryptedStore {
                 name: row.get(1)?,
                 imported_at_unix_seconds: row.get(2)?,
                 source_sha256: row.get(3)?,
+                source_path: row.get::<_, Option<String>>(5)?.map(PathBuf::from),
                 word_count: count
                     .try_into()
                     .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(4, count))?,
@@ -301,8 +360,11 @@ impl EncryptedStore {
     ) -> Result<StoredWordList, StoreError> {
         let language = language.map(encode_language).transpose()?;
         let mut query = self.connection.prepare(
-            "SELECT word, language FROM words
-             WHERE (?1 IS NULL OR list_id = ?1) AND (?2 IS NULL OR language = ?2)
+            "SELECT word, language FROM words WHERE id IN (
+                SELECT min(id) FROM words
+                WHERE (?1 IS NULL OR list_id = ?1) AND (?2 IS NULL OR language = ?2)
+                GROUP BY word
+             )
              ORDER BY id",
         )?;
         let mut rows = query.query(params![list_id, language])?;
@@ -310,18 +372,15 @@ impl EncryptedStore {
             words: Zeroizing::new(Vec::new()),
             languages: Vec::new(),
         };
-        let mut unique = HashSet::new();
         while let Some(row) = rows.next()? {
             let word: String = row.get(0)?;
             if word.is_empty() {
                 return Err(StoreError::UnsupportedSchema);
             }
-            if unique.insert(word.clone()) {
-                source.words.push(word);
-                source
-                    .languages
-                    .push(decode_language(&row.get::<_, String>(1)?)?);
-            }
+            source.words.push(word);
+            source
+                .languages
+                .push(decode_language(&row.get::<_, String>(1)?)?);
         }
         Ok(source)
     }
@@ -332,7 +391,18 @@ fn encode_language(language: &Language) -> Result<String, StoreError> {
         Language::German => Ok("de".into()),
         Language::English => Ok("en".into()),
         Language::Latin => Ok("la".into()),
-        Language::Other(tag) if !tag.trim().is_empty() => Ok(format!("other:{tag}")),
+        Language::Other(tag) if !tag.trim().is_empty() => {
+            let tag = tag.trim();
+            if tag.eq_ignore_ascii_case("de") {
+                Ok("de".into())
+            } else if tag.eq_ignore_ascii_case("en") {
+                Ok("en".into())
+            } else if tag.eq_ignore_ascii_case("la") {
+                Ok("la".into())
+            } else {
+                Ok(format!("other:{tag}"))
+            }
+        }
         _ => Err(StoreError::InvalidLanguage),
     }
 }

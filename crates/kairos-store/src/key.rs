@@ -5,26 +5,29 @@
 //! Modelled after: libsodium
 //! <https://github.com/jedisct1/libsodium/blob/60b751cd14418fae2d17e6f1003e43622b3e5a25/src/libsodium/sodium/utils.c>.
 
-use rand::{rngs::OsRng, RngCore};
+use rand::{rngs::OsRng, TryRngCore};
 use zeroize::Zeroizing;
 
 use crate::StoreError;
 
 /// A 256-bit database secret. Intentionally neither `Debug` nor `Clone`.
-pub struct DatabaseKey(pub(crate) Zeroizing<[u8; 32]>);
+pub struct DatabaseKey(pub(crate) Box<Zeroizing<[u8; 32]>>);
 
 impl DatabaseKey {
     pub fn generate() -> Result<Self, StoreError> {
-        let mut bytes = Zeroizing::new([0; 32]);
+        let mut bytes = Box::new(Zeroizing::new([0; 32]));
         OsRng
-            .try_fill_bytes(bytes.as_mut())
+            .try_fill_bytes(bytes.as_mut_slice())
             .map_err(|_| StoreError::RandomSourceUnavailable)?;
         Ok(Self(bytes))
     }
 
     /// Accepts an externally managed key; ownership includes zeroizing on drop.
+    /// Earlier caller buffers and historical stack copies remain the caller's responsibility.
     pub fn from_bytes(bytes: Zeroizing<[u8; 32]>) -> Self {
-        Self(bytes)
+        let mut key = Box::new(Zeroizing::new([0; 32]));
+        key.copy_from_slice(bytes.as_ref());
+        Self(key)
     }
 }
 
@@ -53,7 +56,7 @@ pub(crate) fn load_or_create(paths: &crate::StorePaths) -> Result<DatabaseKey, S
                     .ok_or(StoreError::InvalidPaths)?;
                 std::fs::create_dir_all(parent)?;
                 let key = DatabaseKey::generate()?;
-                let protected = dpapi(key.0.as_ref(), true)?;
+                let protected = dpapi(key.0.as_slice(), true)?;
                 let mut pending = tempfile::NamedTempFile::new_in(parent)?;
                 pending.write_all(&protected)?;
                 pending.as_file().sync_all()?;
@@ -72,7 +75,7 @@ pub(crate) fn load_or_create(paths: &crate::StorePaths) -> Result<DatabaseKey, S
     if plaintext.len() != 32 {
         return Err(StoreError::KeyProtection);
     }
-    let mut key = Zeroizing::new([0; 32]);
+    let mut key = Box::new(Zeroizing::new([0; 32]));
     key.copy_from_slice(&plaintext);
     Ok(DatabaseKey(key))
 }
@@ -158,7 +161,7 @@ mod tests {
     #[test]
     fn dpapi_roundtrip_wraps_all_key_bytes() {
         let key = DatabaseKey::generate().unwrap();
-        let protected = dpapi(key.0.as_ref(), true).unwrap();
+        let protected = dpapi(key.0.as_slice(), true).unwrap();
         assert!(!protected
             .windows(32)
             .any(|window| window == key.0.as_slice()));

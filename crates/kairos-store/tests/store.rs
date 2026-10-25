@@ -28,6 +28,10 @@ fn encrypted_file_roundtrip_preserves_provenance_and_language() {
         <[u8; 32]>::from(Sha256::digest(bytes))
     );
     assert!(outcome.list.imported_at_unix_seconds > 0);
+    assert_eq!(
+        outcome.list.source_path,
+        Some(input.canonicalize().unwrap())
+    );
     drop(store);
     let store = EncryptedStore::open_with_key(&path, &key).unwrap();
     assert_eq!(store.lists().unwrap(), vec![outcome.list.clone()]);
@@ -52,7 +56,10 @@ fn wrong_key_and_missing_key_cannot_read_database() {
         .unwrap();
     drop(store);
     let before = fs::read(&path).unwrap();
-    assert!(EncryptedStore::open_with_key(&path, &DatabaseKey::generate().unwrap()).is_err());
+    assert!(matches!(
+        EncryptedStore::open_with_key(&path, &DatabaseKey::generate().unwrap()),
+        Err(StoreError::AuthenticationFailed)
+    ));
     let plain = rusqlite::Connection::open(&path).unwrap();
     assert!(plain.prepare("SELECT word FROM words").is_err());
     drop(plain);
@@ -73,7 +80,10 @@ fn all_key_bytes_including_nuls_are_significant() {
     drop(EncryptedStore::open_with_key(&path, &first).unwrap());
     bytes[31] = 8;
     let second = DatabaseKey::from_bytes(bytes);
-    assert!(EncryptedStore::open_with_key(&path, &second).is_err());
+    assert!(matches!(
+        EncryptedStore::open_with_key(&path, &second),
+        Err(StoreError::AuthenticationFailed)
+    ));
     assert!(EncryptedStore::open_with_key(&path, &first).is_ok());
 }
 
@@ -92,6 +102,7 @@ fn validation_counts_each_rejected_line_once() {
         )
         .unwrap();
     let report = result.report;
+    assert!(result.list.source_path.is_none());
     assert_eq!(report.accepted, 4);
     assert_eq!(report.blank, 1);
     assert_eq!(report.comment, 1);
@@ -159,6 +170,14 @@ fn invalid_inputs_do_not_create_lists_or_words() {
             allowed_characters: "abc ".into(),
             ..ImportRules::default()
         },
+        ImportRules {
+            allowed_characters: "ABC".into(),
+            ..ImportRules::default()
+        },
+        ImportRules {
+            allowed_characters: "abc\0".into(),
+            ..ImportRules::default()
+        },
     ] {
         assert!(matches!(
             store.import_bytes(b"apfel", "Bad", Language::German, &rules),
@@ -201,7 +220,7 @@ fn list_and_language_filters_remove_cross_list_duplicates() {
         .import_bytes(b"maison", "French", Language::Other("fr".into()), &rules)
         .unwrap();
     store
-        .import_bytes(b"anders", "Other de", Language::Other("de".into()), &rules)
+        .import_bytes(b"anders", "Other de", Language::Other("DE".into()), &rules)
         .unwrap();
     let source = store.load(None, None).unwrap();
     assert_eq!(source.len(), 6);
@@ -225,7 +244,7 @@ fn list_and_language_filters_remove_cross_list_duplicates() {
             .load(None, Some(&Language::Other("de".into())))
             .unwrap()
             .len(),
-        1
+        3
     );
     assert!(store.load(Some(i64::MAX), None).unwrap().is_empty());
 }

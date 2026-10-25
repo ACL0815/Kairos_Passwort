@@ -5,7 +5,7 @@
 //! Modelled after: diceware
 //! <https://github.com/ulif/diceware/blob/98fa09afd7ab28b6075d771b2c44b0e00479e72f/diceware/wordlist.py>.
 
-use std::collections::HashSet;
+use std::collections::{hash_map::Entry, HashMap};
 
 use zeroize::Zeroizing;
 
@@ -65,13 +65,13 @@ pub(crate) fn parse(
         || rules
             .allowed_characters
             .chars()
-            .any(|c| c.is_whitespace() || c.is_control())
+            .any(|c| c.is_whitespace() || c.is_control() || c.is_uppercase())
     {
         return Err(StoreError::InvalidRules);
     }
     let text = std::str::from_utf8(source).map_err(|_| StoreError::InvalidEncoding)?;
     let mut report = ImportReport::default();
-    let mut unique = HashSet::new();
+    let mut unique = HashMap::new();
     for line in text.trim_start_matches('\u{feff}').lines() {
         let line = line.trim();
         if line.is_empty() {
@@ -104,11 +104,31 @@ pub(crate) fn parse(
             report.too_short += 1;
         } else if word.chars().count() > rules.max_length {
             report.too_long += 1;
-        } else if !unique.insert(word) {
-            report.duplicate += 1;
         } else {
-            report.accepted += 1;
+            match unique.entry(word) {
+                Entry::Occupied(_) => report.duplicate += 1,
+                Entry::Vacant(entry) => {
+                    entry.insert(report.accepted);
+                    report.accepted += 1;
+                }
+            }
         }
     }
-    Ok((Zeroizing::new(unique.into_iter().collect()), report))
+    let mut indexed: Vec<_> = unique.into_iter().collect();
+    indexed.sort_unstable_by_key(|(_, index)| *index);
+    let words = indexed.into_iter().map(|(word, _)| word).collect();
+    Ok((Zeroizing::new(words), report))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parsing_preserves_first_occurrence_order_before_shuffle() {
+        let (words, report) =
+            parse(b"Birne\napfel\n11111 BIRNE\nhaus", &ImportRules::default()).unwrap();
+        assert_eq!(words.as_slice(), ["birne", "apfel", "haus"]);
+        assert_eq!(report.duplicate, 1);
+    }
 }
