@@ -241,6 +241,13 @@ impl Flow {
 }
 
 impl KairosApp {
+    pub(crate) fn keepass_guard_close(&self, ctx: &egui::Context) {
+        if self.keepass.flow.as_ref().is_some_and(|flow| flow.busy())
+            && ctx.input(|input| input.viewport().close_requested())
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        }
+    }
     pub(crate) fn start_bridge(&mut self) {
         if cfg!(feature = "demo") {
             return;
@@ -321,7 +328,7 @@ impl KairosApp {
             }
         }
         ui.heading("KeePassXC · Eintrag bestätigen");
-        ui.label("Zuerst KeePassXC, dann mit erneutem Klick ins gemerkte Feld. Browser-Feldwechsel im selben Fenster sind nicht erkennbar.");
+        ui.label("Zuerst KeePassXC, dann mit erneutem Klick ins gemerkte Feld. Der Fensterhinweis kann bei verzögerter Hotkey-Verarbeitung von einem anderen Fenster stammen. Ursprüngliches Ziel selbst prüfen; Tab-/DOM-Feldwechsel sind nicht erkennbar.");
         let draft = flow.phase == Phase::Draft;
         if flow.target.is_none() {
             ui.label("Kein externes Zielfeld bei F11 erfasst. Dialog schließen und F11 im gewünschten Feld auslösen.");
@@ -332,11 +339,13 @@ impl KairosApp {
                 if ui.button("Vorschlag nach eigener Prüfung übernehmen").clicked() { flow.url = candidate.url.clone(); flow.username = candidate.username.clone().unwrap_or_default(); flow.confirmed = false; }
             } else { ui.label("Keine frische, einem Vordergrund-Browser zuordenbare URL. Bitte manuell eingeben."); }
             ui.label("URL (ohne Query/Fragment)");
-            if ui.text_edit_singleline(&mut flow.url).changed() { flow.confirmed = false; }
-            ui.label("Benutzername / E-Mail (optional)"); ui.text_edit_singleline(&mut flow.username);
-            ui.horizontal(|ui| { ui.label("Gruppe optional: Name"); ui.text_edit_singleline(&mut flow.group); });
-            ui.horizontal(|ui| { ui.label("Gruppen-UUID"); ui.text_edit_singleline(&mut flow.group_uuid); });
-            self.editor(ui);
+            if ui.add(egui::TextEdit::singleline(&mut flow.url).id(egui::Id::unique("keepass_url")).char_limit(4096)).changed() { flow.confirmed = false; }
+            ui.label("Benutzername / E-Mail (optional)");
+            if ui.add(egui::TextEdit::singleline(&mut flow.username).id(egui::Id::unique("keepass_username")).char_limit(320)).changed() { flow.confirmed = false; }
+            ui.horizontal(|ui| { ui.label("Gruppe optional: Name"); if ui.add(egui::TextEdit::singleline(&mut flow.group).id(egui::Id::unique("keepass_group")).char_limit(1024)).changed() { flow.confirmed = false; } });
+            ui.horizontal(|ui| { ui.label("Gruppen-UUID"); if ui.add(egui::TextEdit::singleline(&mut flow.group_uuid).id(egui::Id::unique("keepass_uuid")).char_limit(32)).changed() { flow.confirmed = false; } });
+            if self.editor(ui) { flow.confirmed = false; }
+            ui.label(self.password.message);
             ui.checkbox(&mut flow.confirmed, "URL, Benutzername und ursprüngliches Zielfeld geprüft");
             ui.checkbox(&mut self.copy_on_insert, "Nach angenommener Eingabe auch kopieren (30 s)");
             if ui.add_enabled(flow.confirmed && flow.target.is_some() && !self.password.secret.is_empty(), egui::Button::new("Eintragen in KeePassXC")).clicked() { flow.submit(&self.password.secret, false, &ctx); }
@@ -371,6 +380,9 @@ impl KairosApp {
         if flow.phase == Phase::Finished && ui.button("Passwort manuell kopieren (30 s)").clicked()
         {
             self.copy(&ctx, false);
+        }
+        if !self.notice.is_empty() {
+            ui.label(self.notice);
         }
         if !flow.busy() && ui.button("Dialog schließen").clicked() {
             self.target = crate::desktop::Destination::Unavailable;

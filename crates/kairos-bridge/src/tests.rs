@@ -118,11 +118,68 @@ fn contexts_need_fresh_matching_native_browser_and_clear_on_invalid_data() {
         "https://example.invalid/signup?token=secret#fragment",
         "file:///secret",
     );
+    state.last_context = None;
     assert_eq!(
         state.handle("/v1/context", &key, bad.as_bytes(), window()),
         Err(Error::Invalid)
     );
     assert!(state.context(window()).is_none());
+}
+
+#[test]
+fn context_flood_cannot_fill_nonce_cache_and_probe_recovers_uncertain_pairing() {
+    let mut state = fixture();
+    let key = pair(&mut state);
+    state
+        .handle("/v1/context", &key, &message(1), window())
+        .unwrap();
+    for n in 2..=200 {
+        assert_eq!(
+            state.handle("/v1/context", &key, &message(n), window()),
+            Err(Error::RateLimited)
+        );
+    }
+    assert_eq!(state.nonces.len(), 2);
+    let probe = format!(
+        r#"{{"timestamp":{},"nonce":"{}"}}"#,
+        unix_seconds(),
+        "c".repeat(32)
+    );
+    state
+        .handle("/v1/probe", &key, probe.as_bytes(), None)
+        .unwrap();
+    assert_eq!(state.status(), PairingStatus::Paired);
+    assert!(state.context(window()).is_some());
+}
+
+#[test]
+fn explicit_username_survives_same_url_heartbeats_without_renewing_consent() {
+    let mut state = fixture();
+    let key = pair(&mut state);
+    let username = String::from_utf8(message(1)).unwrap().replacen(
+        '{',
+        "{\"username\":\"user@example.invalid\",",
+        1,
+    );
+    state
+        .handle("/v1/context", &key, username.as_bytes(), window())
+        .unwrap();
+    let deadline = state.active.as_ref().unwrap().username_until;
+    state.last_context = None;
+    state
+        .handle("/v1/context", &key, &message(2), window())
+        .unwrap();
+    assert_eq!(
+        state.context(window()).unwrap().username.as_deref(),
+        Some("user@example.invalid")
+    );
+    assert_eq!(state.active.as_ref().unwrap().username_until, deadline);
+    state.active.as_mut().unwrap().username_until = Some(Instant::now() - Duration::from_secs(1));
+    state.last_context = None;
+    state
+        .handle("/v1/context", &key, &message(3), window())
+        .unwrap();
+    assert!(state.context(window()).unwrap().username.is_none());
 }
 #[test]
 fn pairing_cancel_expiry_attempt_limit_and_storage_failure_fail_closed() {

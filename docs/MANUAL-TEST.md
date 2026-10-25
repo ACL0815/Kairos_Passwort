@@ -42,6 +42,12 @@ notieren. Anleitung/Bedrohungsmodell: [browser/README.md](../browser/README.md).
    Code anzeigen; nach zwei Minuten muss er ungültig sein. Neuen Code anzeigen,
    abbrechen, alten Code im VM-Menü versuchen: abgewiesen. Mit neuem Code koppeln.
    Nicht in ein DOM-Formular eingeben. Code verschwindet nach erfolgreicher Kopplung.
+   **Zuerst je Chrome/Edge und Firefox abnehmen:** Pairing und Kontext müssen
+   mit der konkreten VM-Version funktionieren. Fehlender oder kanonischer
+   Extension-Origin, UTF-8-Charset und Fetch-Metadaten sind unterstützt; normale
+   Web-Origins/Referer bleiben verboten. Keine Schutzprüfung zur Abnahme abschalten.
+   Pairing-Antwort absichtlich unterbrechen: „Ausstehende Kopplung prüfen“ muss
+   eine bereits persistierte Kopplung ohne neue Pairing-Anfrage wieder aufnehmen.
 3. Seite mit `?testtoken=PUBLIC#PUBLIC` und Testpfad öffnen. Passwortfeld fokussieren,
    sofort F11. Nur Origin+Pfad im Vorschlag, keine Query/Fragment. URL-Feld bleibt
    bis zur ausdrücklichen Übernahme leer. Übernahme und Bestätigung getrennt prüfen.
@@ -50,9 +56,10 @@ notieren. Anleitung/Bedrohungsmodell: [browser/README.md](../browser/README.md).
    fokussierte Meldung: kein Vorschlag. Kurzzeitige Fokus-/Tabrennen sind bewusst
    nicht beweisbar: keine automatische Übernahme. URL manuell eingeben funktioniert.
 5. E-Mail im Testformular setzen. Normale Fokusmeldungen enthalten keinen
-   Benutzernamen. Über VM-Menü einmal ausdrücklich senden und sofort F11:
-   nach Übernahme vorbefüllt. Späterer Heartbeat ohne Benutzername ersetzt ihn;
-   keine dauerhafte GM-Speicherung. Passwortfeld wird niemals ausgelesen.
+   Benutzernamen. Über VM-Menü einmal ausdrücklich senden und binnen zehn
+   Sekunden F11: nach Übernahme vorbefüllt. Heartbeats bei gleicher URL/Fenster
+   behalten den Wert bis zur ursprünglichen Frist; danach muss er verschwinden.
+   Menü-Fokusrückgabe testen. Keine dauerhafte GM-Speicherung/Passwortauslese.
 6. Eigene wegwerfbare KeePassXC-Datenbank entsperren und Browserintegration selbst
    aktivieren. Keine lokale Zuordnung vorhanden: „Eintragen“ führt zum geführten
    Kopplungsknopf. KeePassXC-Freigabe ablehnen: kein Tippen, sichtbarer Fehler.
@@ -81,6 +88,26 @@ Automatisch: `cargo test -p kairos-bridge`, `cargo test -p kairos --lib`,
 Der zusätzliche reale **nur lesende** Test ist absichtlich `#[ignore]`.
 Kairos dafür beenden; bereits gepaartes isoliertes Script und vorhandene
 Test-KeePassXC-Zuordnung verwenden, dann Vordergrund-Testseite aktivieren:
+
+Die isolierten DPAPI-Dateien können zuvor mit der normalen GUI erzeugt werden,
+ohne deren Standardablage zu ersetzen: Kairos als eigenen Prozess mit eigenem
+`APPDATA` starten. Das verändert ausschließlich die Umgebung dieses Kindes,
+nicht die Benutzer-/Systemumgebung. Im isolierten Browserprofil koppeln, im
+eigenen KeePassXC-Testtresor freigeben, Kairos danach beenden. Beispiel mit schon
+gebauter Debug-EXE (nur eigene Testpfade):
+
+```powershell
+$kairosTestRoot = Join-Path $env:TEMP 'Kairos-isolated-review'
+$kairosTestInfo = [System.Diagnostics.ProcessStartInfo]::new((Resolve-Path '.\target\debug\kairos.exe').Path)
+$kairosTestInfo.UseShellExecute = $false
+$kairosTestInfo.Environment['APPDATA'] = $kairosTestRoot
+$kairosTestProcess = [System.Diagnostics.Process]::Start($kairosTestInfo)
+# GUI-Pairing in den beiden isolierten Testumgebungen durchführen, dann schließen.
+```
+
+Die entstandenen Dateien liegen unter `$kairosTestRoot\Kairos\`; diese Pfade
+in den nachfolgenden Umgebungsvariablen verwenden. Der Ignore-Test öffnet die
+vorhandenen Dateien, erzeugt aber keine Assoziation selbst.
 
 ```powershell
 $env:KAIROS_BRIDGE_TEST_ASSOCIATION_FILE = '<eigener isolierter DPAPI-Testpfad>'

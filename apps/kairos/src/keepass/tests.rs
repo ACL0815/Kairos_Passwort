@@ -162,6 +162,94 @@ fn invalid_autotype_password_is_rejected_before_spawning_a_vault_request() {
     }
 }
 
+fn draw(ctx: &egui::Context, app: &mut KairosApp, events: Vec<egui::Event>) -> egui::FullOutput {
+    let mut output = ctx.run_ui(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1000.0, 1200.0),
+            )),
+            events,
+            ..Default::default()
+        },
+        |ui| app.draw(ui),
+    );
+    output.textures_delta.clear();
+    output
+}
+
+#[test]
+fn editing_any_confirmed_login_field_requires_new_confirmation() {
+    let ctx = egui::Context::default();
+    let mut app = KairosApp::new(&ctx, crate::german_source(), false);
+    let (mut flow, _) = fixture(false);
+    flow.phase = Phase::Draft;
+    app.keepass.flow = Some(flow);
+    let _ = draw(&ctx, &mut app, vec![]);
+    for id in [
+        egui::Id::unique("keepass_url"),
+        egui::Id::unique("keepass_username"),
+        egui::Id::unique("keepass_group"),
+        egui::Id::unique("keepass_uuid"),
+        egui::Id::unique("password"),
+    ] {
+        app.keepass.flow.as_mut().unwrap().confirmed = true;
+        ctx.memory_mut(|memory| memory.request_focus(id));
+        let _ = draw(&ctx, &mut app, vec![egui::Event::Text("x".into())]);
+        assert!(!app.keepass.flow.as_ref().unwrap().confirmed);
+    }
+}
+
+#[test]
+fn saving_and_accepted_orders_block_new_hotkeys_and_preserve_password() {
+    let ctx = egui::Context::default();
+    let mut app = KairosApp::new(&ctx, crate::german_source(), false);
+    let original = Zeroizing::new(app.password.secret.to_string());
+    for phase in [Phase::Saving, Phase::Accepted] {
+        let (mut flow, typed) = fixture(false);
+        flow.phase = phase;
+        app.keepass.flow = Some(flow);
+        app.handle_action(
+            &ctx,
+            kairos_platform::Action::GenerateTypeCopy,
+            Err(PlatformError::TargetUnavailable),
+        );
+        assert_eq!(app.password.secret.as_str(), original.as_str());
+        assert!(app.keepass.flow.as_ref().unwrap().phase == phase);
+        assert!(typed.borrow().is_empty());
+    }
+}
+
+#[test]
+fn close_request_is_cancelled_only_while_a_vault_operation_is_running() {
+    for phase in [
+        Phase::Saving,
+        Phase::Pairing,
+        Phase::Accepted,
+        Phase::Finished,
+    ] {
+        let ctx = egui::Context::default();
+        let mut app = KairosApp::new(&ctx, crate::german_source(), false);
+        let (mut flow, _) = fixture(false);
+        flow.phase = phase;
+        app.keepass.flow = Some(flow);
+        let mut input = egui::RawInput::default();
+        input
+            .viewports
+            .get_mut(&egui::ViewportId::ROOT)
+            .unwrap()
+            .events
+            .push(egui::ViewportEvent::Close);
+        let mut output = ctx.run_ui(input, |ui| app.keepass_guard_close(ui.ctx()));
+        output.textures_delta.clear();
+        let cancelled = output.viewport_output[&egui::ViewportId::ROOT]
+            .commands
+            .iter()
+            .any(|command| matches!(command, egui::ViewportCommand::CancelClose));
+        assert_eq!(cancelled, matches!(phase, Phase::Saving | Phase::Pairing));
+    }
+}
+
 #[cfg(windows)]
 #[test]
 #[ignore = "requires an explicitly paired isolated browser profile and KeePassXC test database; read only"]

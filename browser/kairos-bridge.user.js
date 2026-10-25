@@ -24,20 +24,24 @@
     'use strict';
     const endpoint = 'http://127.0.0.1:19471';
     const key = 'kairos-bridge-v1-token';
+    const pendingKey = 'kairos-bridge-v1-pending-token';
     let lastSent = 0;
     let inFlight = false;
     const nonce = () => Array.from(crypto.getRandomValues(new Uint8Array(16)),
         byte => byte.toString(16).padStart(2, '0')).join('');
 
-    function send(path, token, fields = {}) {
+    function send(path, token, fields = {}, timeout = 1500) {
         return new Promise((resolve, reject) => {
             GM_xmlhttpRequest({
                 method: 'POST', url: endpoint + path,
                 // Never forward page cookies or a page Referer/Origin.
-                anonymous: true, timeout: 1500,
+                anonymous: true, timeout,
                 headers: { 'Content-Type': 'application/json', 'X-Kairos-Token': token },
                 data: JSON.stringify({ timestamp: Math.floor(Date.now() / 1000), nonce: nonce(), ...fields }),
-                onload: response => response.status === 204 ? resolve() : reject(new Error('Kairos hat die Nachricht abgelehnt.')),
+                onload: response => {
+                    if (response.status === 204) resolve();
+                    else { const error = new Error('Kairos hat die Nachricht abgelehnt.'); error.status = response.status; reject(error); }
+                },
                 onerror: () => reject(new Error('Kairos-Brücke nicht erreichbar.')),
                 ontimeout: () => reject(new Error('Kairos-Brücke: Zeitüberschreitung.')),
             });
@@ -47,7 +51,7 @@
     async function publish(force = false) {
         const token = GM_getValue(key, '');
         if (!token || inFlight || document.visibilityState !== 'visible' || !document.hasFocus()) return;
-        if (!force && Date.now() - lastSent < 1000) return;
+        if (Date.now() - lastSent < (force ? 500 : 1000)) return;
         const url = new URL(location.href);
         if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return;
         inFlight = true;
@@ -59,23 +63,45 @@
     }
 
     GM_registerMenuCommand('Kairos: mit Kopplungscode verbinden', async () => {
+        if (GM_getValue(pendingKey, '')) { alert('Zuerst „Ausstehende Kopplung prüfen“ nutzen oder die Verbindung bewusst vergessen. Der vorläufige Schlüssel wird nicht überschrieben.'); return; }
         const code = prompt('Kairos → Browser koppeln. Den dort angezeigten Code nur hier eingeben:');
         if (code === null) return;
         if (!/^[A-Za-z0-9_-]{43}$/.test(code.trim())) { alert('Ungültiger Kairos-Code.'); return; }
         try {
             const clientToken = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
                 .replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
-            await send('/v1/pair', code.trim(), { client_token: clientToken });
+            // Preserve an uncertain pairing outcome without exposing the token
+            // to the page or automatically retrying a state-changing request.
+            GM_setValue(pendingKey, clientToken);
+            await send('/v1/pair', code.trim(), { client_token: clientToken }, 10000);
             GM_setValue(key, clientToken);
+            GM_deleteValue(pendingKey);
             alert('Kairos gekoppelt. Seiten-URL wird bei aktivem Tab lokal gemeldet. Benutzername nur über den separaten Menüpunkt.');
             await publish(true);
-        } catch (error) { alert(error.message + ' Neuen Code in Kairos erzeugen und erneut versuchen.'); }
+        } catch (error) {
+            if (error.status === 403) GM_deleteValue(pendingKey);
+            alert(error.message + ' Bei unbekanntem Ergebnis zuerst „Ausstehende Kopplung prüfen“ nutzen.');
+        }
+    });
+    GM_registerMenuCommand('Kairos: Ausstehende Kopplung prüfen', async () => {
+        const token = GM_getValue(pendingKey, '');
+        if (!token) { alert('Keine ausstehende Kopplung.'); return; }
+        try {
+            await send('/v1/probe', token);
+            GM_setValue(key, token); GM_deleteValue(pendingKey);
+            alert('Vorhandene Kopplung bestätigt. Keine erneute Kopplung angefordert.');
+        } catch (error) {
+            if (error.status === 403) GM_deleteValue(pendingKey);
+            alert(error.message + ' Bei fehlender Zuordnung neuen Code in Kairos erzeugen.');
+        }
     });
     GM_registerMenuCommand('Kairos: Formular-Benutzername einmal senden', async () => {
         if (inFlight) { alert('Eine Kontextmeldung läuft. Menüpunkt danach erneut bewusst ausführen; nichts vorgemerkt.'); return; }
         const token = GM_getValue(key, '');
         if (!token) { alert('Zuerst mit Kairos koppeln.'); return; }
-        if (!document.hasFocus() || document.visibilityState !== 'visible') { alert('Zuerst die gewünschte Seite aktivieren.'); return; }
+        // The extension menu itself may temporarily own focus. Visibility plus
+        // the immutable URL/form snapshot is sufficient before confirmation.
+        if (document.visibilityState !== 'visible') { alert('Zuerst die gewünschte Seite aktivieren.'); return; }
         const href = location.href;
         const url = new URL(href);
         if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return;
@@ -95,17 +121,22 @@
     });
     GM_registerMenuCommand('Kairos: Verbindung im Userscript vergessen', () => {
         GM_deleteValue(key);
+        GM_deleteValue(pendingKey);
         alert('Lokaler Script-Schlüssel entfernt. Kairos-DPAPI-Datei bleibt erhalten; siehe README zur bewussten Neukopplung.');
     });
     document.addEventListener('focusin', event => {
-        if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) void publish(true);
+        if (event.isTrusted && (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) void publish(true);
     });
-    window.addEventListener('focus', () => void publish(true));
-    document.addEventListener('visibilitychange', () => {
+    window.addEventListener('focus', event => { if (event.isTrusted) void publish(true); });
+    document.addEventListener('visibilitychange', event => {
+        if (!event.isTrusted) return;
         if (document.visibilityState === 'visible') void publish(true);
         else {
             const token = GM_getValue(key, '');
-            if (token) void send('/v1/clear', token).catch(() => {});
+            if (token && !inFlight && Date.now() - lastSent >= 500) {
+                inFlight = true; lastSent = Date.now();
+                void send('/v1/clear', token).catch(() => {}).finally(() => { inFlight = false; });
+            }
         }
     });
     // Short-lived context, also refreshed while the user stays in one field.

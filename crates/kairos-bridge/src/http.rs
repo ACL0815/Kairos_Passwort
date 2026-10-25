@@ -9,10 +9,26 @@ use std::{
 };
 
 const MAX_BYTES: usize = 12 * 1024;
+struct WorkerHealth(Arc<AtomicBool>);
+impl Drop for WorkerHealth {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
+fn retry_accept(error: &std::io::Error) -> bool {
+    matches!(
+        error.kind(),
+        std::io::ErrorKind::WouldBlock
+            | std::io::ErrorKind::Interrupted
+            | std::io::ErrorKind::ConnectionAborted
+            | std::io::ErrorKind::ConnectionReset
+    )
+}
 pub struct Bridge {
     state: Shared,
     stop: Arc<AtomicBool>,
     worker: Option<JoinHandle<()>>,
+    alive: Arc<AtomicBool>,
 }
 impl Bridge {
     pub fn start(
@@ -33,7 +49,10 @@ impl Bridge {
         let stop = Arc::new(AtomicBool::new(false));
         let worker_state = state.clone();
         let worker_stop = stop.clone();
+        let alive = Arc::new(AtomicBool::new(true));
+        let health = WorkerHealth(alive.clone());
         let worker = thread::Builder::new().name("kairos-browser-bridge".into()).spawn(move || {
+            let _health = health;
             while !worker_stop.load(Ordering::Relaxed) {
                 if let Ok(mut state) = worker_state.lock() {
                     if state.active.as_ref().is_some_and(|a| a.received.elapsed() > FRESH_FOR) {
@@ -41,6 +60,12 @@ impl Bridge {
                     }
                     if state.pending.as_ref().is_some_and(|p| Instant::now() >= p.until) {
                         state.pending = None;
+                    }
+                    if let Some(active) = &mut state.active {
+                        if active.username_until.is_some_and(|until| Instant::now() >= until) {
+                            active.context.username = None;
+                            active.username_until = None;
+                        }
                     }
                     state.nonces.retain(|_, received| received.elapsed() <= Duration::from_secs(61));
                 }
@@ -55,7 +80,7 @@ impl Bridge {
                         let _ = stream.write_all(format!("HTTP/1.1 {status}\r\nContent-Length: 0\r\nConnection: close\r\nCache-Control: no-store\r\n\r\n").as_bytes());
                     }
                     Ok(_) => {}
-                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => thread::sleep(Duration::from_millis(20)),
+                    Err(e) if retry_accept(&e) => thread::sleep(Duration::from_millis(20)),
                     Err(_) => break,
                 }
             }
@@ -64,12 +89,19 @@ impl Bridge {
             state,
             stop,
             worker: Some(worker),
+            alive,
         })
     }
     pub fn status(&self) -> Result<PairingStatus, Error> {
+        if !self.alive.load(Ordering::Acquire) {
+            return Err(Error::Io);
+        }
         Ok(self.state.lock().map_err(|_| Error::Io)?.status())
     }
     pub fn begin_pairing(&self) -> Result<Zeroizing<String>, Error> {
+        if !self.alive.load(Ordering::Acquire) {
+            return Err(Error::Io);
+        }
         self.state.lock().map_err(|_| Error::Io)?.begin_pairing()
     }
     pub fn cancel_pairing(&self) {
@@ -78,6 +110,9 @@ impl Bridge {
         }
     }
     pub fn latest_for(&self, window: Option<BrowserWindow>) -> Option<Context> {
+        if !self.alive.load(Ordering::Acquire) {
+            return None;
+        }
         self.state.lock().ok()?.context(window)
     }
 }
@@ -96,6 +131,9 @@ struct Request {
     body: Zeroizing<Vec<u8>>,
 }
 fn read_request(stream: &mut TcpStream) -> Result<Request, Error> {
+    // Winsock accept inherits FIONBIO. Explicitly restore blocking I/O before
+    // applying timeouts, including when headers/body arrive in separate packets.
+    stream.set_nonblocking(false).map_err(|_| Error::Io)?;
     stream
         .set_read_timeout(Some(Duration::from_millis(200)))
         .map_err(|_| Error::Io)?;
@@ -123,7 +161,7 @@ fn parse(bytes: &[u8]) -> Result<Option<Request>, Error> {
     if bytes.len() > MAX_BYTES {
         return Err(Error::Invalid);
     }
-    let mut headers = [httparse::EMPTY_HEADER; 24];
+    let mut headers = [httparse::EMPTY_HEADER; 48];
     let mut request = httparse::Request::new(&mut headers);
     let offset = match request.parse(bytes).map_err(|_| Error::Invalid)? {
         httparse::Status::Partial => return Ok(None),
@@ -137,6 +175,7 @@ fn parse(bytes: &[u8]) -> Result<Option<Request>, Error> {
     let mut token = None;
     let mut length = None;
     let mut content_type = None;
+    let mut origin = None;
     for header in request.headers.iter() {
         let value = std::str::from_utf8(header.value).map_err(|_| Error::Invalid)?;
         match header.name.to_ascii_lowercase().as_str() {
@@ -146,13 +185,15 @@ fn parse(bytes: &[u8]) -> Result<Option<Request>, Error> {
                 length = Some(value.parse::<usize>().map_err(|_| Error::Invalid)?)
             }
             "content-type" if content_type.is_none() => content_type = Some(value),
+            "origin" if origin.is_none() && extension_origin(value) => origin = Some(value),
             "host" | "x-kairos-token" | "content-length" | "content-type" | "origin"
             | "referer" | "transfer-encoding" => return Err(Error::Invalid),
-            "sec-fetch-site" if value != "none" => return Err(Error::Invalid),
+            // Fetch metadata differs between extension engines. It is not an
+            // authentication signal; Origin + custom token + no preflight are.
             _ => {}
         }
     }
-    if host != Some("127.0.0.1:19471") || content_type != Some("application/json") {
+    if host != Some("127.0.0.1:19471") || !content_type.is_some_and(json_content_type) {
         return Err(Error::Invalid);
     }
     let length = length.filter(|n| *n <= 8192).ok_or(Error::Invalid)?;
@@ -172,6 +213,40 @@ fn parse(bytes: &[u8]) -> Result<Option<Request>, Error> {
             body: Zeroizing::new(bytes[offset..].to_vec()),
         })),
     }
+}
+
+fn extension_origin(origin: &str) -> bool {
+    if let Some(id) = origin.strip_prefix("chrome-extension://") {
+        return id.len() == 32 && id.bytes().all(|b| (b'a'..=b'p').contains(&b));
+    }
+    if let Some(id) = origin.strip_prefix("moz-extension://") {
+        return id.len() == 36
+            && id.bytes().enumerate().all(|(index, b)| {
+                if matches!(index, 8 | 13 | 18 | 23) {
+                    b == b'-'
+                } else {
+                    b.is_ascii_hexdigit()
+                }
+            });
+    }
+    false
+}
+fn json_content_type(value: &str) -> bool {
+    let mut parts = value.split(';');
+    if !parts
+        .next()
+        .is_some_and(|p| p.trim().eq_ignore_ascii_case("application/json"))
+    {
+        return false;
+    }
+    if let Some(charset) = parts.next() {
+        if !charset.trim().eq_ignore_ascii_case("charset=utf-8")
+            && !charset.trim().eq_ignore_ascii_case("charset=\"utf-8\"")
+        {
+            return false;
+        }
+    }
+    parts.next().is_none()
 }
 
 #[cfg(test)]
@@ -196,6 +271,52 @@ mod tests {
         assert!(parse(&raw.as_bytes()[..raw.len() - 1]).unwrap().is_none());
     }
     #[test]
+    fn extension_origins_and_json_charset_work_without_allowing_websites() {
+        for origin in [
+            "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "moz-extension://12345678-1234-1234-1234-123456789abc",
+        ] {
+            let raw = request(
+                &format!("Origin: {origin}\r\nSec-Fetch-Site: cross-site\r\n"),
+                "{}",
+            )
+            .replace(
+                "application/json\r\n",
+                "application/json; charset=UTF-8\r\n",
+            );
+            assert!(parse(raw.as_bytes()).unwrap().is_some());
+        }
+        for origin in [
+            "null",
+            "https://evil.invalid",
+            "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.evil.invalid",
+            "moz-extension://12345678-1234-1234-1234-123456789abc/evil",
+            "chrome-extension://AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        ] {
+            assert!(parse(request(&format!("Origin: {origin}\r\n"), "{}").as_bytes()).is_err());
+        }
+        assert!(parse(request("Origin: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\nOrigin: https://evil.invalid\r\n", "{}").as_bytes()).is_err());
+    }
+    #[test]
+    fn accept_resets_are_recoverable_and_dead_worker_is_visible() {
+        for kind in [
+            std::io::ErrorKind::ConnectionReset,
+            std::io::ErrorKind::ConnectionAborted,
+            std::io::ErrorKind::Interrupted,
+        ] {
+            assert!(retry_accept(&std::io::Error::from(kind)));
+        }
+        assert!(!retry_accept(&std::io::Error::from(
+            std::io::ErrorKind::PermissionDenied
+        )));
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let bridge = Bridge::with_listener(Box::new(Paired), || None, listener).unwrap();
+        bridge.alive.store(false, Ordering::Release);
+        assert_eq!(bridge.status(), Err(Error::Io));
+        assert!(bridge.latest_for(None).is_none());
+        assert_eq!(bridge.begin_pairing().err(), Some(Error::Io));
+    }
+    #[test]
     fn reject_web_origins_dns_rebinding_and_ambiguous_framing() {
         for bad in [
             request("Origin: https://evil.invalid\r\n", "{}"),
@@ -203,7 +324,6 @@ mod tests {
             request("Referer: https://evil.invalid/\r\n", "{}"),
             request("Host: evil.invalid\r\n", "{}"),
             request("Transfer-Encoding: chunked\r\n", "{}"),
-            request("Sec-Fetch-Site: cross-site\r\n", "{}"),
             request("Content-Length: 2\r\n", "{}"),
             request("", "{}").replace("127.0.0.1:19471", "evil.invalid:19471"),
             request("", "{}").replace("POST", "OPTIONS"),
@@ -260,5 +380,29 @@ mod tests {
             bridge.latest_for(Some(window)).unwrap().url,
             "https://example.invalid/signup"
         );
+    }
+    #[test]
+    fn accepted_socket_waits_for_delayed_headers_and_fragmented_body() {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let address = listener.local_addr().unwrap();
+        let _bridge = Bridge::with_listener(Box::new(Paired), || None, listener).unwrap();
+        let body = format!(
+            r#"{{"timestamp":{},"nonce":"{}","url":"https://example.invalid/"}}"#,
+            unix_seconds(),
+            "c".repeat(32)
+        );
+        let raw = request("", &body);
+        let offset = raw.find("\r\n\r\n").unwrap() + 4;
+        let mut stream = TcpStream::connect(address).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        thread::sleep(Duration::from_millis(60));
+        stream.write_all(&raw.as_bytes()[..offset]).unwrap();
+        thread::sleep(Duration::from_millis(60));
+        stream.write_all(&raw.as_bytes()[offset..]).unwrap();
+        let mut response = String::new();
+        stream.read_to_string(&mut response).unwrap();
+        assert!(response.starts_with("HTTP/1.1 204 No Content"));
     }
 }

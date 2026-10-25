@@ -42,3 +42,14 @@ Vorschlag ausdrücklich; keine behauptete aktive-Tab-/Feld-Verifikation. Gegen
 lokale Port-Impersonation, Malware im selben Konto oder manipulierte gepaarte
 Scripts besteht keine verlässliche Grenze. Native Messaging bleibt der spätere
 Zielpfad. Vollständiges [Bedrohungsmodell/Protokoll](../../browser/README.md).
+
+Review-Nachbesserung: Winsock-Sockets vor Timeout-I/O explizit blockierend;
+verzögerte Header/Body als echter TCP-Regressionstest. Kanonische Extension-
+Origins zusätzlich zur Tokenprüfung zulässig, normale Origins weiter verboten;
+VMs Origin-Entfernung im MV2-Pfad ist in
+[requests-core.js](https://github.com/violentmonkey/violentmonkey/blob/8d003838f3f3adad398fc62459929b437ca5bfa1/src/background/utils/requests-core.js)
+belegt. Engine-Metadaten sind keine Authentisierung. Mindestabstand 500 ms im
+Script/250 ms im Server verhindert Fokusfluten. Bei verlorener Pairing-Antwort
+bleibt ein vorläufiger GM-Token für eine explizite read-only Probe erhalten.
+Username-Opt-in bleibt an URL/Fenster und eine nicht verlängerbare Zehn-Sekunden-
+Frist gebunden. Echte VM-Kompatibilität bleibt manuell zu prüfen.

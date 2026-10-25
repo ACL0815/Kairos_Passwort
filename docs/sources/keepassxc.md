@@ -31,6 +31,15 @@ Neukopplungsablauf per manuellem Backup-Umbenennen und Widerruf in KeePassXC
 steht in der [Browser-Anleitung](../../browser/README.md). Vollständige
 Quellenbewertung für VM und localhost: [browser.md](browser.md).
 
+Nach dem kritischen Review: Jede Änderung an URL, Benutzername, Gruppe, UUID
+oder Passwort hebt die Bestätigung auf. Generator-/Clipboard-Fehler werden auch
+im F11-Dialog angezeigt; Saving/Accepted blockiert weitere Hotkeys, laufendes
+I/O verhindert normales Schließen. Egui-Regressionstests prüfen diese Abläufe.
+Der verzögert verarbeitete Hotkey kann weiterhin einen Fensterhinweis liefern,
+der nicht dem früher erfassten Tippziel entspricht; deshalb keine automatische
+URL-Übernahme und ausdrücklicher Warntext. Eine zuverlässige Snapshot-API wäre
+eine spätere additive Plattformänderung außerhalb dieses PR-Schreibbereichs.
+
 ---
 
 Zuständig: **PR-6**, `feat/keepassxc-browser`, Priorität 3, Basis `main` bei

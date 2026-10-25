@@ -297,7 +297,7 @@ impl KairosApp {
         }
     }
 
-    fn editor(&mut self, ui: &mut egui::Ui) {
+    fn editor(&mut self, ui: &mut egui::Ui) -> bool {
         let id = egui::Id::unique("password");
         let size = if self.compact { 23.0 } else { 27.0 };
         let segments = &self.password.segments;
@@ -324,6 +324,7 @@ impl KairosApp {
         if output.response.changed() {
             self.password.edited();
         }
+        output.response.changed()
     }
 
     fn controls(&mut self, ui: &mut egui::Ui) {
@@ -600,11 +601,7 @@ impl eframe::App for KairosApp {
         if self.keepass.flow.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(200));
         }
-        if self.keepass.flow.as_ref().is_some_and(|flow| flow.busy())
-            && ctx.input(|input| input.viewport().close_requested())
-        {
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-        }
+        self.keepass_guard_close(ctx);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
@@ -747,6 +744,16 @@ mod tests {
         );
         output.textures_delta.clear();
         output
+    }
+
+    fn has_text(shape: &egui::epaint::Shape, expected: &str) -> bool {
+        match shape {
+            egui::epaint::Shape::Text(text) => text.galley.text().contains(expected),
+            egui::epaint::Shape::Vec(shapes) => {
+                shapes.iter().any(|shape| has_text(shape, expected))
+            }
+            _ => false,
+        }
     }
 
     #[test]
@@ -1059,6 +1066,30 @@ mod tests {
             .commands
             .iter()
             .any(|command| matches!(command, egui::OutputCommand::CopyText(_))));
+    }
+
+    #[test]
+    fn f11_generator_and_protected_copy_errors_are_visible() {
+        let ctx = egui::Context::default();
+        let (mut app, clipboard) = fixture_app(&ctx);
+        app.handle_action(
+            &ctx,
+            Action::GenerateTypeKeePassXC,
+            Err(PlatformError::TargetUnavailable),
+        );
+        let output = frame(&ctx, &mut app, vec![]);
+        assert!(output
+            .shapes
+            .iter()
+            .any(|s| has_text(&s.shape, "Noch keine Wörter verfügbar")));
+        app.password.secret.push_str("PUBLIC TEST");
+        clipboard.borrow_mut().fail_copy = true;
+        ctx.memory_mut(|memory| memory.request_focus(egui::Id::unique("password")));
+        let output = frame(&ctx, &mut app, vec![key(Key::C, Modifiers::CTRL)]);
+        assert!(output
+            .shapes
+            .iter()
+            .any(|s| has_text(&s.shape, "Sicheres Kopieren fehlgeschlagen")));
     }
 
     #[test]

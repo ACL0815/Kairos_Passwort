@@ -30,6 +30,7 @@ pub enum Error {
     Expired,
     AlreadyPaired,
     Random,
+    RateLimited,
 }
 
 /// Opaque HWND/PID captured locally, never accepted from a webpage or userscript.
@@ -108,6 +109,7 @@ struct Active {
     context: Context,
     window: BrowserWindow,
     received: Instant,
+    username_until: Option<Instant>,
 }
 
 pub(crate) struct State {
@@ -116,6 +118,7 @@ pub(crate) struct State {
     pending: Option<Pending>,
     nonces: HashMap<String, Instant>,
     active: Option<Active>,
+    last_context: Option<Instant>,
 }
 
 pub(crate) type Shared = Arc<Mutex<State>>;
@@ -160,6 +163,7 @@ impl State {
             pending: None,
             nonces: HashMap::new(),
             active: None,
+            last_context: None,
         })
     }
     fn status(&self) -> PairingStatus {
@@ -202,7 +206,7 @@ impl State {
         window: Option<BrowserWindow>,
     ) -> Result<(), Error> {
         let pair = path == "/v1/pair";
-        if !matches!(path, "/v1/pair" | "/v1/context" | "/v1/clear") {
+        if !matches!(path, "/v1/pair" | "/v1/context" | "/v1/clear" | "/v1/probe") {
             return Err(Error::Invalid);
         }
         if pair {
@@ -236,6 +240,15 @@ impl State {
         if self.nonces.contains_key(&message.nonce) {
             return Err(Error::Replay);
         }
+        if matches!(path, "/v1/context" | "/v1/clear") {
+            if self
+                .last_context
+                .is_some_and(|last| last.elapsed() < Duration::from_millis(250))
+            {
+                return Err(Error::RateLimited);
+            }
+            self.last_context = Some(Instant::now());
+        }
         if self.nonces.len() >= 1024 {
             return Err(Error::Invalid);
         }
@@ -255,17 +268,20 @@ impl State {
             self.store.save(&key)?;
             self.token = Some(key);
             self.pending = None;
-        } else if path == "/v1/clear" {
-            if message.client_token.is_some() {
+        } else if matches!(path, "/v1/clear" | "/v1/probe") {
+            if message.client_token.is_some() || message.url.is_some() || message.username.is_some()
+            {
                 return Err(Error::Invalid);
             }
-            self.active = None;
+            if path == "/v1/clear" {
+                self.active = None;
+            }
         } else {
             if message.client_token.is_some() {
                 return Err(Error::Invalid);
             }
             // Clear first so rejected/new contexts cannot leave a previous tab usable.
-            self.active = None;
+            let previous = self.active.take();
             let url = normalize_url(message.url.as_deref().ok_or(Error::Invalid)?)?;
             if message
                 .username
@@ -275,13 +291,25 @@ impl State {
                 return Err(Error::Invalid);
             }
             if let Some(window) = window {
+                let mut username = message.username;
+                let mut username_until = username
+                    .as_ref()
+                    .map(|_| Instant::now() + Duration::from_secs(10));
+                if username.is_none() {
+                    if let Some(previous) = previous.filter(|a| {
+                        a.window == window
+                            && a.context.url == url
+                            && a.username_until.is_some_and(|until| Instant::now() < until)
+                    }) {
+                        username = previous.context.username;
+                        username_until = previous.username_until;
+                    }
+                }
                 self.active = Some(Active {
-                    context: Context {
-                        url,
-                        username: message.username,
-                    },
+                    context: Context { url, username },
                     window,
                     received: Instant::now(),
+                    username_until,
                 });
             }
         }
