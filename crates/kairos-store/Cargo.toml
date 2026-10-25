@@ -8,3 +8,12 @@ description = "Encrypted external word lists backed by SQLCipher"
 
 [dependencies]
 kairos-core.workspace = true
+rand = "0.8.5"
+rusqlite = { version = "0.41.0", default-features = false, features = ["libsqlite3-sys", "bundled-sqlcipher-vendored-openssl"] }
+sha2 = "0.10.9"
+thiserror = "2.0"
+tempfile = "3.23"
+zeroize.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
