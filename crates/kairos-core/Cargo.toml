@@ -7,4 +7,10 @@ publish.workspace = true
 description = "Shared password generation contract, profiles, and entropy"
 
 [dependencies]
+# The fallible Uniform adapter's termination proof depends on this sampler;
+# inspect it and rerun boundary tests before updating, including during rebases.
+rand = { version = "=0.9.5", default-features = false, features = ["os_rng", "unbiased"] }
 zeroize.workspace = true
+
+[dev-dependencies]
+rand = { version = "=0.9.5", default-features = false, features = ["std_rng"] }
