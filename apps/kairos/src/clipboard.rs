@@ -19,6 +19,16 @@ struct Lease {
 
 #[cfg(windows)]
 const LEASE_FORMAT: &str = "Kairos.Password.ClipboardLease";
+#[cfg(windows)]
+const PRIVACY_FORMATS: [&str; 2] = ["CanIncludeInClipboardHistory", "CanUploadToCloudClipboard"];
+#[cfg(windows)]
+const MONITOR_FORMAT: &str = "ExcludeClipboardContentFromMonitorProcessing";
+
+/// Adapter seam for the later kairos-platform integration and deterministic UI tests.
+pub(crate) trait ClipboardAccess {
+    fn copy(&self, text: &str) -> Result<(), ()>;
+    fn paste(&self) -> Result<Zeroizing<String>, ()>;
+}
 
 enum Command {
     Copy(Zeroizing<String>, SyncSender<Result<(), ()>>),
@@ -44,9 +54,11 @@ impl ProtectedClipboard {
             worker: Some(worker),
         }
     }
+}
 
-    pub fn copy(&self, text: &str) -> Result<(), ()> {
-        if text.is_empty() || text.contains('\0') {
+impl ClipboardAccess for ProtectedClipboard {
+    fn copy(&self, text: &str) -> Result<(), ()> {
+        if text.is_empty() || text.chars().any(char::is_control) {
             return Err(());
         }
         let (sender, receiver) = mpsc::sync_channel(1);
@@ -56,7 +68,7 @@ impl ProtectedClipboard {
         receiver.recv().map_err(|_| ())?
     }
 
-    pub fn paste(&self) -> Result<Zeroizing<String>, ()> {
+    fn paste(&self) -> Result<Zeroizing<String>, ()> {
         let (sender, receiver) = mpsc::sync_channel(1);
         self.sender.send(Command::Paste(sender)).map_err(|_| ())?;
         receiver.recv().map_err(|_| ())?
@@ -127,8 +139,13 @@ fn set_protected(text: &str) -> Result<Lease, ()> {
     if current.as_slice() != text.as_bytes() {
         return Err(());
     }
-    if result.is_err() {
+    if result.is_err() || !privacy_formats_present() {
         // arboard may have written the text before a protection format failed.
+        let _ = clipboard_win::raw::empty();
+        return Err(());
+    }
+    let monitoring = clipboard_win::register_format(MONITOR_FORMAT).ok_or(())?;
+    if clipboard_win::raw::set_without_clear(monitoring.get(), b"1").is_err() {
         let _ = clipboard_win::raw::empty();
         return Err(());
     }
@@ -151,6 +168,18 @@ fn set_protected(text: &str) -> Result<Lease, ()> {
             marker,
         })
         .ok_or(())
+}
+
+#[cfg(windows)]
+fn privacy_formats_present() -> bool {
+    PRIVACY_FORMATS.iter().all(|name| {
+        let Some(format) = clipboard_win::register_format(name) else {
+            return false;
+        };
+        let mut data = Vec::new();
+        clipboard_win::raw::get_vec(format.get(), &mut data).is_ok()
+            && data.get(..4) == Some([0u8; 4].as_slice())
+    })
 }
 
 #[cfg(windows)]
@@ -199,7 +228,9 @@ mod tests {
     fn empty_and_nul_containing_values_do_not_touch_the_clipboard() {
         let clipboard = ProtectedClipboard::new();
         assert!(clipboard.copy("").is_err());
-        assert!(clipboard.copy("fake\0data").is_err());
+        for text in ["fake\0data", "a\nb", "a\rb", "a\tb"] {
+            assert!(clipboard.copy(text).is_err());
+        }
     }
 
     #[cfg(windows)]
@@ -210,13 +241,16 @@ mod tests {
         clipboard.copy("KAIROS PUBLIC CLIPBOARD FIXTURE").unwrap();
         {
             let _lock = clipboard_win::Clipboard::new_attempts(10).unwrap();
-            for name in ["CanIncludeInClipboardHistory", "CanUploadToCloudClipboard"] {
+            assert!(privacy_formats_present());
+            for name in PRIVACY_FORMATS {
                 let format = clipboard_win::register_format(name).unwrap();
                 let mut data = Vec::new();
                 clipboard_win::raw::get_vec(format.get(), &mut data).unwrap();
                 assert!(data.iter().all(|byte| *byte == 0));
                 assert!(data.len() >= 4);
             }
+            let monitoring = clipboard_win::register_format(MONITOR_FORMAT).unwrap();
+            assert!(clipboard_win::is_format_avail(monitoring.get()));
         }
         let mut reader = arboard::Clipboard::new().unwrap();
         let deadline = Instant::now() + Duration::from_secs(3);

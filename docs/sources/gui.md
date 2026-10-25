@@ -11,12 +11,12 @@ und das ausdrücklich lizenzierte Schrift-Asset sind gesondert genannt.
 | egui/eframe 0.37.0 | [Tag](https://github.com/emilk/egui/tree/0.37.0), [Code-Editor](https://github.com/emilk/egui/blob/0.37.0/crates/egui_demo_lib/src/demo/code_editor.rs) | MIT OR Apache-2.0; Assets separat | `eframe::App`, `TextEdit::layouter`, `LayoutJob` | Native Rust-Schleife und farbige Bereiche mit explizitem UI-Zustand; normale Crate-Abhängigkeit | 5 |
 | Password Tech | [Windows-Oberfläche](https://github.com/cthoeing/passwordtech/tree/c77cade188d9b307302d0f367c4f95ceb3aebc29/src/main) | GPL-2.0-or-later | `src/main/` | Direkter Generator-Ablauf, editierbares Ergebnis und wenige Kopieraktionen | 4 |
 | KeePassXC 2.8.0 | [PasswordWidget](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/gui/PasswordWidget.cpp), [Clipboard](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/gui/Clipboard.cpp) | Die verlinkten Dateien GPL-2.0 OR GPL-3.0 laut Header | `PasswordWidget`, `Clipboard::setText`, `clearCopiedText` | Generierung, Darstellung und Kopierlebensdauer getrennt; Windows-Kennzeichnungen und Timeout für sensible Inhalte | 5 |
-| KeePassXC 2.7.12 | [EntryPreviewWidget](https://github.com/keepassxreboot/keepassxc/blob/2.7.12/src/gui/EntryPreviewWidget.cpp#L263-L297) | GPL-2.0-or-later laut Projektlizenz; Dateiheader beachten | `EntryPreviewWidget::setPasswordVisible` | Zeichentypen farblich unterscheidbar machen und eine dunkle Palette berücksichtigen | 5 |
+| KeePassXC 2.7.12 | [EntryPreviewWidget](https://github.com/keepassxreboot/keepassxc/blob/2.7.12/src/gui/EntryPreviewWidget.cpp#L263-L297) | GPL-2.0 OR GPL-3.0 laut geprüftem Dateiheader | `EntryPreviewWidget::setPasswordVisible` | Zeichentypen farblich unterscheidbar machen und eine dunkle Palette berücksichtigen | 5 |
 | Bitwarden browser-v2026.10.0 | [Farbige Inline-Anzeige](https://github.com/bitwarden/clients/blob/browser-v2026.10.0/apps/browser/src/autofill/overlay/inline-menu/pages/list/autofill-inline-menu-list.ts#L411-L444) | GPL-3.0; verlinkter Pfad außerhalb `bitwarden_license` | `buildColorizedPasswordElement` | Ziffern und Sonderzeichen mit eigenen Klassen darstellen; reine Prinzipienreferenz | 4 |
 | egui 0.37.0 TextEdit | [Builder](https://github.com/emilk/egui/blob/0.37.0/crates/egui/src/widgets/text_edit/builder.rs), [State](https://github.com/emilk/egui/blob/0.37.0/crates/egui/src/widgets/text_edit/state.rs) | MIT OR Apache-2.0 | `password`, `clear_undoer`, `store`, eigener Layouter | Passwortmodus verhindert normales Kopieren; Undo muss separat geleert werden. Ein eigener sichtbarer Layouter erzeugt Klartext-Layouts | 5 |
 | catppuccin-egui | [Commit ffb92d2](https://github.com/catppuccin/egui/blob/ffb92d2da71b72bde41d83bbc0a46917de97b486/src/lib.rs) | MIT | `set_theme`, `make_widget_visual` | Semantische Rollen für Hintergrund, Text, Auswahl und Fokus statt zufälliger Einzelwerte | 2 |
 | arboard 3.7.0 | [Commit 5f5c863](https://github.com/1Password/arboard/blob/5f5c8637911ba219edee619105a19b4f74e66a9f/src/platform/windows.rs) | MIT OR Apache-2.0 | `SetExtWindows`, `Set::text`, `OpenClipboard` | Beide Windows-Ausschlussformate über erprobte Crate setzen; der Windows-Adapter besitzt keinen HWND-Eigentümer | 5 |
-| clipboard-win 5.4.3 | [Versionierter Quellstand](https://docs.rs/crate/clipboard-win/5.4.3/source/src/raw.rs) | MIT laut Crate-Metadaten | `Clipboard`, `raw::seq_num`, `get_string`, `get_vec`, `empty` | RAII-Sperre für eine gemeinsame Prüfung und bedingte Löschung; normale Windows-Abhängigkeit | 5 |
+| clipboard-win 5.4.3 | [Commit ed27008](https://github.com/DoumanAsh/clipboard-win/tree/ed27008ae5d1f10cfbb266de039f0fb35fd05a56), [Cargo.toml](https://github.com/DoumanAsh/clipboard-win/blob/ed27008ae5d1f10cfbb266de039f0fb35fd05a56/Cargo.toml) | BSL-1.0 (Boost Software License), gegen Cargo-Metadaten geprüft | `Clipboard`, `raw::seq_num`, `get_string`, `get_vec`, `empty` | RAII-Sperre für gemeinsame Prüfung und bedingte Löschung; permissive normale Windows-Abhängigkeit, bereits transitiv von arboard benötigt | 5 |
 
 ## Übertragung und Grenzen
 
@@ -46,12 +46,20 @@ gesetzt. Markierung und Sequenznummer begrenzen die spätere Löschung auf
 unveränderte eigene Inhalte. Prüfung und Leeren sind atomar gegenüber fremden
 Clipboard-Schreibern. Ein eigener Worker hält den Timeout unabhängig von der
 Fensterdarstellung. Der Adapter wird später durch `kairos-platform` ersetzt.
+Die beiden Windows-Ausschlussformate werden nach dem Schreiben zur Laufzeit
+auf einen DWORD-Wert 0 geprüft. Zusätzlich wird KeePassXCs Kennzeichnung gegen
+Clipboard-Monitorverarbeitung gesetzt. Die kleine App-Schnittstelle
+`ClipboardAccess` trennt UI-Tests und die spätere Plattformimplementierung.
 
 Stichproben am Original: Header und Windows-Formate in KeePassXC 2.8.0,
 `PasswBoxChange`/`ShowPasswInfo` und Lizenzheader des gepinnten Password-Tech-
 `Main.cpp`, arboards Windows-Implementierung und Cargo-VCS-Commit, eguis
 TextEdit-Undoer sowie JetBrains README/OFL. Der native Clipboard-Test prüft
 die tatsächlichen Formate und den Erhalt späterer Inhalte unter Windows.
+Nach dem kritischen Review wurden **alle** Lizenzzellen erneut gegen die
+jeweiligen Crate-Metadaten, Dateiheader oder gepinnten Lizenzdateien geprüft.
+Dabei wurden die ursprünglichen falschen Angaben zu clipboard-win (BSL-1.0)
+und dem KeePassXC-2.7.12-Dateiheader (GPL-2.0 OR GPL-3.0) korrigiert.
 
 ## Passwortschrift
 
@@ -72,11 +80,19 @@ Die Ziffernfarbe unterstützt diese Unterscheidung zusätzlich. Die anderen
 Schriften sind geeignete Alternativen, bieten im geprüften Stand aber keinen
 belegten Vorteil, der weitere Assets oder Laufzeit-Konfiguration rechtfertigt.
 
-Nur dieses Schrift-Asset wird übernommen. Herkunft, SHA-256 und unveränderter
+Nur dieses Schrift-Asset wird direkt übernommen. Herkunft, SHA-256 und unveränderter
 vollständiger Lizenztext liegen unter
 [`apps/kairos/assets/fonts/`](../../apps/kairos/assets/fonts/README.md).
 Eine Systeminstallation ist nicht erforderlich. Das lokale Stock-Referenzbild
 wurde nur betrachtet und bleibt außerhalb des Repositorys.
+
+eguis `default_fonts` bindet zusätzlich Ubuntu Light für die proportionale UI,
+Hack als Monospace-Fallback und egui-Sonderglyphen über `epaint_default_fonts`
+0.37.0 ein. Die Assets sind im
+[gleichen egui-Tag](https://github.com/emilk/egui/tree/0.37.0/crates/epaint_default_fonts/fonts)
+nachprüfbar. UFL-, Hack-/Bitstream-Vera-, MIT- und vorsorglich Noto-OFL-Texte
+liegen unverändert mit Herkunft unter
+[`assets/fonts/egui-defaults/`](../../apps/kairos/assets/fonts/egui-defaults/README.md).
 
 Die drei Recherche-Aufträge liefen auf `codex/gpt-6-luna`, jeweils mit
 `reasoningEffort=xhigh` und `serviceTier=priority`. Schrift, Generator-UIs und

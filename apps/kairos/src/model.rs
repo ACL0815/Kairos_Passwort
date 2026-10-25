@@ -3,9 +3,12 @@
 //! Modelled after: KeePassXC https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/gui/PasswordWidget.cpp
 //! The GUI retains one current result and invalidates its assessment after editing.
 
-use eframe::egui::{text::LayoutJob, Color32, FontId, TextFormat};
+use eframe::egui::{text::LayoutJob, Color32, FontId, Stroke, TextFormat};
 use kairos_core::{GenerateError, GeneratedPassword, GeneratorConfig, Segment, SegmentKind};
 use zeroize::{Zeroize, Zeroizing};
+
+pub const MAX_SECRET_CHARS: usize = 4096;
+const SECRET_BUFFER_BYTES: usize = MAX_SECRET_CHARS * 4;
 
 pub const SEPARATORS: [char; 20] = [
     '-', '+', '.', ',', '#', '*', '!', '?', '_', ':', ';', '/', '(', ')', '\'', '"', '$', '%', '&',
@@ -29,7 +32,7 @@ pub struct PasswordState {
 impl Default for PasswordState {
     fn default() -> Self {
         Self {
-            secret: Zeroizing::new(String::with_capacity(512)),
+            secret: Zeroizing::new(String::with_capacity(SECRET_BUFFER_BYTES)),
             segments: Vec::new(),
             assessment: Assessment::Unavailable,
             message: "Generator und deutsche Wortliste werden vorbereitet.",
@@ -42,7 +45,14 @@ impl PasswordState {
         self.clear();
         match result {
             Ok(result) => {
-                self.secret = result.secret;
+                if result.secret.chars().count() > MAX_SECRET_CHARS
+                    || result.secret.chars().any(char::is_control)
+                {
+                    self.message = "Das erzeugte Passwort ist zu lang oder enthält nicht darstellbare Steuerzeichen.";
+                    return;
+                }
+                // Keep the editor allocation; the core's temporary is zeroized on drop.
+                self.secret.push_str(&result.secret);
                 self.segments = result.segments;
                 self.assessment = if result.entropy_bits.is_finite() && result.entropy_bits >= 0.0 {
                     Assessment::Generated(result.entropy_bits)
@@ -53,7 +63,7 @@ impl PasswordState {
             }
             Err(error) => {
                 self.message = match error {
-                    GenerateError::NotImplemented => "Der Generator ist noch nicht verfügbar. Die Oberfläche ist bereit; Core und Wortliste folgen mit PR-1/PR-2.",
+                    GenerateError::NotImplemented => "Der Generator ist noch nicht verfügbar. Die Oberfläche ist bereit; Generator und deutsche Wortliste werden noch vorbereitet.",
                     GenerateError::EmptySource => "Noch keine Wörter verfügbar. Bitte zuerst eine Wortliste einbinden.",
                     GenerateError::InvalidConfig => "Diese Auswahl ist nicht möglich. Bitte weniger Trenner ausschließen.",
                     GenerateError::RandomSourceUnavailable => "Windows konnte keinen sicheren Zufall liefern. Bitte erneut versuchen.",
@@ -116,6 +126,11 @@ pub fn password_layout(text: &str, segments: &[Segment], size: f32) -> LayoutJob
             TextFormat {
                 font_id: FontId::monospace(size),
                 color: segment_color(kind),
+                underline: if kind == SegmentKind::Uppercase {
+                    Stroke::new(1.0, segment_color(kind))
+                } else {
+                    Stroke::NONE
+                },
                 ..Default::default()
             },
         );
@@ -274,5 +289,34 @@ mod tests {
         assert_eq!(config.excluded_chars, ['-', '=']);
         apply_exclusions(&mut config, &[false; 20]);
         assert!(config.excluded_chars.is_empty());
+    }
+
+    #[test]
+    fn generated_results_and_maximum_utf8_edits_keep_the_reserved_allocation() {
+        let mut state = PasswordState::default();
+        let pointer = state.secret.as_ptr();
+        let capacity = state.secret.capacity();
+        state.set_result(Ok(generated()));
+        assert_eq!(state.secret.as_ptr(), pointer);
+        assert_eq!(state.secret.capacity(), capacity);
+        state.clear();
+        state.secret.push_str(&"🦀".repeat(MAX_SECRET_CHARS));
+        state.edited();
+        assert_eq!(state.secret.as_ptr(), pointer);
+        assert_eq!(state.secret.capacity(), capacity);
+        state.set_result(Ok(generated()));
+        assert_eq!(state.secret.as_ptr(), pointer);
+    }
+
+    #[test]
+    fn unsafe_or_oversized_core_results_are_not_displayed() {
+        for text in ["a\nb".to_owned(), "x".repeat(MAX_SECRET_CHARS + 1)] {
+            let mut result = generated();
+            result.secret = Zeroizing::new(text);
+            let mut state = PasswordState::default();
+            state.set_result(Ok(result));
+            assert!(state.secret.is_empty());
+            assert!(matches!(state.assessment, Assessment::Unavailable));
+        }
     }
 }

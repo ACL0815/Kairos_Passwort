@@ -6,7 +6,10 @@ Großbuchstaben in Cyan und Wörter in hellem Blauweiß. Die Core-Segmente
 verwenden UTF-8-Bytebereiche; Umlaute verschieben die Hervorhebung nicht.
 
 Profilwahl 0–12 und die 20 ausschließbaren Trenner werden direkt in
-`GeneratorConfig` übertragen. Eine Änderung erzeugt ein neues Ergebnis.
+`GeneratorConfig` übertragen. Bei einem unveränderten Generatorergebnis
+erzeugt eine Einstellungsänderung sofort neu. Manuelle Nacharbeit bleibt
+erhalten; ein Hinweis erklärt, dass neue Einstellungen erst beim nächsten
+„Neu generieren“ gelten.
 Die Bitanzeige und der Stärke-Ring zeigen ausschließlich `GeneratedPassword`-
 Metadaten. Nach manueller Bearbeitung lautet der Status dauerhaft
 „bearbeitet – nicht mehr bewertbar“, bis erneut generiert wird.
@@ -40,9 +43,15 @@ spätere Hotkey-Verdrahtung und stellt ein minimiertes Fenster wieder her.
 
 Die Anwendung hält ein aktuelles Passwort in `Zeroizing<String>`, ohne Logs,
 Dateispeicherung oder Generatorverlauf. Der Puffer wird vor dem Ersetzen und
-beim Freigeben überschrieben. egui-Persistenz ist deaktiviert.
+beim Freigeben überschrieben. Der Editor behält seine vorab reservierte
+16-KiB-Allokation auch nach Generierungen. Das Limit von 4096 Unicode-Zeichen
+passt selbst bei vier UTF-8-Bytes pro Zeichen hinein. Überlange oder
+steuerzeichenhaltige Core-Ergebnisse werden abgewiesen. egui-Persistenz ist deaktiviert.
 
-Das sichtbar farbige Feld nutzt `TextEdit::password(true)` mit eigenem Layouter.
+Das sichtbar farbige Feld nutzt ein einzeiliges `TextEdit::password(true)` mit
+eigenem Layouter und visuellem Zeilenumbruch. Enter fügt keinen Zeilenumbruch
+in das Geheimnis ein. Beim Einfügen werden Steuerzeichen einschließlich
+CR/LF entfernt; der Kopieradapter weist steuerzeichenhaltige Werte ab.
 Dadurch exportiert egui den Feldinhalt nicht über die normale Kopieraktion
 oder eine Textauswahl-Meldung. Der Undoer wird nach **jedem** Frame geleert,
 beim Neugenerieren wird der Editorzustand entfernt. Es gibt absichtlich kein
@@ -57,17 +66,30 @@ Grafikspeicher, Windows-Zwischenablage, Auslagerung und Dumps lassen sich hier
 nicht vollständig löschen. Diese GUI beansprucht keine vollständige
 Speicherhärtung; dafür ist PR-9 vorgesehen. Accessibility-Anbindung und
 Inspektionsserver sind nicht aktiviert, um keine zusätzliche Klartextausgabe
-des eigenen Layouters zu eröffnen.
+des eigenen Layouters zu eröffnen. Konkret erzeugt der Einfügepfad aus einem
+`Zeroizing<String>` einen normalen `Event::Paste(String)`; arboard erzeugt beim
+Schreiben außerdem eine normale UTF-16-Kopie. Diese fremden/intermediären
+Allokationen werden nicht sicher überschrieben. Windows-Fenstervorschauen,
+Alt-Tab und Bildschirmaufnahmen können das sichtbare Passwort zeigen; ein
+Display-Affinity-Schutz gehört in die spätere Plattform-/Schutzintegration.
 
 Der **Übergangsadapter** in `clipboard.rs` wird im späteren Verdrahtungs-PR
 durch `kairos-platform` ersetzt. Er verwendet arboard 3.7.0 mit Windows-
-Kennzeichnungen gegen Verlauf und Cloud-Sync. Ein Worker löscht nach 30 s
+Kennzeichnungen gegen Verlauf und Cloud-Sync und prüft beide DWORD-0-Formate
+zur Laufzeit. Zusätzlich wird die Kennzeichnung gegen Clipboard-Monitor-
+Verarbeitung gesetzt. Ein Worker löscht nach 30 s
 auch bei minimiertem Fenster. Die Prüfung von Sequenznummer und eigener Markierung
 sowie das Leeren erfolgen unter derselben Windows-Zwischenablagesperre.
 Spätere Inhalte anderer Anwendungen bleiben erhalten. Bei einer belegten
 Zwischenablage wird die Timeout-Löschung erneut versucht. Beim regulären
 Beenden erfolgt ein letzter Löschversuch. Ein Prozessabsturz beendet den
-Worker und kann den Timeout verhindern. Kopierfehler lassen das Fenster
+Worker und kann den Timeout verhindern. Zwischen arboards Schreiben und dem
+anschließenden erneuten Öffnen liegt eine kurze Lücke. Scheitert der zweite
+Zugriff, kann bereits geschützter Text in der Zwischenablage stehen, ohne
+dass der Timeout registriert wurde. In diesem Fall wird ein Kopierfehler
+gemeldet. `clipboard-win` 5.4.3 pausiert bei seinen Öffnungsversuchen jeweils
+5 ms; die gegenteilige ältere Kommentarstelle in arboard ist hier überholt.
+Kopierfehler lassen das Fenster
 offen; es gibt keinen ungeschützten Fallback. Programme müssen die Windows-
 Kennzeichnungen respektieren; bereits ausgelesene Kopien werden nicht entfernt.
 
@@ -81,6 +103,11 @@ Abschreiben. Die explizite NL-Variante besitzt keine Ligaturen. `5/S` bleiben
 zusätzlich durch die Ziffernfarbe unterscheidbar. Auswahl und Alternativen
 stehen in [gui.md](../../docs/sources/gui.md); der vollständige Lizenztext
 liegt in [assets/fonts/OFL.txt](assets/fonts/OFL.txt).
+Die durch egui eingebetteten Standardschriften für proportionale UI und
+Fallbacks besitzen eigene Lizenztexte. Sie werden mit Herkunft unter
+[assets/fonts/egui-defaults/](assets/fonts/egui-defaults/README.md) mitgeliefert.
+Die verwendeten Schriftlizenztexte sind zusätzlich in die EXE eingebettet und
+in der Vollansicht über „Schriftlizenzen“ lesbar.
 
 ## Tests und öffentliche Demo
 
@@ -120,6 +147,7 @@ nicht zur Verfügung. Screenshots bleiben lokal unter `target/`.
 - **KeePassXC 2.8.0**, dateibezogen GPL-2.0 OR GPL-3.0. Lesbarkeit und Zwischenablage als eigener Lebenszyklus.
 - **Password Tech**, GPL-2.0-or-later. Unmittelbar erreichbare Generierungs- und Kopieraktionen.
 - **arboard 3.7.0**, MIT/Apache-2.0. Bestehende Windows-Zwischenablageimplementierung als normale Crate-Abhängigkeit.
+- **clipboard-win 5.4.3**, BSL-1.0. Bereits arboards Windows-Abhängigkeit; RAII-Sperre, Sequenznummer und bedingtes Leeren.
 - **JetBrains Mono 2.304**, SIL OFL 1.1. Unverändertes Font-Asset mit mitgeliefertem Lizenztext.
 
 Es wurde kein fremder Anwendungscode kopiert. Konkrete Quellstände, Module,

@@ -13,34 +13,47 @@ mod theme;
 #[cfg(all(feature = "demo", debug_assertions))]
 mod demo;
 
-use clipboard::ProtectedClipboard;
+use clipboard::{ClipboardAccess, ProtectedClipboard};
 use eframe::egui::{self, Color32, Key, Modifiers, RichText};
 #[cfg(not(all(feature = "demo", debug_assertions)))]
 use kairos_core::generate;
 use kairos_core::{GeneratorConfig, ProfileId, WordSource};
-use model::{apply_exclusions, password_layout, Assessment, PasswordState, SEPARATORS};
+use model::{
+    apply_exclusions, password_layout, Assessment, PasswordState, MAX_SECRET_CHARS, SEPARATORS,
+};
 
 pub struct KairosApp {
     source: Box<dyn WordSource>,
     config: GeneratorConfig,
     excluded: [bool; 20],
     password: PasswordState,
-    clipboard: ProtectedClipboard,
+    clipboard: Box<dyn ClipboardAccess>,
     notice: &'static str,
     compact: bool,
+    show_licenses: bool,
 }
 
 impl KairosApp {
     pub fn new(ctx: &egui::Context, source: Box<dyn WordSource>, compact: bool) -> Self {
+        Self::with_clipboard(ctx, source, compact, Box::new(ProtectedClipboard::new()))
+    }
+
+    fn with_clipboard(
+        ctx: &egui::Context,
+        source: Box<dyn WordSource>,
+        compact: bool,
+        clipboard: Box<dyn ClipboardAccess>,
+    ) -> Self {
         theme::install(ctx);
         let mut app = Self {
             source,
             config: GeneratorConfig::default(),
             excluded: [false; 20],
             password: PasswordState::default(),
-            clipboard: ProtectedClipboard::new(),
+            clipboard,
             notice: "",
             compact,
+            show_licenses: false,
         };
         #[cfg(all(feature = "demo", debug_assertions))]
         {
@@ -93,15 +106,16 @@ impl KairosApp {
             job.wrap.max_width = width;
             ui.fonts_mut(|fonts| fonts.layout_job(job))
         };
-        let mut output = egui::TextEdit::multiline(&mut *self.password.secret)
+        let mut output = egui::TextEdit::singleline(&mut *self.password.secret)
             .id(id)
             .password(true)
+            .clip_text(false)
             .layouter(&mut layouter)
             .font(egui::FontId::monospace(size))
             .desired_width(f32::INFINITY)
             .desired_rows(if self.compact { 2 } else { 3 })
             .hint_text("Hier erscheint dein Wortpasswort")
-            .char_limit(4096)
+            .char_limit(MAX_SECRET_CHARS)
             .show(ui);
         // egui feeds String snapshots even for password fields. Clear every frame;
         // its internal temporary allocations cannot be reliably zeroized by us.
@@ -151,7 +165,7 @@ impl KairosApp {
             }
         });
         if previous != self.config.profile {
-            self.regenerate(ui.ctx());
+            self.settings_changed(ui.ctx());
         }
     }
 
@@ -184,14 +198,15 @@ impl KairosApp {
             });
         if changed {
             apply_exclusions(&mut self.config, &self.excluded);
-            self.regenerate(ui.ctx());
+            self.settings_changed(ui.ctx());
         }
     }
 
     pub fn draw(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
-        let paste = ctx.input_mut(|input| input.consume_key(Modifiers::CTRL, Key::V));
-        if paste && ctx.memory(|memory| memory.has_focus(egui::Id::unique("password"))) {
+        let paste = ctx.memory(|memory| memory.has_focus(egui::Id::unique("password")))
+            && ctx.input_mut(|input| input.consume_key(Modifiers::CTRL, Key::V));
+        if paste {
             match self.clipboard.paste() {
                 Ok(text) => ctx.input_mut(|input| {
                     input
@@ -202,6 +217,13 @@ impl KairosApp {
                 Err(()) => self.notice = "Die Zwischenablage enthält keinen verfügbaren Text.",
             }
         }
+        ctx.input_mut(|input| {
+            for event in &mut input.events {
+                if let egui::Event::Paste(text) | egui::Event::Text(text) = event {
+                    text.retain(|character| !character.is_control());
+                }
+            }
+        });
         let regenerate = ctx.input_mut(|input| input.consume_key(Modifiers::CTRL, Key::R));
         let copy = ctx.input_mut(|input| {
             let copy = input
@@ -266,9 +288,51 @@ impl KairosApp {
                     if ui.add_enabled(available, egui::Button::new("Kopieren und zurückspringen")).clicked() { self.copy(&ctx, true); }
                 });
                 if !self.notice.is_empty() { ui.label(RichText::new(self.notice).color(theme::CYAN).size(14.0)); }
-                if !self.compact { ui.label(RichText::new("Kein Passwortverlauf · Kein Cloud-Sync · Zwischenablage 30 s").color(theme::MUTED).size(12.0)); }
+                if !self.compact {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(RichText::new("Kein Passwortverlauf · Kein Cloud-Sync · Zwischenablage 30 s").color(theme::MUTED).size(12.0));
+                        if ui.small_button(RichText::new("Schriftlizenzen").size(12.0)).clicked() { self.show_licenses = true; }
+                    });
+                }
             });
         });
+        egui::Window::new("Schriftlizenzen")
+            .open(&mut self.show_licenses)
+            .vscroll(true)
+            .show(&ctx, |ui| {
+                for (title, license) in [
+                    (
+                        "JetBrains Mono NL · SIL OFL 1.1",
+                        include_str!("../assets/fonts/OFL.txt"),
+                    ),
+                    (
+                        "Ubuntu Light · Ubuntu Font Licence 1.0",
+                        include_str!("../assets/fonts/egui-defaults/UFL.txt"),
+                    ),
+                    (
+                        "Hack · MIT / Bitstream Vera",
+                        include_str!("../assets/fonts/egui-defaults/Hack-Regular.txt"),
+                    ),
+                    (
+                        "egui-Icons · MIT",
+                        include_str!(
+                            "../assets/fonts/egui-defaults/emoji-icon-font-mit-license.txt"
+                        ),
+                    ),
+                ] {
+                    egui::CollapsingHeader::new(title).show(ui, |ui| {
+                        ui.label(license);
+                    });
+                }
+            });
+    }
+
+    fn settings_changed(&mut self, ctx: &egui::Context) {
+        if self.password.assessment == Assessment::Edited {
+            self.notice = "Deine Nacharbeit bleibt erhalten. Neue Einstellungen gelten beim nächsten Neu generieren.";
+        } else {
+            self.regenerate(ctx);
+        }
     }
 }
 
@@ -301,7 +365,60 @@ fn profile_name(profile: u8) -> &'static str {
 mod tests {
     use super::*;
     use kairos_core::{GeneratedPassword, Language};
+    use std::{cell::RefCell, rc::Rc};
     use zeroize::Zeroizing;
+
+    #[derive(Default)]
+    struct FakeClipboardState {
+        copied: Vec<String>,
+        paste: String,
+        paste_calls: usize,
+        fail_copy: bool,
+    }
+
+    struct FakeClipboard(Rc<RefCell<FakeClipboardState>>);
+
+    impl ClipboardAccess for FakeClipboard {
+        fn copy(&self, text: &str) -> Result<(), ()> {
+            let mut state = self.0.borrow_mut();
+            if state.fail_copy {
+                return Err(());
+            }
+            state.copied.push(text.into());
+            Ok(())
+        }
+        fn paste(&self) -> Result<Zeroizing<String>, ()> {
+            let mut state = self.0.borrow_mut();
+            state.paste_calls += 1;
+            Ok(Zeroizing::new(state.paste.clone()))
+        }
+    }
+
+    fn fixture_app(ctx: &egui::Context) -> (KairosApp, Rc<RefCell<FakeClipboardState>>) {
+        let clipboard = Rc::new(RefCell::new(FakeClipboardState::default()));
+        let mut app = KairosApp::with_clipboard(
+            ctx,
+            Box::new(EmptySource),
+            false,
+            Box::new(FakeClipboard(clipboard.clone())),
+        );
+        app.password.set_result(Ok(GeneratedPassword {
+            secret: Zeroizing::new("Öl-7Wiese".into()),
+            segments: vec![],
+            entropy_bits: 70.0,
+        }));
+        (app, clipboard)
+    }
+
+    fn key(key: Key, modifiers: Modifiers) -> egui::Event {
+        egui::Event::Key {
+            key,
+            modifiers,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+        }
+    }
 
     struct EmptySource;
     impl WordSource for EmptySource {
@@ -404,5 +521,97 @@ mod tests {
         for value in 0..=12 {
             assert!(!profile_name(ProfileId::new(value).unwrap().get()).is_empty());
         }
+    }
+
+    #[test]
+    fn copy_shortcut_uses_the_entire_secret_without_egui_clipboard_export() {
+        let ctx = egui::Context::default();
+        let (mut app, clipboard) = fixture_app(&ctx);
+        let output = frame(&ctx, &mut app, vec![key(Key::C, Modifiers::CTRL)]);
+        assert_eq!(clipboard.borrow().copied, ["Öl-7Wiese"]);
+        assert!(!output
+            .platform_output
+            .commands
+            .iter()
+            .any(|command| matches!(command, egui::OutputCommand::CopyText(_))));
+    }
+
+    #[test]
+    fn copy_and_return_minimizes_only_after_success() {
+        let ctx = egui::Context::default();
+        let (mut app, clipboard) = fixture_app(&ctx);
+        clipboard.borrow_mut().fail_copy = true;
+        app.copy(&ctx, true);
+        let output = frame(&ctx, &mut app, vec![]);
+        assert!(!output.viewport_output[&egui::ViewportId::ROOT]
+            .commands
+            .iter()
+            .any(|command| matches!(command, egui::ViewportCommand::Minimized(true))));
+        assert!(app.notice.contains("fehlgeschlagen"));
+        clipboard.borrow_mut().fail_copy = false;
+        app.copy(&ctx, true);
+        let output = frame(&ctx, &mut app, vec![]);
+        assert!(output.viewport_output[&egui::ViewportId::ROOT]
+            .commands
+            .iter()
+            .any(|command| matches!(command, egui::ViewportCommand::Minimized(true))));
+        assert_eq!(clipboard.borrow().copied, ["Öl-7Wiese"]);
+    }
+
+    #[test]
+    fn paste_requires_editor_focus_and_removes_control_characters() {
+        let ctx = egui::Context::default();
+        let (mut app, clipboard) = fixture_app(&ctx);
+        clipboard.borrow_mut().paste = "a\r\nb\t\0".into();
+        let _ = frame(&ctx, &mut app, vec![key(Key::V, Modifiers::CTRL)]);
+        assert_eq!(clipboard.borrow().paste_calls, 0);
+        ctx.memory_mut(|memory| memory.request_focus(egui::Id::unique("password")));
+        let _ = frame(&ctx, &mut app, vec![key(Key::V, Modifiers::CTRL)]);
+        assert_eq!(clipboard.borrow().paste_calls, 1);
+        assert!(app.password.secret.contains("ab"));
+        assert!(!app.password.secret.chars().any(char::is_control));
+        assert!(matches!(app.password.assessment, Assessment::Edited));
+    }
+
+    #[test]
+    fn enter_does_not_insert_a_newline_and_utf8_paste_cannot_reallocate() {
+        let ctx = egui::Context::default();
+        let (mut app, _) = fixture_app(&ctx);
+        let _ = frame(&ctx, &mut app, vec![]);
+        let pointer = app.password.secret.as_ptr();
+        ctx.memory_mut(|memory| memory.request_focus(egui::Id::unique("password")));
+        let _ = frame(&ctx, &mut app, vec![key(Key::Enter, Modifiers::NONE)]);
+        assert_eq!(&**app.password.secret, "Öl-7Wiese");
+        ctx.memory_mut(|memory| memory.request_focus(egui::Id::unique("password")));
+        let _ = frame(
+            &ctx,
+            &mut app,
+            vec![egui::Event::Paste("🦀".repeat(MAX_SECRET_CHARS + 10))],
+        );
+        assert_eq!(app.password.secret.chars().count(), MAX_SECRET_CHARS);
+        assert_eq!(app.password.secret.as_ptr(), pointer);
+    }
+
+    #[test]
+    fn settings_regenerate_clean_results_but_preserve_manual_edits() {
+        let ctx = egui::Context::default();
+        let (mut app, _) = fixture_app(&ctx);
+        let _ = frame(&ctx, &mut app, vec![]);
+        app.config.profile = ProfileId::new(12).unwrap();
+        app.settings_changed(&ctx);
+        assert!(egui::TextEdit::load_state(&ctx, egui::Id::unique("password")).is_none());
+        assert_ne!(&**app.password.secret, "Öl-7Wiese");
+        let _ = frame(&ctx, &mut app, vec![]);
+        app.excluded[0] = true;
+        apply_exclusions(&mut app.config, &app.excluded);
+        app.settings_changed(&ctx);
+        assert!(egui::TextEdit::load_state(&ctx, egui::Id::unique("password")).is_none());
+        app.password.secret.clear();
+        app.password.secret.push_str("PUBLIC MANUAL FIXTURE");
+        app.password.edited();
+        app.config.profile = ProfileId::new(1).unwrap();
+        app.settings_changed(&ctx);
+        assert_eq!(&**app.password.secret, "PUBLIC MANUAL FIXTURE");
+        assert!(app.notice.contains("bleibt erhalten"));
     }
 }
