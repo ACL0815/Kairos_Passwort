@@ -1,0 +1,22 @@
+[package]
+name = "kairos-hardening"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Best-effort process hardening and fixed locked secret buffers"
+rust-version = "1.89"
+
+[dependencies]
+region = "=3.0.2"
+zeroize.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Threading", "Win32_System_ErrorReporting"] }
+
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Diagnostics_Debug", "Win32_System_Kernel", "Win32_Storage_FileSystem", "Win32_System_Memory"] }
+
+[dev-dependencies]
+rand = { version = "=0.9.5", default-features = false, features = ["os_rng"] }
+tempfile = "3.23"
