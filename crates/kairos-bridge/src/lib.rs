@@ -5,20 +5,25 @@
 mod http;
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use hmac::{Hmac, Mac};
 use kairos_keepassxc::{Association, AssociationStore, DpapiStore};
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
 pub use http::Bridge;
 pub const PORT: u16 = 19471;
 pub const FRESH_FOR: Duration = Duration::from_secs(5);
 const CLOCK_WINDOW: u64 = 30;
+const HOST: &str = "127.0.0.1:19471";
+const VERSION: &str = "kairos-bridge-v2";
+const KEY_DERIVATION: &[u8] = b"kairos-bridge-v2-client-key";
+type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
@@ -48,7 +53,7 @@ pub struct Context {
 
 pub trait SecretStore: Send {
     fn load(&mut self) -> Result<Option<Zeroizing<String>>, Error>;
-    fn save(&mut self, token: &str) -> Result<(), Error>;
+    fn save(&mut self, secret: &str) -> Result<(), Error>;
 }
 
 /// Separate insert-only DPAPI record, sharing the audited CurrentUser adapter.
@@ -68,24 +73,24 @@ impl SecretStore for ProtectedStore {
             .load()
             .map_err(|_| Error::Storage)?
             .map(|a| {
-                if a.database_hash() != "kairos-bridge-v1" || a.id() != "browser-context" {
+                if a.database_hash() != VERSION || a.id() != "browser-context" {
                     return Err(Error::Storage);
                 }
                 Ok(Zeroizing::new(URL_SAFE_NO_PAD.encode(a.id_key())))
             })
             .transpose()
     }
-    fn save(&mut self, token: &str) -> Result<(), Error> {
+    fn save(&mut self, secret: &str) -> Result<(), Error> {
         let mut raw = Zeroizing::new([0u8; 32]);
         if URL_SAFE_NO_PAD
-            .decode_slice(token, raw.as_mut())
+            .decode_slice(secret, raw.as_mut())
             .map_err(|_| Error::Invalid)?
             != 32
         {
             return Err(Error::Invalid);
         }
         let association = Association::new(
-            "kairos-bridge-v1".into(),
+            VERSION.into(),
             Zeroizing::new("browser-context".into()),
             raw,
         )
@@ -101,7 +106,7 @@ pub enum PairingStatus {
     Paired,
 }
 struct Pending {
-    token: Zeroizing<String>,
+    secret: Zeroizing<String>,
     until: Instant,
     attempts: u8,
 }
@@ -114,7 +119,7 @@ struct Active {
 
 pub(crate) struct State {
     store: Box<dyn SecretStore>,
-    token: Option<Zeroizing<String>>,
+    secret: Option<Zeroizing<String>>,
     pending: Option<Pending>,
     nonces: HashMap<String, Instant>,
     active: Option<Active>,
@@ -130,7 +135,53 @@ struct Message {
     nonce: String,
     url: Option<String>,
     username: Option<String>,
-    client_token: Option<Zeroizing<String>>,
+}
+
+fn decode_secret(secret: &str) -> Result<Zeroizing<[u8; 32]>, Error> {
+    let mut raw = Zeroizing::new([0u8; 32]);
+    if secret.len() != 43 || URL_SAFE_NO_PAD.decode_slice(secret, raw.as_mut()).ok() != Some(32) {
+        return Err(Error::Invalid);
+    }
+    Ok(raw)
+}
+
+fn mac(secret: &str) -> Result<HmacSha256, Error> {
+    let raw = decode_secret(secret)?;
+    HmacSha256::new_from_slice(raw.as_ref()).map_err(|_| Error::Invalid)
+}
+
+fn derive_client_key(code: &str) -> Result<Zeroizing<String>, Error> {
+    let mut hmac = mac(code)?;
+    hmac.update(KEY_DERIVATION);
+    let raw = Zeroizing::new(<[u8; 32]>::from(hmac.finalize().into_bytes()));
+    Ok(Zeroizing::new(URL_SAFE_NO_PAD.encode(raw.as_ref())))
+}
+
+fn canonical(path: &str, host: &str, body: &[u8], message: &Message) -> String {
+    format!(
+        "{VERSION}\nPOST\n{path}\n{host}\n{}\n{}\n{:x}",
+        message.timestamp,
+        message.nonce,
+        Sha256::digest(body)
+    )
+}
+
+fn verify_hmac(secret: &str, signature: &str, canonical: &str) -> Result<(), Error> {
+    if signature.len() != 64
+        || !signature
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    {
+        return Err(Error::Unauthorized);
+    }
+    let mut tag = [0u8; 32];
+    for (byte, hex) in tag.iter_mut().zip(signature.as_bytes().as_chunks::<2>().0) {
+        let digit = |b: u8| if b <= b'9' { b - b'0' } else { b - b'a' + 10 };
+        *byte = (digit(hex[0]) << 4) | digit(hex[1]);
+    }
+    let mut hmac = mac(secret)?;
+    hmac.update(canonical.as_bytes());
+    hmac.verify_slice(&tag).map_err(|_| Error::Unauthorized)
 }
 
 pub fn unix_seconds() -> u64 {
@@ -153,13 +204,16 @@ pub fn normalize_url(input: &str) -> Result<String, Error> {
 
 impl State {
     fn new(mut store: Box<dyn SecretStore>) -> Result<Self, Error> {
-        let token = store.load()?;
-        if token.as_ref().is_some_and(|key| key.len() != 43) {
+        let secret = store.load()?;
+        if secret
+            .as_ref()
+            .is_some_and(|key| decode_secret(key).is_err())
+        {
             return Err(Error::Storage);
         }
         Ok(Self {
             store,
-            token,
+            secret,
             pending: None,
             nonces: HashMap::new(),
             active: None,
@@ -167,7 +221,7 @@ impl State {
         })
     }
     fn status(&self) -> PairingStatus {
-        if self.token.is_some() {
+        if self.secret.is_some() {
             PairingStatus::Paired
         } else if self
             .pending
@@ -180,18 +234,18 @@ impl State {
         }
     }
     fn begin_pairing(&mut self) -> Result<Zeroizing<String>, Error> {
-        if self.token.is_some() {
+        if self.secret.is_some() {
             return Err(Error::AlreadyPaired);
         }
         let mut key = Zeroizing::new([0u8; 32]);
         getrandom::getrandom(key.as_mut()).map_err(|_| Error::Random)?;
-        let token = Zeroizing::new(URL_SAFE_NO_PAD.encode(key.as_slice()));
+        let secret = Zeroizing::new(URL_SAFE_NO_PAD.encode(key.as_slice()));
         self.pending = Some(Pending {
-            token: Zeroizing::new(token.to_string()),
+            secret: Zeroizing::new(secret.to_string()),
             until: Instant::now() + Duration::from_secs(120),
             attempts: 0,
         });
-        Ok(token)
+        Ok(secret)
     }
     fn context(&self, window: Option<BrowserWindow>) -> Option<Context> {
         let active = self.active.as_ref()?;
@@ -201,16 +255,17 @@ impl State {
     fn handle(
         &mut self,
         path: &str,
-        token: &str,
+        host: &str,
+        signature: &str,
         body: &[u8],
         window: Option<BrowserWindow>,
     ) -> Result<(), Error> {
-        let pair = path == "/v1/pair";
-        if !matches!(path, "/v1/pair" | "/v1/context" | "/v1/clear" | "/v1/probe") {
+        let pair = path == "/v2/pair";
+        if host != HOST || !matches!(path, "/v2/pair" | "/v2/context" | "/v2/clear" | "/v2/probe") {
             return Err(Error::Invalid);
         }
-        if pair {
-            if self.token.is_some() {
+        let secret = if pair {
+            if self.secret.is_some() {
                 return Err(Error::AlreadyPaired);
             }
             let pending = self.pending.as_mut().ok_or(Error::Unauthorized)?;
@@ -219,20 +274,21 @@ impl State {
                 return Err(Error::Expired);
             }
             pending.attempts += 1;
-            if !bool::from(pending.token.as_bytes().ct_eq(token.as_bytes())) {
-                return Err(Error::Unauthorized);
-            }
+            &pending.secret
         } else {
-            let expected = self.token.as_ref().ok_or(Error::Unauthorized)?;
-            if !bool::from(expected.as_bytes().ct_eq(token.as_bytes())) {
-                return Err(Error::Unauthorized);
-            }
-        }
+            self.secret.as_ref().ok_or(Error::Unauthorized)?
+        };
         let message: Message = serde_json::from_slice(body).map_err(|_| Error::Invalid)?;
+        verify_hmac(secret, signature, &canonical(path, host, body, &message))?;
         if unix_seconds().abs_diff(message.timestamp) > CLOCK_WINDOW {
             return Err(Error::Expired);
         }
-        if message.nonce.len() != 32 || !message.nonce.bytes().all(|b| b.is_ascii_hexdigit()) {
+        if message.nonce.len() != 32
+            || !message
+                .nonce
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
             return Err(Error::Invalid);
         }
         self.nonces
@@ -240,7 +296,7 @@ impl State {
         if self.nonces.contains_key(&message.nonce) {
             return Err(Error::Replay);
         }
-        if matches!(path, "/v1/context" | "/v1/clear") {
+        if matches!(path, "/v2/context" | "/v2/clear") {
             if self
                 .last_context
                 .is_some_and(|last| last.elapsed() < Duration::from_millis(250))
@@ -257,29 +313,18 @@ impl State {
             if message.url.is_some() || message.username.is_some() {
                 return Err(Error::Invalid);
             }
-            let key = message.client_token.ok_or(Error::Invalid)?;
-            if key.len() != 43
-                || !key
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-            {
-                return Err(Error::Invalid);
-            }
+            let key = derive_client_key(&self.pending.as_ref().ok_or(Error::Unauthorized)?.secret)?;
             self.store.save(&key)?;
-            self.token = Some(key);
+            self.secret = Some(key);
             self.pending = None;
-        } else if matches!(path, "/v1/clear" | "/v1/probe") {
-            if message.client_token.is_some() || message.url.is_some() || message.username.is_some()
-            {
+        } else if matches!(path, "/v2/clear" | "/v2/probe") {
+            if message.url.is_some() || message.username.is_some() {
                 return Err(Error::Invalid);
             }
-            if path == "/v1/clear" {
+            if path == "/v2/clear" {
                 self.active = None;
             }
         } else {
-            if message.client_token.is_some() {
-                return Err(Error::Invalid);
-            }
             // Clear first so rejected/new contexts cannot leave a previous tab usable.
             let previous = self.active.take();
             let url = normalize_url(message.url.as_deref().ok_or(Error::Invalid)?)?;

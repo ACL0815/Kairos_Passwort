@@ -73,7 +73,7 @@ impl Bridge {
                     Ok((mut stream, peer)) if peer.ip().is_loopback() => {
                         let result = read_request(&mut stream).and_then(|request| {
                             let mut state = worker_state.lock().map_err(|_| Error::Io)?;
-                            state.handle(&request.path, &request.token, &request.body, foreground())
+                            state.handle(&request.path, &request.host, &request.signature, &request.body, foreground())
                         });
                         // Uniform failure, no reflective content, no auth/pairing oracle in body.
                         let status = if result.is_ok() { "204 No Content" } else { "403 Forbidden" };
@@ -127,7 +127,8 @@ impl Drop for Bridge {
 
 struct Request {
     path: String,
-    token: Zeroizing<String>,
+    host: String,
+    signature: String,
     body: Zeroizing<Vec<u8>>,
 }
 fn read_request(stream: &mut TcpStream) -> Result<Request, Error> {
@@ -172,7 +173,7 @@ fn parse(bytes: &[u8]) -> Result<Option<Request>, Error> {
     }
     let path = request.path.ok_or(Error::Invalid)?;
     let mut host = None;
-    let mut token = None;
+    let mut signature = None;
     let mut length = None;
     let mut content_type = None;
     let mut origin = None;
@@ -180,28 +181,28 @@ fn parse(bytes: &[u8]) -> Result<Option<Request>, Error> {
         let value = std::str::from_utf8(header.value).map_err(|_| Error::Invalid)?;
         match header.name.to_ascii_lowercase().as_str() {
             "host" if host.is_none() => host = Some(value),
-            "x-kairos-token" if token.is_none() => token = Some(value),
+            "x-kairos-hmac" if signature.is_none() => signature = Some(value),
             "content-length" if length.is_none() => {
                 length = Some(value.parse::<usize>().map_err(|_| Error::Invalid)?)
             }
             "content-type" if content_type.is_none() => content_type = Some(value),
             "origin" if origin.is_none() && extension_origin(value) => origin = Some(value),
-            "host" | "x-kairos-token" | "content-length" | "content-type" | "origin"
-            | "referer" | "transfer-encoding" => return Err(Error::Invalid),
+            "host" | "x-kairos-token" | "x-kairos-hmac" | "content-length" | "content-type"
+            | "origin" | "referer" | "transfer-encoding" => return Err(Error::Invalid),
             // Fetch metadata differs between extension engines. It is not an
-            // authentication signal; Origin + custom token + no preflight are.
+            // authentication signal; HMAC, Host/Origin and no preflight are.
             _ => {}
         }
     }
-    if host != Some("127.0.0.1:19471") || !content_type.is_some_and(json_content_type) {
+    if host != Some(HOST) || !content_type.is_some_and(json_content_type) {
         return Err(Error::Invalid);
     }
     let length = length.filter(|n| *n <= 8192).ok_or(Error::Invalid)?;
-    let token = token
-        .filter(|t| {
-            t.len() == 43
-                && t.bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    let signature = signature
+        .filter(|s| {
+            s.len() == 64
+                && s.bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
         })
         .ok_or(Error::Unauthorized)?;
     match bytes.len().cmp(&(offset + length)) {
@@ -209,7 +210,8 @@ fn parse(bytes: &[u8]) -> Result<Option<Request>, Error> {
         std::cmp::Ordering::Greater => Err(Error::Invalid),
         std::cmp::Ordering::Equal => Ok(Some(Request {
             path: path.into(),
-            token: Zeroizing::new(token.into()),
+            host: host.ok_or(Error::Invalid)?.into(),
+            signature: signature.into(),
             body: Zeroizing::new(bytes[offset..].to_vec()),
         })),
     }
@@ -255,14 +257,20 @@ mod tests {
     struct Paired;
     impl SecretStore for Paired {
         fn load(&mut self) -> Result<Option<Zeroizing<String>>, Error> {
-            Ok(Some(Zeroizing::new("a".repeat(43))))
+            Ok(Some(Zeroizing::new(URL_SAFE_NO_PAD.encode([42u8; 32]))))
         }
         fn save(&mut self, _: &str) -> Result<(), Error> {
             Err(Error::Storage)
         }
     }
     fn request(headers: &str, body: &str) -> String {
-        format!("POST /v1/context HTTP/1.1\r\nHost: 127.0.0.1:19471\r\nContent-Type: application/json\r\nX-Kairos-Token: {}\r\nContent-Length: {}\r\n{headers}\r\n{body}", "a".repeat(43), body.len())
+        let tag = crate::tests::signature(
+            &URL_SAFE_NO_PAD.encode([42u8; 32]),
+            "/v2/context",
+            HOST,
+            body.as_bytes(),
+        );
+        format!("POST /v2/context HTTP/1.1\r\nHost: 127.0.0.1:19471\r\nContent-Type: application/json\r\nX-Kairos-HMAC: {}\r\nContent-Length: {}\r\n{headers}\r\n{body}", tag, body.len())
     }
     #[test]
     fn valid_framing_and_partial_body() {
@@ -351,7 +359,7 @@ mod tests {
             (request("", &body), "204 No Content"),
             (request("", &body), "403 Forbidden"),
             (
-                request("", &body).replace(&"a".repeat(43), &"b".repeat(43)),
+                request("", &body).replace("X-Kairos-HMAC: ", "X-Kairos-HMAC: 0"),
                 "403 Forbidden",
             ),
             (

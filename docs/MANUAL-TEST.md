@@ -77,11 +77,16 @@ notieren. Anleitung/Bedrohungsmodell: [browser/README.md](../browser/README.md).
    Browser-DOM-Feldwechsel innerhalb desselben HWND bleibt erkennbare Testgrenze.
 10. Port vorher durch eigenen Dummy-Prozess belegen bzw. eigene isolierte DPAPI-
     Datei beschädigen: Brücke sichtbar nicht verfügbar, kein Klartext-Fallback.
-    Kein neuer Token ersetzt eine vorhandene Datei. Widerruf/Backup-Umbenennung
+    Kein neuer Schlüssel ersetzt eine vorhandene Datei. Widerruf/Backup-Umbenennung
     gemäß Browser-README ausschließlich an eigenen Testdateien prüfen.
 11. Von einer Test-Webseite fetch/form/OPTIONS versuchen: kein CORS, Origin
-    abgewiesen, keine Aktion. Testwerkzeug mit falschem Host/Origin/Token sowie
-    gleicher Nonce muss 403 ohne Body erhalten. Niemals echte Tokens protokollieren.
+    abgewiesen, keine Aktion. Testwerkzeug mit falschem Host/Origin/HMAC sowie
+    gleicher Nonce muss 403 ohne Body erhalten. Niemals echte Schlüssel protokollieren.
+    Falscher/fehlender HMAC und Änderungen an Body/Pfad/Host/Zeitstempel/Nonce
+    müssen abgewiesen werden. HTTP-Mitschnitt ausschließlich mit Testwerten:
+    auch beim Pairing weder Code noch Dauerschlüssel in Headern/Body.
+    Imitierter Port darf nur signierte Requests sehen; falsches 204 ist ohne
+    authentisierte Serverantwort weiterhin möglich.
 
 Automatisch: `cargo test -p kairos-bridge`, `cargo test -p kairos --lib`,
 `node --check browser/kairos-bridge.user.js`, `node browser/test-userscript.cjs`.

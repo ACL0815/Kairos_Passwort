@@ -50,30 +50,80 @@ Dokumentnamen oder IDs enthalten.** Script auf sensiblen Sites deaktivieren bzw.
 Keine Passwortauslese, keine URL-/Benutzername-Logs, kein Verlauf. Nach Autotype
 kann die Zielseite das eingetragene Passwort selbstverständlich lesen.
 
-`POST /v1/pair`, `/v1/context`, `/v1/clear`, `/v1/probe`: `application/json`
-(optional mit UTF-8-Charset),
-`X-Kairos-Token` mit 256 Bit Zufall, JSON mit Unixsekunden-`timestamp` und
-32-stelliger zufälliger Hex-`nonce`, optional `url`/`username`. Keine Cookies
-(`anonymous: true`). **Bearer-Token, kein HMAC, keine Transportverschlüsselung
-oder Serveridentität.** Normale Origins (auch `null`), Referer, doppelte kritische
-Header, Chunking, OPTIONS und unbekannte JSON-Felder werden abgewiesen.
-Exakter Host `127.0.0.1:19471`, kein CORS, Responses nur 204/403 ohne Body.
-Fehlender Origin ist für privilegierte GM-Anfragen erlaubt. Ein mitgesendeter
-Extension-Origin muss exakt `chrome-extension://` plus 32 Zeichen `a`–`p` oder
-`moz-extension://` plus UUID entsprechen. Keine Pfade/Suffixe/doppelten Origins.
-Token bleibt die Authentisierung; Header beweisen keine Extension-Identität.
-`Sec-Fetch-Site` ist wegen unterschiedlicher Engines kein Auth-Signal. Normale
-Seiten scheitern weiterhin an Origin, Custom-Header/Token und verbotenem Preflight.
-Bei `/v1/pair` authentisiert ausschließlich der kurzlebige Code den Request;
-das Script erzeugt separat einen neuen 256-Bit-`client_token` im Body. Erst nach
-DPAPI-Persistenz und 204 wird dieser im GM-Speicher abgelegt. Der Code wird
-verbraucht und ist danach kein gültiger Request-Schlüssel. Keine Secrets in
-Serverantworten. Vor dem Senden wird der Client-Token vorläufig getrennt vom
-aktiven Token gespeichert (`kairos-bridge-v1-pending-token`). Unklarer Timeout/
-Netzwerkfehler bewahrt ihn, ein eindeutiges 403 verwirft ihn. Pairing-Timeout zehn
-Sekunden. Bei verlorenem 204 im VM-Menü „Ausstehende Kopplung prüfen“ wählen:
-`/v1/probe` prüft nur den bereits gespeicherten Token und aktiviert ihn nach 204
-im Script. Keine erneute Pairing-/Schreibanfrage und kein automatischer Retry.
+Protokoll v2 akzeptiert ausschließlich `POST /v2/pair`, `/v2/context`,
+`/v2/clear` und `/v2/probe` mit `application/json` (optional UTF-8-Charset).
+JSON enthält Unixsekunden-`timestamp` als vorzeichenlose Ganzzahl und eine
+32-stellige zufällige **kleingeschriebene** Hex-`nonce`, optional `url` und
+`username`. Unbekannte JSON-Felder, einschließlich alter `client_token`, werden
+abgewiesen. Alte v1-Pfade und jeder `X-Kairos-Token`-Header sind ungültig.
+
+Jeder Request enthält `X-Kairos-HMAC` als genau 64 kleingeschriebene Hexzeichen.
+Der Schlüssel wird aus kanonischem Base64url ohne Padding in **32 rohe Bytes**
+decodiert. Die Signatur ist HMAC-SHA256 über folgende UTF-8-Zeichenfolge,
+getrennt durch genau ein LF (0x0a), **ohne abschließendes LF**:
+
+```text
+kairos-bridge-v2
+POST
+<exakter Request-Pfad, z. B. /v2/context>
+127.0.0.1:19471
+<timestamp als kürzeste dezimale Ganzzahl>
+<nonce exakt wie im JSON>
+<SHA256 der exakten übertragenen UTF-8-Body-Bytes, 64 kleine Hexzeichen>
+```
+
+Keine JSON-Neusortierung oder URL-Normalisierung vor dem Hash. Auch Whitespace,
+UTF-8-Zeichen und eine Änderung des Zeitstempels im Body verändern die Signatur.
+Methode, Pfad und Host werden vor der Verarbeitung streng validiert und sind
+zusätzlich signiert. Der Server vergleicht alle 32 MAC-Bytes konstantzeitig mit
+`hmac::Mac::verify_slice`. Länge/Hexsyntax sind öffentliche Formatprüfungen.
+Der gemeinsame [Testvektor](hmac-vector.json) wird von Rust, WebCrypto im echten
+Userscript und unabhängig von Nodes `createHmac` geprüft.
+
+Keine Cookies (`anonymous: true`), kein CORS, Responses nur 204/403 ohne Body.
+Normale Origins (auch `null`), Referer, doppelte kritische Header, Chunking und
+OPTIONS werden abgewiesen. Exakter Host `127.0.0.1:19471`. Fehlender Origin ist
+für privilegierte GM-Anfragen erlaubt. Ein mitgesendeter Extension-Origin muss
+exakt `chrome-extension://` plus 32 Zeichen `a`–`p` oder `moz-extension://` plus
+UUID entsprechen. Header beweisen keine Extension- oder Prozessidentität.
+`Sec-Fetch-Site` ist wegen unterschiedlicher Engines kein Auth-Signal.
+
+**Pairing ohne Secret im HTTP-Kanal.** Kairos erzeugt 32 Zufallsbytes, zeigt sie
+als 43-stelligen Base64url-Code und hält sie maximal zwei Minuten/fünf Versuche.
+Der Nutzer überträgt ihn ausschließlich in das VM-Menü. `/v2/pair` enthält nur
+Zeitstempel und Nonce und wird mit diesen rohen Code-Bytes signiert. Beide
+Seiten berechnen lokal den separaten Dauerschlüssel
+`HMAC-SHA256(code_bytes, UTF8("kairos-bridge-v2-client-key"))`. Diese feste
+Domänentrennung unterscheidet Schlüsselableitung und Request-Signaturen.
+Kairos speichert ihn insert-only unter DPAPI CurrentUser, bevor es 204 meldet.
+Code und Dauerschlüssel werden **nie** in HTTP-Headern/-Bodies übertragen.
+Nach Pairing wird der Code verworfen; normale Requests verwenden den abgeleiteten
+Schlüssel. Kein Code-/Token-Fallback. v1-DPAPI-Marker werden nicht akzeptiert.
+
+Vor dem Senden speichert das Script ausschließlich den abgeleiteten Schlüssel
+vorläufig unter `kairos-bridge-v2-pending-key`. Nach 204 wird er unter
+`kairos-bridge-v2-key` aktiviert. Unklarer Timeout/Netzwerkfehler bewahrt ihn,
+ein 403 verwirft ihn. Bei verlorenem 204 im VM-Menü „Ausstehende Kopplung prüfen“
+wählen. `/v2/probe` authentisiert einen frischen Request mit dem bereits
+persistierten Schlüssel. Keine neue Pairing-/Schreibanfrage, kein automatischer
+Retry. Pairing-Timeout zehn Sekunden. WebCrypto ist Voraussetzung; wenn die
+Engine `crypto.subtle` auf HTTP-Seiten nicht bereitstellt, bleibt das Script
+dort ohne Kontextmeldung. Pairing auf einer vertrauenswürdigen HTTPS-Testseite.
+
+**Restgrenze beim Pairing.** Der manuelle Kanal (Kairos-Anzeige, geschützte
+Zwischenablage, VM-Eingabe) muss vertrauenswürdig sein. Ein gefälschter
+VM-Dialog oder Malware mit Zugriff darauf kann den Code stehlen. HTTP liefert
+keine Serveridentität und keine authentisierten Antworten. Ein imitierter Port
+kann 204 vortäuschen, Kontext lesen, Verfügbarkeit stören und aufgezeichnete
+signierte Nachrichten innerhalb des Zeitfensters weiterleiten. Er bekommt
+keinen Schlüssel zum Erzeugen neuer Nachrichten. Ein Pairing-Relay kann die
+genau signierte Zuordnung auslösen, jedoch keinen eigenen Schlüssel einsetzen.
+HMAC verschlüsselt keine URLs/Benutzernamen. Replay über Serverneustarts und
+aktive Relays bleiben eine Grenze. KeePassXC nutzt stattdessen Native Messaging
+und NaCl-Schlüssel/Association; 2FAS nutzt öffentliche Schlüssel/RSA-OAEP für
+seinen Relay-Kanal. Deren Transport-/Identitätsgarantien werden hier nicht
+behauptet. Für diese Stufe genügt der manuell übertragene hochentropische Code
+als Besitznachweis; Native Messaging bleibt der spätere Zielpfad.
 
 Zeitfenster ±30 Sekunden. Nonces 61 Sekunden im laufenden Server, maximal 1024;
 bei vollem Cache ablehnen statt vorzeitig entfernen. Neustart setzt den Cache
@@ -92,18 +142,20 @@ aufgenommen; ein beendeter Worker wird in Kairos sichtbar als ausgefallen gemeld
 
 | Risiko | Schutz und bewusste Grenze |
 |---|---|
-| Bösartige Webseite | Host-Prüfung gegen DNS-Rebinding, kein normaler Origin, Custom-Header, Token/Nonce und POST-Framing. Kein unprivilegierter DOM-/`postMessage`-Zugang zu GM. CORS allein genügt nicht. Seite kann Inhalt und eigene URL beeinflussen: Vorschläge immer bestätigen. Keine Passwortantwort. |
-| Anderer lokaler Prozess | Ohne Schlüssel ist Token-Raten praktisch ausgeschlossen; Header beweisen keine Prozessidentität. Ein Prozess, der den Port zuerst belegt, kann den Token abfangen. Lokales Mitlesen und Malware im selben Windows-Konto oder Administratoren sind keine geschützte Grenze. |
+| Bösartige Webseite | Host-Prüfung gegen DNS-Rebinding, kein normaler Origin, Custom-Header, HMAC/Nonce und POST-Framing. Kein unprivilegierter DOM-/`postMessage`-Zugang zu GM. CORS allein genügt nicht. Seite kann Inhalt und eigene URL beeinflussen: Vorschläge immer bestätigen. Keine Passwortantwort. |
+| Anderer lokaler Prozess | Ein imitierter Port erhält nur zweckgebundene HMACs und Klartext-Kontext, keinen wiederverwendbaren Schlüssel. Keine Serveridentität, Vertraulichkeit oder Relay-Abwehr. Malware im selben Windows-Konto und Administratoren können Speicher/GM/DPAPI oder den manuellen Pairing-Kanal angreifen und sind keine geschützte Grenze. |
 | Manipuliertes Userscript / Extension | Kann GM-Schlüssel lesen und Kontext fälschen. Pairing schützt nicht gegen den gepaarten Client. Script prüfen, keine fremden Updates/`@require`, `@match` begrenzen. `@connect` allein ist keine garantierte Engine-Sicherheitsgrenze. |
 | Falsches Fenster / Tab / DOM-Feld | HWND/PID nur Hinweis, keine globale Tabs-API. Bei verzögerter Verarbeitung kann der Vorschlag zu einem anderen Fenster gehören als das früher erfasste Tippziel. Keine automatische Übernahme; ursprüngliches Ziel und URL prüfen. Tab-/DOM-Feldwechsel bleiben unerkennbar. Unbekanntes Browserprogramm liefert keinen Vorschlag. |
 | KeePassXC-Ablehnung / Timeout | Kein Tippen. Schreibfehler kann bereits einen Eintrag hinterlassen: dort prüfen, kein automatischer Retry. `Accepted` belegt keine Eintrags-ID oder Speicherung auf Platte; Hash-Prüfung beseitigt keine spätere DB-Auswahl. |
 | Autotype-/Clipboard-Fehler nach Annahme | Sichtbares Teilergebnis, Ziel einmalig verbraucht. Kein automatischer Retry, kein Löschen eines möglicherweise angelegten Eintrags. Passwort bleibt zur bewussten manuellen Kopie erhalten. |
 
-GM-Schlüssel: `kairos-bridge-v1-token`. Desktopablage:
+GM-Schlüssel: `kairos-bridge-v2-key`. Desktopablage:
 `%APPDATA%\Kairos\browser-bridge.dpapi`, insert-only DPAPI CurrentUser. Der
 bestehende DPAPI-Association-Adapter wird mit separater Datei/festem Marker
 verwendet; keine KeePassXC-Schlüsselwiederverwendung. GM-Speicher ist keine
-DPAPI-Zusage: Browserexport/-Backup/-Sync kann Kopien enthalten.
+DPAPI-Zusage: Browserexport/-Backup/-Sync kann Kopien enthalten. Rust puffert
+Secrets in `Zeroizing`; JavaScript-Strings, CryptoKey und interne HMAC-/Runtime-
+Kopien haben keine garantierte Speicherlöschung.
 
 Bewusster Widerruf: Script deaktivieren, Schlüssel im VM-Menü vergessen, Kairos
 beenden, eigene `browser-bridge.dpapi` selbst als Backup umbenennen, dann neu

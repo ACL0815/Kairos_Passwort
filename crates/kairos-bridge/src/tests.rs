@@ -27,21 +27,45 @@ fn fixture() -> State {
 fn message(n: u8) -> Vec<u8> {
     serde_json::to_vec(&serde_json::json!({"timestamp":unix_seconds(), "nonce":format!("{n:032x}"), "url":"https://example.invalid/signup?token=secret#fragment"})).unwrap()
 }
+pub(crate) fn signature(secret: &str, path: &str, host: &str, body: &[u8]) -> String {
+    let Ok(message) = serde_json::from_slice::<Message>(body) else {
+        return "0".repeat(64);
+    };
+    let mut hmac = mac(secret).unwrap();
+    hmac.update(canonical(path, host, body, &message).as_bytes());
+    format!("{:x}", hmac.finalize().into_bytes())
+}
+impl State {
+    fn signed(
+        &mut self,
+        path: &str,
+        secret: &str,
+        body: &[u8],
+        window: Option<BrowserWindow>,
+    ) -> Result<(), Error> {
+        self.handle(
+            path,
+            HOST,
+            &signature(secret, path, HOST, body),
+            body,
+            window,
+        )
+    }
+}
 fn pair(state: &mut State) -> Zeroizing<String> {
-    let key = state.begin_pairing().unwrap();
-    let client_key = Zeroizing::new(URL_SAFE_NO_PAD.encode([42u8; 32]));
+    let code = state.begin_pairing().unwrap();
+    let client_key = derive_client_key(&code).unwrap();
     let raw = format!(
-        r#"{{"timestamp":{},"nonce":"{}","client_token":"{}"}}"#,
+        r#"{{"timestamp":{},"nonce":"{}"}}"#,
         unix_seconds(),
-        "f".repeat(32),
-        client_key.as_str()
+        "f".repeat(32)
     );
     state
-        .handle("/v1/pair", &key, raw.as_bytes(), None)
+        .signed("/v2/pair", &code, raw.as_bytes(), None)
         .unwrap();
-    assert_ne!(key.as_str(), client_key.as_str());
+    assert_ne!(code.as_str(), client_key.as_str());
     assert_eq!(
-        state.handle("/v1/context", &key, &message(100), window()),
+        state.signed("/v2/context", &code, &message(100), window()),
         Err(Error::Unauthorized)
     );
     client_key
@@ -57,40 +81,50 @@ fn pairing_is_explicit_one_time_and_persisted_before_use() {
     let mut state = fixture();
     assert_eq!(state.status(), PairingStatus::Unpaired);
     assert_eq!(
-        state.handle("/v1/context", "bad", &message(1), window()),
+        state.signed(
+            "/v2/context",
+            &URL_SAFE_NO_PAD.encode([0u8; 32]),
+            &message(1),
+            window()
+        ),
         Err(Error::Unauthorized)
     );
     let key = pair(&mut state);
     assert_eq!(state.status(), PairingStatus::Paired);
     assert_eq!(state.begin_pairing().err(), Some(Error::AlreadyPaired));
     assert_eq!(
-        state.handle("/v1/pair", &key, &message(2), None),
+        state.signed("/v2/pair", &key, &message(2), None),
         Err(Error::AlreadyPaired)
     );
 }
 #[test]
-fn invalid_token_replay_timestamp_and_unknown_fields_are_rejected() {
+fn invalid_hmac_replay_timestamp_and_unknown_fields_are_rejected() {
     let mut state = fixture();
     let key = pair(&mut state);
     let raw = message(1);
     assert_eq!(
-        state.handle("/v1/context", &"x".repeat(43), &raw, window()),
+        state.signed(
+            "/v2/context",
+            &URL_SAFE_NO_PAD.encode([1u8; 32]),
+            &raw,
+            window()
+        ),
         Err(Error::Unauthorized)
     );
-    state.handle("/v1/context", &key, &raw, window()).unwrap();
+    state.signed("/v2/context", &key, &raw, window()).unwrap();
     assert_eq!(
-        state.handle("/v1/context", &key, &raw, window()),
+        state.signed("/v2/context", &key, &raw, window()),
         Err(Error::Replay)
     );
     let old = String::from_utf8(message(2))
         .unwrap()
         .replace(&unix_seconds().to_string(), "1");
     assert_eq!(
-        state.handle("/v1/context", &key, old.as_bytes(), window()),
+        state.signed("/v2/context", &key, old.as_bytes(), window()),
         Err(Error::Expired)
     );
     assert_eq!(
-        state.handle("/v1/context", &key, br#"{"password":"never"}"#, window()),
+        state.signed("/v2/context", &key, br#"{"password":"never"}"#, window()),
         Err(Error::Invalid)
     );
 }
@@ -99,7 +133,7 @@ fn contexts_need_fresh_matching_native_browser_and_clear_on_invalid_data() {
     let mut state = fixture();
     let key = pair(&mut state);
     state
-        .handle("/v1/context", &key, &message(1), window())
+        .signed("/v2/context", &key, &message(1), window())
         .unwrap();
     assert_eq!(
         state.context(window()).unwrap().url,
@@ -120,7 +154,7 @@ fn contexts_need_fresh_matching_native_browser_and_clear_on_invalid_data() {
     );
     state.last_context = None;
     assert_eq!(
-        state.handle("/v1/context", &key, bad.as_bytes(), window()),
+        state.signed("/v2/context", &key, bad.as_bytes(), window()),
         Err(Error::Invalid)
     );
     assert!(state.context(window()).is_none());
@@ -131,11 +165,11 @@ fn context_flood_cannot_fill_nonce_cache_and_probe_recovers_uncertain_pairing() 
     let mut state = fixture();
     let key = pair(&mut state);
     state
-        .handle("/v1/context", &key, &message(1), window())
+        .signed("/v2/context", &key, &message(1), window())
         .unwrap();
     for n in 2..=200 {
         assert_eq!(
-            state.handle("/v1/context", &key, &message(n), window()),
+            state.signed("/v2/context", &key, &message(n), window()),
             Err(Error::RateLimited)
         );
     }
@@ -146,7 +180,7 @@ fn context_flood_cannot_fill_nonce_cache_and_probe_recovers_uncertain_pairing() 
         "c".repeat(32)
     );
     state
-        .handle("/v1/probe", &key, probe.as_bytes(), None)
+        .signed("/v2/probe", &key, probe.as_bytes(), None)
         .unwrap();
     assert_eq!(state.status(), PairingStatus::Paired);
     assert!(state.context(window()).is_some());
@@ -162,12 +196,12 @@ fn explicit_username_survives_same_url_heartbeats_without_renewing_consent() {
         1,
     );
     state
-        .handle("/v1/context", &key, username.as_bytes(), window())
+        .signed("/v2/context", &key, username.as_bytes(), window())
         .unwrap();
     let deadline = state.active.as_ref().unwrap().username_until;
     state.last_context = None;
     state
-        .handle("/v1/context", &key, &message(2), window())
+        .signed("/v2/context", &key, &message(2), window())
         .unwrap();
     assert_eq!(
         state.context(window()).unwrap().username.as_deref(),
@@ -177,7 +211,7 @@ fn explicit_username_survives_same_url_heartbeats_without_renewing_consent() {
     state.active.as_mut().unwrap().username_until = Some(Instant::now() - Duration::from_secs(1));
     state.last_context = None;
     state
-        .handle("/v1/context", &key, &message(3), window())
+        .signed("/v2/context", &key, &message(3), window())
         .unwrap();
     assert!(state.context(window()).unwrap().username.is_none());
 }
@@ -188,18 +222,28 @@ fn pairing_cancel_expiry_attempt_limit_and_storage_failure_fail_closed() {
     assert_eq!(state.status(), PairingStatus::Pending);
     state.pending.as_mut().unwrap().until = Instant::now() - Duration::from_secs(1);
     assert_eq!(
-        state.handle("/v1/pair", &key, b"{}", None),
+        state.signed("/v2/pair", &key, &message(10), None),
         Err(Error::Expired)
     );
     state.begin_pairing().unwrap();
     for _ in 0..5 {
         assert_eq!(
-            state.handle("/v1/pair", "wrong", b"{}", None),
+            state.signed(
+                "/v2/pair",
+                &URL_SAFE_NO_PAD.encode([0u8; 32]),
+                &message(10),
+                None
+            ),
             Err(Error::Unauthorized)
         );
     }
     assert_eq!(
-        state.handle("/v1/pair", "wrong", b"{}", None),
+        state.signed(
+            "/v2/pair",
+            &URL_SAFE_NO_PAD.encode([0u8; 32]),
+            &message(10),
+            None
+        ),
         Err(Error::Expired)
     );
     state.store = Box::new(Memory {
@@ -208,16 +252,15 @@ fn pairing_cancel_expiry_attempt_limit_and_storage_failure_fail_closed() {
     });
     let key = state.begin_pairing().unwrap();
     let raw = format!(
-        r#"{{"timestamp":{},"nonce":"{}","client_token":"{}"}}"#,
+        r#"{{"timestamp":{},"nonce":"{}"}}"#,
         unix_seconds(),
-        "a".repeat(32),
-        URL_SAFE_NO_PAD.encode([42u8; 32])
+        "a".repeat(32)
     );
     assert_eq!(
-        state.handle("/v1/pair", &key, raw.as_bytes(), None),
+        state.signed("/v2/pair", &key, raw.as_bytes(), None),
         Err(Error::Storage)
     );
-    assert!(state.token.is_none());
+    assert!(state.secret.is_none());
     state.pending = None;
     assert_eq!(state.status(), PairingStatus::Unpaired);
 }
@@ -237,6 +280,77 @@ fn url_normalization_keeps_path_and_rejects_credentials() {
     ] {
         assert_eq!(normalize_url(url), Err(Error::Invalid));
     }
+}
+
+#[test]
+fn shared_webcrypto_vector_matches_rust_canonical_hmac_and_key_derivation() {
+    let vector: serde_json::Value =
+        serde_json::from_str(include_str!("../../../browser/hmac-vector.json")).unwrap();
+    let secret = vector["secret"].as_str().unwrap();
+    let body = vector["body"].as_str().unwrap().as_bytes();
+    let message: Message = serde_json::from_slice(body).unwrap();
+    assert_eq!(format!("{:x}", Sha256::digest(body)), vector["body_sha256"]);
+    assert_eq!(
+        canonical("/v2/context", HOST, body, &message),
+        vector["canonical"]
+    );
+    assert_eq!(signature(secret, "/v2/context", HOST, body), vector["hmac"]);
+    assert_eq!(*derive_client_key(secret).unwrap(), vector["client_key"]);
+    verify_hmac(
+        secret,
+        vector["hmac"].as_str().unwrap(),
+        vector["canonical"].as_str().unwrap(),
+    )
+    .unwrap();
+}
+
+#[test]
+fn hmac_binds_body_path_host_timestamp_nonce_and_rejects_missing_or_wrong_tags() {
+    let mut state = fixture();
+    let key = pair(&mut state);
+    let body = message(1);
+    let tag = signature(&key, "/v2/context", HOST, &body);
+    let text = String::from_utf8(body.clone()).unwrap();
+    let altered_body = text.replace("signup", "signin");
+    let timestamp = serde_json::from_slice::<Message>(&body).unwrap().timestamp;
+    let altered_timestamp = text.replace(&timestamp.to_string(), &(timestamp + 1).to_string());
+    let altered_nonce = text.replace(&format!("{:032x}", 1), &format!("{:032x}", 2));
+    for (path, host, signature, bytes) in [
+        ("/v2/context", HOST, "", body.as_slice()),
+        (
+            "/v2/context",
+            HOST,
+            "0000000000000000000000000000000000000000000000000000000000000000",
+            body.as_slice(),
+        ),
+        ("/v2/context", HOST, tag.as_str(), altered_body.as_bytes()),
+        (
+            "/v2/context",
+            HOST,
+            tag.as_str(),
+            altered_timestamp.as_bytes(),
+        ),
+        ("/v2/context", HOST, tag.as_str(), altered_nonce.as_bytes()),
+        ("/v2/clear", HOST, tag.as_str(), body.as_slice()),
+        (
+            "/v2/context",
+            "localhost:19471",
+            tag.as_str(),
+            body.as_slice(),
+        ),
+    ] {
+        assert!(state
+            .handle(path, host, signature, bytes, window())
+            .is_err());
+        assert!(state.context(window()).is_none());
+    }
+    state
+        .handle("/v2/context", HOST, &tag, &body, window())
+        .unwrap();
+    assert_eq!(
+        state.handle("/v2/context", HOST, &tag, &body, window()),
+        Err(Error::Replay)
+    );
 }
 #[cfg(windows)]
 #[test]
