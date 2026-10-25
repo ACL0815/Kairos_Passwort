@@ -1,7 +1,7 @@
 # Windows: Zwischenablage, Hotkeys und Fokus
 
-Zuständig: **nur PR-4** (`feat/platform-hotkeys`). Die Crate bleibt unabhängig
-von Core und GUI. Quellenstand/Abruf: **25.10.2026**. Bewertungen bezeichnen die
+Zuständig: PR-4 (`feat/platform-hotkeys`) und additive Integration PR-W.
+Die Crate bleibt unabhängig von Core und GUI. Quellenstand/Abruf: **25.10.2026**. Bewertungen bezeichnen die
 Passung für Kairos, keine Codeübernahme. Ausschließlich Prinzipien wurden
 übertragen; verwendete Rust-Abhängigkeiten sind gesondert genannt.
 
@@ -132,3 +132,31 @@ Cloud-Sync-/Desktop-Interaktionen sind nicht durch die Quellenprüfung bewiesen.
 Reale Clipboard-Formate, Windows-Synthese, Timer-Ersetzung und Timeout wurden
 zusätzlich auf einer privaten unsichtbaren Windowstation getestet. Sie dient
 nicht als Beleg für globale Hotkeys oder Fokus-/Eingabe auf einem interaktiven Desktop.
+
+## PR-W: ausdrückliche Bestätigung nach Bearbeitung
+
+| Projekt | Permalink | Lizenz | Datei | Prinzip | Passung + Bewertung | Abrufdatum |
+|---|---|---|---|---|---|---|
+| KeePassXC 2.8.0 | [AutoType.cpp](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/autotype/AutoType.cpp) | GPL-2.0 OR GPL-3.0, Dateiheader | Ziel vor Auswahlfenster, Abbruch bei Vordergrundwechsel | Fensteridentität über Bearbeitungsschritt bewahren | 5/5; nur Prinzip. Kairos erneuert nach explizitem Einfügeklick die Frist und prüft weiter das ursprüngliche native Control | 25.10.2026 |
+| eframe 0.37.0 | [App::logic](https://github.com/emilk/egui/blob/0.37.0/crates/eframe/src/epi.rs) | MIT OR Apache-2.0 | App::logic | Hotkeys bei verborgenem Hauptfenster nach gezieltem Wakeup | 5/5; App-Integration, keine GUI-Abhängigkeit der Plattform | 25.10.2026 |
+
+Die additive API FocusTarget::restore_and_type_text ist ausschließlich für
+einen neuen Nutzerklick nach Editorbearbeitung. Erst restore() mit
+unveränderter Fenster-/Prozess-/Thread-/Control-Identität, dann eine neue
+Fünf-Sekunden-Frist. Es gibt keinen Recapture und keine Übernahme eines nun
+zufällig aktiven Ziels. Alte automatische Hotkey-Aufträge verwenden weiterhin
+type_text und verfallen. is_current_process ermöglicht der App, sich selbst
+als Ziel auszuschließen. Kein fremder Anwendungscode wurde übernommen.
+Die App-Grenzen sind per Fake prüfbar; ein zusätzlicher ignorierter nativer
+Test prüft Ablauf, Controlwechsel und explizite Eingabe nach Bearbeitungszeit.
+
+## Vorgemerkt für PR-11
+
+PR-W aktiviert keinen Capture-Schutz. Geplant nach PR-W, Prio 7:
+„Unsichtbar bei Bildschirmfreigabe“ mit WDA_EXCLUDEFROMCAPTURE und explizitem
+--allow-screencapture, modelliert nach KeePassXC.
+
+| Projekt | Permalink / Primärquelle | Lizenz | Datei / Vertrag | Prinzip | Passung + Bewertung | Abrufdatum |
+|---|---|---|---|---|---|---|
+| KeePassXC 2.8.0 | [main.cpp](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/main.cpp), [User Guide](https://keepassxc.org/docs/KeePassXC_UserGuide#_screenshot_security) | Quellcode GPL-2.0 OR GPL-3.0, Dateiheader; Doku nur referenziert | CLI allow-screencapture, Screenshot Security | Capture ausschließen und bewusst pro Start freigeben | 5/5 für Folge-PR; keine Capture-Implementierung in PR-W | 25.10.2026 |
+| Microsoft | [SetWindowDisplayAffinity](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity) | Dokumentation CC-BY-4.0 | WDA_EXCLUDEFROMCAPTURE | Eigenes Top-Level-Fenster vor unterstützten Capture-APIs ausblenden | 5/5 als Windows-Vertrag; ab Windows 10 2004, keine Garantie gegen beliebige Aufnahmewege | 25.10.2026 |

@@ -21,5 +21,5 @@ kairos-wordlists = { path = "crates/kairos-wordlists" }
 kairos-store = { path = "crates/kairos-store" }
 kairos-platform = { path = "crates/kairos-platform" }
 kairos-keepassxc = { path = "crates/kairos-keepassxc" }
-# Keep the scaffold buildable with the installed stable Rust 1.80 toolchain.
+# Workspace MSRV: Rust 1.95 (verified dependency requirement).
 zeroize = "=1.8.2"

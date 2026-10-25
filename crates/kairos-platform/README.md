@@ -77,7 +77,8 @@ Der Parser lehnt deshalb alle druckbaren Ctrl+Alt-Kombinationen einschließlich
 Shift+Ctrl+Alt ab. Diese konservative Entscheidung folgt dem
 [Microsoft-Tastaturleitfaden](https://github.com/MicrosoftDocs/win32/blob/48e6f97f72445079ad7dad073a645f9ff694c0b0/desktop-src/uxguide/inter-keyboard.md).
 Eine universell konfliktfreie Belegung gibt es nicht. `HotkeyUnavailable` muss
-die spätere App mit einer Umbelegung beantworten. Lokale Konflikte werden schon
+die App sichtbar melden. PR-W bietet Freigabe der Belegung und erneute
+Registrierung; eine Umbelegungs-UI folgt bei Bedarf. Lokale Konflikte werden schon
 vor der Windows-Registrierung erkannt.
 
 ## Zwischenablage und Lebensdauer
@@ -189,7 +190,7 @@ cargo test --workspace
 Unit-Tests prüfen Parsing, AltGr-/Doppelbelegungen, Löschentscheidung, Eingabegrenzen,
 geheimnisfreie Fehler, Integritätsregeln, Release-/Aktivierungsfristen und
 Unicode-Input-Paare ohne Desktop-Eingriff. Ein OS-Test fragt reale Prozess-Token ab.
-Fünf echte
+Sechs echte
 Windows-Tests sind mit `#[ignore]` versehen. Sie ersetzen die aktuelle Zwischenablage,
 registrieren globale Hotkeys oder fokussieren eigene native Testfelder und senden
 festen Dummy-Text. Nur auf einem ruhenden interaktiven Testdesktop einzeln ausführen:
@@ -235,3 +236,30 @@ Bestandteil von `cargo test` und noch nicht als ausgeführt belegt.
 Feste Permalinks, Dateilizenzen, Bewertungen und bewusst verworfene Ansätze stehen
 in [platform.md](../../docs/sources/platform.md). Prinzipien wurden übertragen;
 fremder Quellcode wurde nicht kopiert.
+
+## Additive App-Integration aus PR-W
+
+FocusTarget::restore_and_type_text(text) ist für einen ausdrücklichen neuen
+Einfügeklick nach manueller Bearbeitung bestimmt. Es validiert den Text,
+führt restore() auf dem ursprünglichen Snapshot aus und beginnt erst danach
+eine frische Fünf-Sekunden-Frist für denselben Fenster-/Prozess-/Thread-/Control-
+Datensatz. Kein neues Vordergrundziel wird erfasst. Alte automatische
+Hotkey-Ereignisse dürfen diese API nicht zum Umgehen ihrer Frist verwenden.
+Modifier-, Integritäts-, Unicode-, Teilerfolgs- und Fokusprüfungen bleiben aktiv.
+is_current_process() erlaubt, in der App eigene Eingabeziele abzuweisen,
+ohne Fensterhandles offenzulegen. Der bestehende type_text-Vertrag ist unverändert.
+
+Modelled after: [KeePassXC AutoType.cpp 2.8.0](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/autotype/AutoType.cpp).
+Nur die Bewahrung der Zielidentität über einen interaktiven Auswahl-/Editor-
+schritt wird modelliert; kein Code und keine Retry-Logik wird kopiert.
+Der zusätzliche ignorierte Test
+editor_confirmation_preserves_identity_after_editing_deadline prüft
+Fristablauf, Ablehnung eines gewechselten Controls und explizite Unicode-Eingabe.
+Insgesamt sind nun sechs interaktive Tests vorhanden, daneben der isolierte
+Clipboard-Test. Ohne ausdrücklichen Lauf bleiben sie ungeprüft.
+
+Die reale App nutzt GlobalHotkeys::with_wakeup und eframes App::logic.
+F9 öffnet den Editor, F10 tippt und kopiert ohne Fokusanforderung für Kairos,
+F11 zeigt vorerst nur den PR-6-Hinweis. Sie behält die letzte ClipboardReceipt
+für bedingtes Leeren beim normalen App-Ende. Die Desktop-Checkliste steht in
+[MANUAL-TEST.md](../../docs/MANUAL-TEST.md).

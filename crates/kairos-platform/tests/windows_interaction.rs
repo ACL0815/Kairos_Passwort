@@ -302,3 +302,38 @@ fn hotkey_channel_captures_the_original_field() {
     }
     assert_eq!(control_text(window.first), "DUMMY-channel");
 }
+
+#[test]
+#[ignore = "focuses native fields, waits for expiry, and types only public dummy data"]
+fn editor_confirmation_preserves_identity_after_editing_deadline() {
+    let window = TestWindow::new();
+    let target = FocusTarget::capture().unwrap();
+    assert!(target.is_current_process());
+    thread::sleep(Duration::from_millis(5100));
+    assert_eq!(
+        target.type_text("DUMMY-expired"),
+        Err(PlatformError::TargetExpired)
+    );
+    unsafe {
+        SetFocus(window.second);
+    }
+    assert_eq!(
+        target.restore_and_type_text("DUMMY-wrong"),
+        Err(PlatformError::TargetChanged)
+    );
+    assert_eq!(control_text(window.first), "");
+    assert_eq!(control_text(window.second), "");
+    unsafe {
+        SetFocus(window.first);
+    }
+    target.restore_and_type_text("DUMMY-Ä@#+'!?").unwrap();
+    let started = Instant::now();
+    while started.elapsed() < Duration::from_secs(2)
+        && control_text(window.first) != "DUMMY-Ä@#+'!?"
+    {
+        pump();
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(control_text(window.first), "DUMMY-Ä@#+'!?");
+    assert_eq!(control_text(window.second), "");
+}
