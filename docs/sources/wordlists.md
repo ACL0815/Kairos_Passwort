@@ -38,10 +38,13 @@ in der Crate vorhanden. Der große enz-Bestand liegt platzsparend als Gzip
 vor; der Hash wird auf den dekomprimierten Originalbytes geprüft.
 
 Aus 9.824 dys2p-Rohzeilen werden nach `a-z`, Länge 3–9 und Deduplizierung
-6.867 Wörter. 756 dokumentierte redaktionelle Ausschlüsse lassen 6.111
-übrig. 1.188 ausdrücklich gewählte, gegen die enz-Rohquelle geprüfte
-Ergänzungen ergeben **7.299 Wörter**, durchschnittlich **6,468 Buchstaben**.
-Die Ergänzungen dürfen höchstens sechs Buchstaben haben. Großgeschriebene
+6.867 Wörter. Aus beiden Quellen sind 1.302 Einträge kategorisiert gesperrt;
+781 Sperren greifen in der Basis, sodass 6.086 Wörter übrig bleiben.
+1.969 gegen die enz-Rohquelle geprüfte Ergänzungskandidaten kommen hinzu.
+Ein konservativer Endungsfilter entfernt 921 Schreibvarianten. Das Ergebnis:
+**7.134 Wörter**, durchschnittlich **6,564 Buchstaben**, davon 5.454 aus der
+Basis und 1.680 Ergänzungen. Die Ergänzungen dürfen höchstens sieben
+Buchstaben haben. Großgeschriebene
 Wörter werden nur ASCII-kleingeschrieben; Umlaute/ß werden ausgeschlossen
 und niemals umgeschrieben. Jedes Laufzeitwort liefert `Language::German`.
 
@@ -64,6 +67,41 @@ und kurze Wortformen heben solche Eigenschaften der Ursprungslisten auf.
 Feste Trenner halten Wortgrenzen beim Abschreiben eindeutig. Redaktionelle
 Kuratierung bildet keine vollständige Klassifikation aller möglichen
 Nebenbedeutungen; gewöhnliche Wörter mit Namenshomographen bleiben erlaubt.
+
+## Entscheidungen nach dem unabhängigen Review
+
+Der Endungsfilter bevorzugt kürzere Schreibweisen gegenüber Varianten mit
+`e`, `n`, `s`, `en`, `er`, `es`, `em` oder `r`. Er verhindert beispielsweise
+`tag/tage/tages`. Er ist keine linguistische Stammworterkennung und kann
+vorsorglich auch unabhängige Wörter wie `auto/autor` ausdünnen. Ein eigenes
+Morphologie-System wäre hier unverhältnismäßig. Die geringfügig höhere
+mittlere Länge ist offengelegt; wir erreichen die Mindestgröße nicht durch
+zusätzliche kurze Flexionsformen. 31,4 % der Wörter haben acht oder neun
+Buchstaben; Ziel sechs ist mit 6,564 nicht exakt erreicht und begründet.
+
+Die Ausschlusskategorien `vulgär`, `beleidigend`, `belastend`, `Eigenname` und
+`Schreibbarkeit` sind in der Pipeline festgelegt. Sie gelten für beide
+Quellen und werden gegen deren Vereinigung geprüft. Weltanschauungen werden
+nicht als Belastung klassifiziert: `atheismus`, `glaube` und `engel` bleiben
+enthalten. Beanstandete Rauschmittel-/Gewaltbegriffe und problematische
+Schreibvarianten sind zusätzlich durch unabhängige Regressionstests gesperrt.
+
+Nur originale Kleinschreibung oder ein großer Anfangsbuchstabe werden für
+enz-Kandidaten anerkannt, keine Großbuchstaben-Abkürzungen. Das bestätigt
+keine Bedeutung automatisch; diese bleibt eine redaktionelle Entscheidung.
+Reine englische Ergänzungen wurden gestrichen. Bekannte deutsche Lehnwörter
+bleiben erlaubt; **PR-7 muss seine englischen und weiteren Sprachlisten um
+alle bereits deutschen Einträge bereinigen**, bevor eine Sprachmischung
+freigegeben wird. Gleichlautende Wörter dürfen keinen Sprachbonus erzeugen.
+
+Ordinale Ablage ermöglicht reproduzierbare Diffs. Die spätere randomisierte
+Speicherung aus dem Grundkonzept ist keine Voraussetzung dieser eingebetteten
+Quelle; bei gleichverteilter Indexwahl ist die Reihenfolge entropieneutral.
+Die komprimierte vollständige Rohquelle bleibt für Offline-Reproduktion
+erhalten. Ein Auszug würde diese Prüfung schwächen, ohne die lizenzierte
+Originalquelle lokal belegbar zu halten. Eine strengere Mittelwertgrenze
+von 6,5 wird zugunsten der erläuterten Auswahl nicht erzwungen; der Test
+sichert maximal 6,6 und die reale Wortzahl sowie die Endungsregel ab.
 
 API, vollständiger Filterbericht, Tests und alle lokalen Belege:
 [`kairos-wordlists/README.md`](../../crates/kairos-wordlists/README.md),

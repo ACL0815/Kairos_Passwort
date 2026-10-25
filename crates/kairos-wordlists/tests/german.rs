@@ -11,7 +11,7 @@ const TEXT: &str = include_str!("../data/german.txt");
 #[test]
 fn embedded_words_satisfy_source_contract_and_typing_rules() {
     let words: &dyn WordSource = kairos_wordlists::german();
-    assert_eq!(words.len(), 7_299);
+    assert_eq!(words.len(), 7_134);
     assert!((7_000..=21_000).contains(&words.len()));
     assert!(!words.is_empty());
     let mut seen = HashSet::new();
@@ -35,8 +35,94 @@ fn curated_rejections_are_absent() {
     let words: HashSet<_> = TEXT.lines().collect();
     for line in include_str!("../data/rejected.tsv").lines() {
         let (word, reason) = line.split_once('\t').unwrap();
-        assert!(!reason.is_empty());
+        assert!(pipeline::REASONS.contains(&reason));
         assert!(!words.contains(word), "rejected word returned: {word}");
+    }
+}
+
+#[test]
+fn editorial_inputs_are_sorted_unique_and_categorized() {
+    for text in [
+        include_str!("../data/supplement.txt"),
+        include_str!("../data/rejected.tsv"),
+    ] {
+        assert!(text.ends_with('\n'));
+        assert!(!text.contains("\n\n"));
+        let entries: Vec<_> = text
+            .lines()
+            .map(|line| line.split('\t').next().unwrap())
+            .collect();
+        assert!(entries.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(entries.iter().all(|word| pipeline::eligible(word)));
+    }
+    assert!(include_str!("../data/supplement.txt")
+        .lines()
+        .all(|word| word.len() <= 7));
+}
+
+#[test]
+fn ending_variants_and_editorial_regressions_are_excluded() {
+    let words: HashSet<_> = TEXT.lines().collect();
+    for word in &words {
+        for ending in ["e", "n", "s", "en", "er", "es", "em", "r"] {
+            if let Some(stem) = word.strip_suffix(ending) {
+                assert!(!words.contains(stem), "ending neighbors: {stem}/{word}");
+            }
+        }
+    }
+    // Independent regression fixtures: changing the curation input alone must
+    // not silently undo the review's spelling, neutrality, and safety choices.
+    for word in [
+        "arsch",
+        "asozial",
+        "asthma",
+        "armbrust",
+        "angst",
+        "abfeuern",
+        "gefeuert",
+        "bier",
+        "wein",
+        "rotwein",
+        "portwein",
+        "weinlaune",
+        "ruine",
+        "alpen",
+        "abbuk",
+        "abhub",
+        "aalst",
+        "tages",
+        "menus",
+        "menu",
+        "uboot",
+        "kupon",
+        "fonem",
+        "mieze",
+        "zofe",
+        "first",
+        "range",
+        "page",
+        "type",
+        "user",
+        "token",
+        "login",
+        "reset",
+        "setup",
+        "story",
+        "store",
+    ] {
+        assert!(!words.contains(word), "editorial regression: {word}");
+    }
+    for neutral in ["atheismus", "glaube", "engel"] {
+        assert!(words.contains(neutral), "neutral word removed: {neutral}");
+    }
+}
+
+#[test]
+fn dictionary_validation_preserves_word_case_rules() {
+    assert_eq!(pipeline::dictionary_word("Aal").as_deref(), Some("aal"));
+    assert_eq!(pipeline::dictionary_word("apfel").as_deref(), Some("apfel"));
+    for invalid in ["ROM", "U-Boot", "Menü", "123", "fooBAR", ""] {
+        assert!(pipeline::dictionary_word(invalid).is_none());
     }
 }
 
