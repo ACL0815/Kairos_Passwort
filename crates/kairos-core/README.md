@@ -12,8 +12,7 @@ Geheimnisinhalt. Die Quelle implementiert `WordSource`. Default ist Profil 0.
 Wörter werden unabhängig mit Zurücklegen gezogen; Wiederholungen sind erlaubt.
 
 - `profile_rules(ProfileId)` liefert gemeinsame Regeldaten für Generator und
-  Entropieberechnung. Die Struktur bereitet eigene Profile vor; diese PR fügt
-  keinen weiteren Konfigurationsmodus hinzu.
+  Entropieberechnung der eingebauten Profile.
 - `profile_warnings(source.len(), &config)` meldet eine unterschrittene
   Listenempfehlung. Profil 0 empfiehlt 7.000, Profil 1–12 empfiehlt 21.000
   Wörter. Kleinere Quellen bleiben nutzbar; ihre reale Größe zählt.
@@ -27,12 +26,161 @@ Wörter werden unabhängig mit Zurücklegen gezogen; Wiederholungen sind erlaubt
 Die GUI muss `GeneratedPassword.entropy_bits` oder `entropy_bits_for` anzeigen.
 `CaseRule`, `ProfileRules` und `ProfileWarning` sind `#[non_exhaustive]`, damit
 spätere Ergänzungen additiv bleiben. Der Trennerpool ist `Cow<'static, str>`;
-eingebaute Regeln leihen Literale, künftige eigene Regeln können zur Laufzeit
-erzeugte Strings besitzen. `profile_rules` liefert nur eingebaute Regeln.
-Bevor PR-8 eigene Regeln an die Berechnung übergibt, muss deren Konstruktor
-mindestens Wortzahl ≥ 1, Trennerzahl je Lücke ≥ 1 und einen nichtleeren,
-eindeutigen ASCII-Sonderzeichenpool validieren. Die heutigen Regeln erfüllen
-diese Voraussetzungen; ein Test sichert ihre Invarianten ab.
+eingebaute Regeln leihen Literale, eigene Regeln können zur Laufzeit erzeugte
+Strings besitzen. `profile_rules` liefert weiterhin nur eingebaute Regeln.
+
+## Eigene Profile und optionale Rotation
+
+PR-8 ergänzt `CustomProfile`, `ProfileRotation`, `generate_custom`,
+`generate_rotating`, `entropy_bits_for_custom` und `entropy_bits_for_rotation`.
+`GeneratorConfig`, `ProfileId`, `GeneratedPassword` und die Regeln 0–12 bleiben
+unverändert. Ohne Aufruf der Rotations-API gibt es keinen Profilwechsel.
+
+```rust
+use kairos_core::{CaseRule, CustomProfile, ProfileId, ProfileRotation};
+
+let own = CustomProfile::new(5, "-+.,", 1, true, CaseRule::RandomInitial)?;
+let rotation = ProfileRotation::new(vec![ProfileId::new(0)?.into(), own])?;
+let json = serde_json::to_string(&rotation)?;
+let restored: ProfileRotation = serde_json::from_str(&json)?;
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+`CustomProfile::new` verlangt 1–64 Wörter, 1–8 Trenner je Lücke und einen
+nichtleeren Pool eindeutiger ASCII-Sonderzeichen. Die Obergrenzen begrenzen
+Ressourcenverbrauch, nicht die errechnete Mindeststärke. Ein einzelnes Wort ist
+zulässig; auch dann bleibt der Pool valide und darf nicht leer ausgeschlossen
+werden. Buchstaben, Ziffern und Unicode-Zeichen sind als Trenner ausgeschlossen,
+damit die Ausgabe eindeutig zerlegbar bleibt. Die Großschreibung hat dieselben
+drei Modi wie die eingebauten Profile. Wörter und benötigte Innen-/Großschreib-
+positionen prüft die Generierung gegen die tatsächliche Quelle. Kleine Quellen
+bleiben zulässig; es gibt keine zusätzliche Komplexitätspflicht oder Mindestbitzahl.
+
+`rules()` leiht unveränderliche Daten. Änderungen erfolgen an einem Klon mit
+anschließendem `CustomProfile::try_from(rules)`. So lässt sich auch die reine
+Listenempfehlung einstellen und mit `custom.warnings(source.len())` prüfen.
+Die Empfehlung erzeugt keine Entropie; null deaktiviert sie.
+`ProfileRules` bleibt ein editierbarer Rohdatentyp ohne Serialisierung.
+Nur `CustomProfile` darf generieren.
+
+Die Typen implementieren Serde. Eigene Profile erscheinen in JSON als Objekt
+mit `version: 1`, `word_count`, `separator_pool`, `separators_per_gap`, `insert_digit`, `case`
+und `recommended_source_len`; `case` ist `lowercase`, `random_initial` oder
+`one_random_uppercase`. `recommended_source_len` hat beim Einlesen den Default 1;
+die regelbestimmenden Felder und die Version sind erforderlich. Unbekannte
+Versionen, Felder und Modi werden abgelehnt, damit keine Sicherheitsregel still
+ignoriert wird. Ein privates `CustomProfileV1` trennt das Speicherformat von
+`ProfileRules`. Version 1 bleibt ein stabiler Vertrag; spätere Formate brauchen
+eine neue Version und explizite Migration unter Erhalt des V1-Lesepfads.
+Neue optionale V1-Metadaten müssen einen Serde-Default erhalten. Alte Programme
+dürfen unbekannte Formate ausdrücklich ablehnen. Eine Rotation ist ein Array
+solcher Objekte. Auch beim Einlesen läuft dieselbe Validierung. Serde ist eine reguläre Abhängigkeit,
+`serde_json` nur eine Testabhängigkeit. GUI/Store können den JSON-Adapter selbst
+einbinden. Core schreibt weder Dateien noch Store. Aufrufer sollten die Größe
+externer Dokumente vor dem Parsen begrenzen, denn Serde liest das Rohobjekt vor
+der Regelvalidierung ein.
+
+Eine Rotation enthält 1–16 Einträge, einschließlich Kopien eingebauter Profile.
+Jeder Aufruf von `generate_rotating(&source, &rotation, &excluded, knowledge)`
+zieht einen Eintrag erneut gleichverteilt über `OsRng` und rand-`Uniform`.
+Wiederholungen des vorherigen Profils sind erlaubt und nötig für unabhängige
+Ziehungen. Identische Einträge werden nicht dedupliziert; jeder Listenplatz hat
+Gewicht `1/n`, Überschneidungen verhindern den Bonus. Alle Einträge müssen mit
+derselben Quelle und den globalen Trennerausschlüssen funktionieren. Eine
+ungültige Kombination wird vor der Zufallsauswahl vollständig abgelehnt.
+Die Wörterbuchprüfung läuft pro Aufruf einmal, nicht einmal pro Profil.
+
+`RotatedPassword` enthält `password: GeneratedPassword` und
+`rotation_bonus_bits` für den späteren GUI-Haken. Es gibt keine ausgewählte
+Profil-ID, kein Regelobjekt und keine zusätzliche Kopie des Geheimnisses im
+Ergebnis. `password.entropy_bits` beschreibt die gesamte Rotation, unabhängig
+von der konkreten Auswahl. Es darf deshalb zusammen mit dem Bonus angezeigt
+werden, ohne das gezogene Profil in Metadaten festzuhalten.
+
+## Herleitung des Profilbonus
+
+Für Profil i begrenzt `H_i` aus der realen Quelle jede Ausgabewahrscheinlichkeit
+von oben durch `2^(-H_i)`. Mit `m = min_i H_i` und gleichverteilter Profilwahl
+gilt für jede mögliche Ausgabe x:
+
+```text
+P(X=x) = (1/n) * sum_i P(X=x | Profil=i)
+       <= (1/n) * sum_i 2^(-H_i) <= 2^(-m)
+H_min(X) = -log2(max_x P(X=x)) >= m
+
+Bei paarweise disjunkten Ausgabemengen trägt höchstens ein Profil bei:
+P(X=x) <= 2^(-m) / n
+H_min(X) >= m + log2(n)
+```
+
+Die Implementierung beweist Disjunktheit paarweise durch unterschiedliche
+Wortanzahl, unterschiedliche Trennerzahl pro Lücke, unterschiedliche Anwesenheit
+einer Ziffer oder disjunkte **effektive** Trennerpools. Die Trennerbeweise gelten
+nur bei mindestens zwei Wörtern. Alphabetische Quellwörter und sichtbare
+ASCII-Trenner/Ziffern machen diese Merkmale eindeutig. Großschreibungsmodi
+allein gelten konservativ nicht als Beweis. Zusätzlich müssen die konservativen
+Profilstärken innerhalb von 1e-9 Bit übereinstimmen. Scheitert auch nur ein Paar
+am Beweis oder unterscheiden sich die Stärken, ist der gesamte Bonus null.
+Es wird kein Überlappungsgraph und keine
+aufwendige Ausgabemengenanalyse gebaut.
+
+16 gleich starke, disjunkte Profile liefern genau +4 Bit gegenüber einem
+bekannten festen Profil. Wegen maximal 16 Einträgen beträgt der Bonus niemals
+mehr als 4 Bit. Bei unterschiedlichen Stärken ist die Anzeige immer die
+schwächste Profilstärke mit **0 Bit Bonus**, niemals die gerade gezogene Stärke
+oder der Durchschnitt. So kann ein schwacher Rotationseintrag keinen positiven
+Haken suggerieren, während die Sicherheit gegenüber einer starken festen
+Auswahl sinkt. Disjunkte Profile mit 1 und 8 Bit hätten mathematisch 2 Bit
+Min-Entropie; die API zeigt konservativ 1 Bit und keinen Bonus. Auch bei
+Überschneidungen verwenden wir m ohne Bonus.
+Die 157,1 Bit im Konzept sind ein theoretisches Beispiel, keine Zusage dieser
+API. Mit den einfachen Beweiskriterien und ASCII-Pools stehen keine 16
+gleich starken Varianten von Profil 12 zur Verfügung. Die vorhandenen Profile
+0–12 erfüllen die Voraussetzungen ebenfalls nicht; 0 und 1 haben identische
+Ausgaben.
+
+`ProfileKnowledge::Unknown` setzt voraus, dass der Angreifer vor dem Raten
+Quelle, vollständige Regelliste und Algorithmus kennt, aber keine zusätzliche
+Information über die aktuelle Auswahl hat. `ProfileKnowledge::Known` entfernt
+den Bonus unabhängig von Disjunktheit und liefert die schwächste feste
+Profilentropie als sichere Untergrenze. Damit die GUI den Haken ehrlich setzt,
+muss sie bei anderweitig verratener aktueller Auswahl `Known` verwenden.
+Auch verratene Länge oder Struktur kann die Annahme entkräften. Das Passwort
+selbst zeigt zwangsläufig sein Muster; Rotation soll das Raten eines noch
+unbekannten Passworts erschweren, kein dem Angreifer vorliegendes Passwort
+verschleiern. Segmente und Geheimnisse dürfen nicht geloggt werden.
+Die Schranke gilt pro unabhängiger Generierung. Wählt ein Nutzer nach bewusstem
+Neu-Auswürfeln ein bevorzugtes Muster aus, ist die endgültige Auswahl nicht mehr
+gleichverteilt. Die GUI darf für eine solche Auswahl keinen Rotationshaken
+versprechen und muss mindestens den Bonus entfernen (`Known`). Das ist noch
+keine Garantie für eine unveränderte Profilentropie, wenn auch innerhalb eines
+Profils gezielt nach Wörtern oder Mustern ausgewählt wird.
+
+Die Rechnung ist eine Untergrenze der **Min-Entropie**, keine Shannon-Entropie
+und keine Messung durchschnittlicher Rateversuche oder menschlicher Auswahl.
+Bonneaus [UCAM-CL-TR-819](https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-819.html)
+begründet die getrennte Betrachtung von Wahrscheinlichkeiten und Rateerfolg;
+die konkrete konservative Mischungsrechnung oben ist unsere Herleitung.
+
+Die neuen Tests prüfen Konstruktor-/JSON-Validierung, alle Großschreibungsmodi,
+Serialisierungs-Roundtrips, jede Disjunktheitsbedingung, Überlappungen und
+Ausschlüsse, 16 Profile mit +4 Bit, ungleiche Stärken, bekanntes Profil und
+CSPRNG-Fehler. Statistische Regressionen mit festen Seeds ziehen je 32.000-mal
+aus 3, 7 und 16 Profilen und prüfen Chi-Quadrat sowie aufeinanderfolgende Paare.
+Sie prüfen Auswahlfehler, nicht die kryptografische Qualität des Systemzufalls.
+Für alle Profile 0–12 stimmen kopierte Regeln, Segmente, Entropie und gesetzte
+Test-Seeds überein; die ursprünglichen Konzepttests bleiben erhalten.
+Erschöpfende Tests zählen zusätzlich echte Generatorausgaben mit ihren
+Wahrscheinlichkeiten. Sie prüfen die tatsächliche Mischungs-Min-Entropie und
+leere Schnittmengen bei Bonus. Dazu gehören gleiche Gesamttrennerzahl bei
+unterschiedlicher Wortzahl mit Ziffer, Ziffer/Großschreibung, variable Wortlängen
+und nicht umwandelbare Wortanfänge. Versionsfehler, Defaults, Listenempfehlungen,
+`Known`-Generierung und fehlendes `Debug`/`Clone` sind ebenfalls abgesichert.
+
+Feste eigene Profile haben bewusst einen direkten Generierungsweg. Aufrufer
+müssen dafür keine künstliche Rotation mit einem Eintrag anlegen. Die beiden
+Ergebnisformen behalten das geforderte Feld `rotation_bonus_bits`; intern
+teilen sie Quellenprüfung, Regeldaten und Geheimniskonstruktion.
 
 ## Profile und Ausschlüsse
 
@@ -121,7 +269,7 @@ keine Positionskollision, weil der Großbuchstabe beziehungsweise die Ziffer
 sichtbar an einer anderen Position steht. Die Prüfung verhindert kollidierende
 Quellwörter und mehrdeutige Wortgrenzen. Bei nicht umwandelbaren Anfängen können
 beide Zufallsentscheidungen dieselbe Ausgabe liefern; der konservative Wert
-berücksichtigt das. Ein unbekannter Profilwechsel bringt hier keinen Bonus.
+berücksichtigt das. Die API für ein festes Profil rechnet keinen Profilbonus an.
 
 Die Tests reproduzieren die Konzepttabelle mit 7.000 beziehungsweise 21.000
 verschiedenen Sechs-Buchstaben-Wörtern auf ±0,1 Bit. Statistische Tests prüfen
@@ -174,6 +322,17 @@ durch den zuständigen Lead nötig; diese Bereichs-PR ändert ihn nicht.
 
 ## Open-Source-Vorbilder
 
+- [pwgen-go, Profilkonfiguration](https://github.com/gabe565/pwgen-go/blob/5a53dce1f9cbde823855ee6facf6889eb5275fde/internal/config/config.go)
+  und [Bitwarden, Generatoroptionen](https://github.com/bitwarden/clients/blob/c0ca72a0c83cc8b7f990138ac04961cf63d985bc/libs/tools/generator/core/src/data/default-passphrase-generation-options.ts)
+  liefern das Prinzip persistierbarer, kleiner Regelobjekte. Die allgemeinen
+  Template-Sprachen von pwgen-go und
+  [Password Tech](https://github.com/cthoeing/passwordtech/blob/c77cade188d9b307302d0f367c4f95ceb3aebc29/src/passw/PasswGen.cpp)
+  werden zugunsten direkt prüfbarer Felder nicht übernommen.
+- [Serde v1.0.229](https://github.com/serde-rs/serde/tree/v1.0.229)
+  liefert als reguläre MIT/Apache-2.0-Crate die Serialisierung und validierte
+  Deserialisierung. [serde_json v1.0.154](https://github.com/serde-rs/json/tree/v1.0.154)
+  bleibt Testadapter. Die Bewertung, Lizenzen, mathematischen Primärquellen und
+  Grenzen von PR-8 stehen in [profiles.md](../../docs/sources/profiles.md).
 - [rand 0.9.5](https://github.com/rust-random/rand/blob/0.9.5/src/distr/uniform_int.rs)
   und [getrandom 0.3.4](https://github.com/rust-random/getrandom/blob/v0.3.4/src/backends/windows.rs)
   werden als Crates für gleichverteilte Auswahl und Systemzufall genutzt.
