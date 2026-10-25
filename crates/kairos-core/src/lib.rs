@@ -13,8 +13,14 @@ use zeroize::Zeroizing;
 mod generator;
 mod profiles;
 
-pub use generator::{entropy_bits_for, generate};
-pub use profiles::{profile_rules, profile_warnings, CaseRule, ProfileRules, ProfileWarning};
+pub use generator::{
+    entropy_bits_for, entropy_bits_for_custom, entropy_bits_for_rotation, generate,
+    generate_custom, generate_rotating,
+};
+pub use profiles::{
+    profile_rules, profile_warnings, CaseRule, CustomProfile, ProfileKnowledge, ProfileRotation,
+    ProfileRules, ProfileWarning, RotatedPassword, RotationEntropy,
+};
 
 /// Language metadata attached to an individual source word.
 #[derive(Clone, Debug, Eq, PartialEq)]
