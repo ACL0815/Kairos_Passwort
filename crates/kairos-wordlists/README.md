@@ -1,21 +1,23 @@
 # kairos-wordlists
 
-**Bereit zur unabhängigen Prüfung (präzisierte Rubrik).** Der Lead stuft
-`reptile` als B ein; die eigene zweite Probe bleibt unvollständig.
-[Lead-Entscheid, Proben und Prüfgrenzen](data/curation-stage-two.md).
+**Endstufenentscheidung umgesetzt.** Sieben bestätigte Wörter sind zusätzlich
+gesperrt. Der endgültige Standard verlangt eine unabhängige 900er-Stichprobe
+mit A-Quote ≤ 0,5 % und ohne A-Fall nach Hauptbedeutung. Das dokumentierte
+Restrisiko beträgt ungefähr 0,4 % nach der historischen Verifier-Stichprobe.
+[Lead-Entscheid, Verifier-Matrix und Prüfgrenzen](data/curation-stage-two.md#lead-entscheid-endstufe).
 
 `german()`, `english()`, `latin()` und `combined()` liefern gemeinsam
 `&'static EmbeddedWordList` nach dem Vertrag von `kairos_core::WordSource`.
-Die drei Listen sind paarweise disjunkt und enthalten zusammen **20.703**
+Die drei Listen sind paarweise disjunkt und enthalten zusammen **20.697**
 Schreibweisen. Jedes Wort besteht aus 3–9 ASCII-Kleinbuchstaben und trägt sein
 Sprachflag. `include_str!` und `OnceLock` erzeugen einmalig einen Index aus
 geliehenen Zeichenketten. Zur Laufzeit sind weder Dateien noch Netzwerk nötig.
 
 | Sprache | Wörter | Mittelwert | SHA-256 |
 |---|---:|---:|---|
-| DE | 6.909 | 6,577 | `02911732a22dbba0967453121e60d245bc7452e13383d808acfbbef47efb2ed0` |
-| EN | 6.897 | 6,659 | `8aae2952cab7bb2406864e7f87b685f8f5c3ced1d7c7b4f04d4a666f9253899a` |
-| LA | 6.897 | 6,988 | `7ccd0262310397edb42e1c65e33d5a781a4426fd84ad14d7edf8bedee28fd8c3` |
+| DE | 6.907 | 6,577 | `d2ce7e12303150ab6c8d17f968777b9e52709fdb712949852460b0dfef8c4480` |
+| EN | 6.895 | 6,659 | `5918f9ec9fd68f6796106b447b40696527184ebc4e5935507caecb6008737655` |
+| LA | 6.895 | 6,987 | `762f102d623c66d3a898e85375b781ca3947cb0019f16b5448b9e8c3e08bc309` |
 
 Der aktuelle Standard ist die [A/B-Rubrik](data/curation-rubric.md).
 Entscheidungen, Proben, Review und Prüfstand stehen in
@@ -25,7 +27,7 @@ Entscheidungen, Proben, Review und Prüfstand stehen in
 ```rust
 use kairos_core::WordSource;
 let words = kairos_wordlists::german();
-assert_eq!(words.len(), 6_909);
+assert_eq!(words.len(), 6_907);
 assert_eq!(words.word(0), "aal");
 ```
 
@@ -33,20 +35,22 @@ assert_eq!(words.word(0), "aal");
 
 Basis sind die beiden fest versionierten dys2p-Listen unter CC0. Von 9.824
 Rohzeilen erfüllen 7.853 die Zeichen-/Längenregeln; daraus entstehen 6.867
-eindeutige Kandidaten. Die aktuelle Sperrliste hat 1.566 Einträge, davon greifen
-982 in der Basis. Zu 5.885 Basiswörtern kommen 1.906 ausdrückliche enz-Ergänzungen.
-Der Endungsfilter entfernt 882 Varianten. Im Ergebnis stammen 5.283 Wörter aus
+eindeutige Kandidaten. Die aktuelle Sperrliste hat 1.568 Einträge, davon greifen
+984 in der Basis. Zu 5.883 Basiswörtern kommen 1.906 ausdrückliche enz-Ergänzungen.
+Der Endungsfilter entfernt 882 Varianten. Im Ergebnis stammen 5.281 Wörter aus
 der Basis und 1.626 aus den Ergänzungen.
 
-Die fünf redaktionellen Kategorien bleiben `vulgär` (2), `beleidigend` (17),
-`belastend` (967), `Eigenname` (11) und `Schreibbarkeit` (569).
+Die fünf redaktionellen Kategorien bleiben `vulgär` (2), `beleidigend` (18),
+`belastend` (968), `Eigenname` (11) und `Schreibbarkeit` (569).
 Der A/B-Standard ist davon getrennt. Die zusätzliche deutsche A-Triage nutzt
 die bestehende Pipeline-Sperrliste; konservative Grenzfälle sind im Bericht
-kenntlich. 224 alte Endwörter entfallen. Die nach der Sperrung sichtbar
+kenntlich. In Stufe 2 entfielen 224 alte Endwörter. Die nach der Sperrung sichtbar
 gewordenen Formen wurden ebenfalls geprüft und bei Bedarf gesperrt;
 `bares`, `burgen` und `coupe` kommen als neutrale B-Wörter hinzu.
 [299er-Triage](data/languages/stage2-german-triage.tsv),
 [Nachrücker](data/languages/stage2-german-followup.tsv).
+Die Endstufenentscheidung entfernt zusätzlich `farbig` und `pritsche`;
+weitere deutsche Wörter wurden nicht aufgenommen.
 
 Die Ergänzungen sind höchstens sieben Buchstaben lang und müssen in der
 vendorten enz-Quelle enthalten sein. ASCII-Großbuchstaben werden kleingeschrieben;
@@ -65,7 +69,7 @@ Kandidatenschreibweise. Alle 21.190 EN/LA-Kandidaten einschließlich Reserven
 benötigen gültige quellgebundene Entscheidungen vor der Auswahl.
 [Auswahl, Grenzen und Offline-Pipeline](data/languages/README.md).
 
-Vier unabhängig und gleichverteilt aus der Vereinigung gezogene Wörter ergeben bei festem Trenner **57,350 Bit**. Der Größenfaktor gegenüber DE ist **80,625**; der Sprachanteil ist bereits enthalten und darf nicht nochmals addiert werden.
+Vier unabhängig und gleichverteilt aus der Vereinigung gezogene Wörter ergeben bei festem Trenner **57,349 Bit**. Der Größenfaktor gegenüber DE ist **80,625**; der Sprachanteil ist bereits enthalten und darf nicht nochmals addiert werden.
 
 Sechs Buchstaben bleiben ein Komfortziel. Die aktuellen Mittelwerte stehen
 oben. Allgemeine Präfixfreiheit, eindeutige Kurzpräfixe, Mindest-Editierabstand
@@ -78,8 +82,11 @@ halten Wortgrenzen eindeutig. Zufallsauswahl und Profilregeln gehören zu Core.
 cargo run -p kairos-wordlists --example rebuild-german -- --check
 cargo run -p kairos-wordlists --example rebuild-languages -- --check
 node crates/kairos-wordlists/tools/prepare-english-senses.mjs --check
-pwsh -NoProfile -File crates/kairos-wordlists/tools/check-semantic-sample.ps1
 ```
+
+`check-semantic-sample.ps1` gehört zur historischen Nulltoleranzprüfung der
+unvollständigen EN/LA-Probe; es implementiert nicht den endgültigen Standard.
+Eine Nutzer-Sperrliste für eigene Ausschlüsse ist als Folge-Feature geplant.
 
 Quellen, Original-Lizenzen und Hashes stehen in
 [DE-Provenienz](data/PROVENANCE.md) und [EN/LA-Provenienz](data/languages/PROVENANCE.md).

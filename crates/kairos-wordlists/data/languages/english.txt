@@ -3164,7 +3164,6 @@ jovial
 joy
 joyfully
 joyous
-joyride
 joystick
 jubilance
 jubilant
@@ -3460,7 +3459,6 @@ lumpiness
 lumping
 lunar
 lunch
-lunchbox
 luncheon
 lunchroom
 lunchtime
@@ -4517,7 +4515,6 @@ pry
 psychic
 public
 publisher
-pucker
 pueblo
 pulley
 pulp
@@ -6689,6 +6686,7 @@ vineyard
 violet
 violin
 virtual
+viscosity
 viscous
 vise
 viselike

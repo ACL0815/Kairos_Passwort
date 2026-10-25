@@ -50,9 +50,9 @@ Die gezielte EN-Restsuche durchsucht den gesamten erlaubten Bestand, beansprucht
 aber keine menschliche Einzelabnahme jeder WordNet-Zuordnung.
 
 Nach dem Merge von #2 basiert #7 auf main und setzt die deutsche Triage hier um.
-DE hat 6.909 Wörter, EN/LA jeweils 6.897, die disjunkte Vereinigung
-20.703. Vier unabhängig und gleichverteilt aus der Vereinigung gezogene Wörter ergeben bei festem Trenner **57,350 Bit**. Der Größenfaktor gegenüber DE ist **80,625**; der Sprachanteil ist bereits enthalten und darf nicht nochmals addiert werden.
-Die Mittelwerte sind DE 6,577, EN 6,659, LA 6,988.
+DE hat 6.907 Wörter, EN/LA jeweils 6.895, die disjunkte Vereinigung
+20.697. Vier unabhängig und gleichverteilt aus der Vereinigung gezogene Wörter ergeben bei festem Trenner **57,349 Bit**. Der Größenfaktor gegenüber DE ist **80,625**; der Sprachanteil ist bereits enthalten und darf nicht nochmals addiert werden.
+Die Mittelwerte sind DE 6,577, EN 6,659, LA 6,987.
 
 Quell- und Lizenzentscheidung: EFF CC BY 4.0, Wordnik MIT, Whitakers individuelle
 permissive Freigabe und Princeton WordNet 3.0. Es besteht keine offene Copyleft-
@@ -71,12 +71,19 @@ Wortgebrauch. Vollständige allgemeine sprachliche Fehlerfreiheit wird nicht beh
 [Originalglossen](../../crates/kairos-wordlists/data/languages/latin-glosses.tsv), [NOTICE](../../crates/kairos-wordlists/data/languages/NOTICE.txt).
 Die spätere Release-Integration muss NOTICE mit der Anwendung ausliefern.
 
-## Stufe 2: Bereit zur unabhängigen Prüfung (präzisierte Rubrik)
+## Lead-Entscheid Endstufe und Abnahmestandard
 
-Der Lead stuft `reptile` als B ein: Eine Tier-/Gegenstandsmetapher bei neutraler
-Hauptbedeutung erzwingt kein A. Nur sexuelle, vulgäre/obszöne oder Slur-Nebensinne
-tun dies; die Hauptbedeutungen bleiben streng nach A-Klasse bewertet.
-Bereits gesperrte Wörter bleiben gesperrt. Der frühere STOP-Grund ist damit
-ersetzt, die zweite eigene Probe bleibt unvollständig. Keine neue semantische
-Stichprobe durch den Implementierungsworker; ein frischer Verifier übernimmt
-die unabhängige Prüfung. [Lead-Entscheid, Seeds und Prüfgrenzen](../../crates/kairos-wordlists/data/curation-stage-two.md).
+Zusätzlich gesperrt sind DE `farbig`, `pritsche`, EN `lunchbox`, `pucker`,
+`joyride` und LA `lascivio`, `punctim`. `nimmst`, `scio`, `squirrel`, `klage`
+und `kappe` bleiben B. Nebenbedeutungen zählen nur bei einer wortbezogenen
+Markierung als vulgär/obszön/diskriminierend in gängigen Wörterbüchern oder
+überwiegendem entsprechendem Gebrauch als A. Hauptbedeutungen bleiben streng.
+
+Abnahme: unabhängige 900er-Stichprobe, je 300 DE/EN/LA, A-Quote ≤ 0,5 % und
+kein A-Fall nach Hauptbedeutung. Die historische Verifier-Matrix zeigt
+4/900 = 0,44 %, als ungefähr 0,4 % Restrisiko dokumentiert. Die Stufe 3 wird
+wegen Lizenzlast durch CC-BY-SA-Filterdaten, ungefähr 26 % Übersperrung und
+fehlendem Abnahmegewinn verworfen. Keine Daten dieser Stufe werden übernommen.
+Eine Nutzer-Sperrliste ist als Folge-Feature geplant. Keine neue semantische
+Runde durch den Implementierungsworker.
+[Lead-Entscheid und Verifier-Matrix](../../crates/kairos-wordlists/data/curation-stage-two.md#lead-entscheid-endstufe).

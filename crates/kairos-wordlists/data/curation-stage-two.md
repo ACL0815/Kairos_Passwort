@@ -1,6 +1,10 @@
 # Abnahmestandard A/B und Stufe 2
 
-**25.10.2026 (Europe/Berlin): Bereit zur unabhängigen Prüfung (präzisierte Rubrik).**
+**25.10.2026 (Europe/Berlin): Endstufenentscheidung des Leads umgesetzt.**
+
+Der folgende historische Stufe-2-Bericht bleibt erhalten. Für den aktuellen
+Stand gilt der [Lead-Entscheid Endstufe](#lead-entscheid-endstufe) am Ende
+dieses Dokuments; er ersetzt den früheren Nulltoleranz- und Prüfauftrag.
 
 Der Lead hat `en/reptile` als B entschieden. Der frühere STOP beruhte auf
 der inzwischen ersetzten Nebenbedeutungsregel. Die zweite eigene Probe bleibt
@@ -233,3 +237,76 @@ Die vorhandene zweite Probe bleibt unvollständig; ihre 449 offenen Zeilen
 wurden nicht weiter bewertet und das vollständige Stichprobengate wird nicht
 als bestanden ausgegeben. Nächster Schritt: frischer unabhängiger Verifier
 am veröffentlichten PR-Head unter der präzisierten Rubrik.
+
+## Lead-Entscheid Endstufe
+
+Am 25.10.2026 (Europe/Berlin) beendet der Lead die Diagnoseleiter. Basis ist
+`86962555fc22d7b9a2df50a520b7133ade3ddf51`; die sieben bestätigten Fälle werden
+über die vorhandenen Pipeline-Sperrlisten ausgeschlossen:
+
+- DE: `farbig` (diskriminierender Personengebrauch), `pritsche` (Schlaggerät).
+- EN: `lunchbox`, `pucker` (gängiger vulgärer Gebrauch), `joyride` (Verbrechen).
+- LA: `lascivio` (sexueller Gebrauch), `punctim` (Waffenspitze).
+
+Diese Entscheidungen stammen aus dem ausdrücklichen Lead-Auftrag. Die
+EN/LA-Entscheidungszeilen werden bei unveränderten Quellhashes entsprechend
+auf `block` gesetzt. `nimmst`, `scio`, `squirrel`, `klage`, `kappe` bleiben
+ausdrücklich B; negative und positive Regressionen sichern die Entscheidung.
+
+Die lokale unveröffentlichte Stufe 3 in `t3-29ba4794` wird verworfen:
+CC-BY-SA-Filterdaten verursachen Weitergabepflichten, die Sperrung überschießt
+mit ungefähr 26 %, und unter der eskalierenden Nebenbedeutungs-Nulltoleranz
+entsteht kein Abnahmegewinn. Keine Stufe-3-Daten, Regeln oder Änderungen
+werden übernommen; im dortigen Worktree wird nichts geändert oder gelöscht.
+
+Die [endgültige Rubrik](curation-rubric.md#endgültiger-lead-entscheid-und-abnahme)
+verlangt für Nebenbedeutungen eine wortbezogene Wörterbuchmarkierung als
+vulgär/obszön/diskriminierend (Duden, Oxford/Merriam-Webster, Lewis & Short)
+oder überwiegenden entsprechenden Gebrauch. Ein Grundverb in einer einzelnen
+sexuellen Wendung rechtfertigt keinen A-Ausschluss. Die strengen Hauptklassen
+bleiben bestehen. Abnahme: unabhängige 900er-Stichprobe (je 300 DE/EN/LA),
+A-Quote ≤ 0,5 % und kein A-Fall nach Hauptbedeutung.
+
+Die [historische Verifier-Matrix](languages/curation-verifier-matrix.md#matrix)
+dokumentiert 4 A-Fälle auf 900 Wörtern bei `8696255`, also 0,44 % nach der
+damaligen Rubrik. Als Restrisiko werden ungefähr 0,4 % dokumentiert. Das ist
+keine exakte Hochrechnung auf alle Wörter und keine neue Abnahme des
+geänderten Heads. Die alte zweite Autorenprobe bleibt unvollständig und
+wird nicht als bestanden ausgegeben. Keine weitere semantische Runde durch
+diesen Worker. Eine Nutzer-Sperrliste für eigene Ausschlüsse ist als
+Folge-Feature geplant, hier nicht implementiert.
+
+Neu erzeugter Datenstand: **DE 6.907, EN 6.895, LA 6.895; zusammen 20.697**.
+DE bleibt 12 Wörter größer; die nach Variantenfilter verfügbare LA-Menge
+begrenzt EN/LA. Keine künstliche Erweiterung des klassifizierten Pools.
+Gegen `8696255`: DE 2 entfernt / 0 hinzugefügt, EN 3 / 1, LA 2 / 0. Einziger
+Nachrücker ist EN `viscosity`, mit bereits vorhandener quellgebundener
+`allow`-/`neutral`-Entscheidung. Alle anderen Entscheidungen bleiben unverändert.
+[Hashes, Mittelwerte und vollständige Deltas](languages/final-curation-statistics.json).
+Vier gleichverteilte Wörter aus der Vereinigung ergeben bei festem Trenner
+57,349 Bit; Größenfaktor zu DE 80,625.
+
+Aktuelles `origin/main` beim Beginn der Endstufe: `83cadfb1f591e2c0318251c1d5572dbf605fe0db`.
+GitHub meldete MERGEABLE/CLEAN; `git merge-tree --write-tree origin/main HEAD`
+endete mit Exit 0. Ein main-Import ist daher gemäß Auftrag nicht erforderlich.
+
+### Technische Abschlussprüfung der Endstufe
+
+Direkt in `t3-b995051c` nach Laden von `Enter-KairosBuildEnv.ps1`, ein einziges
+lokales `CARGO_TARGET_DIR=target`, Debug/Test ohne Debugdaten, zwei Buildjobs:
+
+- `cargo fmt --check`: Exit 0.
+- `cargo clippy --workspace --all-targets -- -D warnings`: Exit 0.
+- `cargo test --workspace`: Exit 0; **150 bestanden, 7 ignoriert, 0 fehlgeschlagen**,
+  einschließlich Doctests. Wortlisten: 12 DE + 26 EN/LA + 2 Doctests = 40.
+- Beide `cargo run -p kairos-wordlists --example rebuild-{german,languages} -- --check`: Exit 0.
+- Unverändertes `t3-d9ce504b/target/verify/check-independent-findings.ps1`: Exit 0, `findings=0`.
+- `node crates/kairos-wordlists/tools/prepare-english-senses.mjs --check`: Exit 0.
+- Technischer Daten-/Delta-/Quellhash-/Lizenztext-/Schreibpfadabgleich: Exit 0.
+- Neue negative Regression vor den Sperren: erwarteter Exit 1 (`farbig`); nach Neuerzeugung
+  beide Endstufenregressionen Exit 0.
+
+Rohlogs: `t3-b995051c/target/final-curation-validation/`. Nach erneutem Fetch ist
+`origin/main` auf `e906e622d9b143d5865c914a80e561b6be0bd29e`; GitHub weiter
+MERGEABLE/CLEAN und lokaler Merge-Konfliktcheck Exit 0. Kein main-Import erforderlich.
+Die technischen Ergebnisse ersetzen keine neue semantische Stichprobe.

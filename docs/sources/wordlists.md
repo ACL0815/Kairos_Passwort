@@ -40,9 +40,9 @@ Nach der Filteränderung sichtbare Formen wurden zusätzlich geprüft.
 [Rubrik und Belege](../../crates/kairos-wordlists/data/curation-stage-two.md).
 
 Von 9.824 Rohzeilen bleiben 6.867 passende eindeutige dys2p-Kandidaten. Die
-Sperrliste enthält 1.566 Wörter, davon greifen 982 in der Basis. 5.885 kuratierte
+Sperrliste enthält 1.568 Wörter, davon greifen 984 in der Basis. 5.883 kuratierte
 Basiswörter plus 1.906 explizite enz-Ergänzungen ergeben nach 882 entfernten
-Endungsvarianten **6.909 Wörter**. Davon stammen 5.283 aus der Basis und
+Endungsvarianten **6.907 Wörter**. Davon stammen 5.281 aus der Basis und
 1.626 aus der Ergänzung. Der Mittelwert beträgt **6,577 Buchstaben**.
 
 Die Daten sind CC0, die Rohquellen und Original-Lizenzen bleiben unverändert.

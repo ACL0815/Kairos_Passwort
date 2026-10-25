@@ -1,5 +1,24 @@
 # Diagnose und Ursachenfix (Abnahmerunde 2)
 
+## Lead-Entscheid Endstufe
+
+Der Lead hat am 25.10.2026 (Europe/Berlin) die Diagnoseleiter beendet.
+Basis bleibt `8696255` mit genau sieben zusätzlich bestätigten Sperren.
+Die lokale, unveröffentlichte Stufe 3 in `t3-29ba4794` wird verworfen:
+CC-BY-SA-Filterdaten bringen Weitergabepflichten, ungefähr 26 % Übersperrung
+und unter der eskalierenden Nebenbedeutungs-Nulltoleranz keinen Abnahmegewinn.
+Weder Daten noch Änderungen dieser Stufe werden übernommen; der fremde
+Worktree bleibt unverändert.
+
+Der endgültige Standard verlangt eine unabhängige 900er-Stichprobe mit
+A-Quote höchstens 0,5 % und ohne A-Fall nach Hauptbedeutung. Alltagssprache
+wird nach der wortbezogenen Wörterbuch-/Gebrauchsschwelle beurteilt.
+[Verbindliche Rubrik](curation-rubric.md#endgültiger-lead-entscheid-und-abnahme),
+[Umsetzung und verbleibendes Risiko](curation-stage-two.md#lead-entscheid-endstufe),
+[historische Verifier-Matrix](languages/curation-verifier-matrix.md#matrix).
+
+## Historischer Stufe-1-Bericht
+
 **Historischer Bericht der Stufe 1 bei `691860b`.** Der damalige STOP bleibt
 unten unverändert nachvollziehbar. Der aktuelle verbindliche Standard steht
 in [curation-rubric.md](curation-rubric.md); Fortsetzung, Entscheidungen und

@@ -1,0 +1,68 @@
+{
+  "base": "86962555fc22d7b9a2df50a520b7133ade3ddf51",
+  "de": {
+    "size": 6907,
+    "mean": 6.576950919357174,
+    "sha256": "d2ce7e12303150ab6c8d17f968777b9e52709fdb712949852460b0dfef8c4480",
+    "removed": [
+      "farbig",
+      "pritsche"
+    ],
+    "added": []
+  },
+  "en": {
+    "size": 6895,
+    "mean": 6.658883248730964,
+    "sha256": "5918f9ec9fd68f6796106b447b40696527184ebc4e5935507caecb6008737655",
+    "removed": [
+      "joyride",
+      "lunchbox",
+      "pucker"
+    ],
+    "added": [
+      "viscosity"
+    ]
+  },
+  "la": {
+    "size": 6895,
+    "mean": 6.987382160986222,
+    "sha256": "762f102d623c66d3a898e85375b781ca3947cb0019f16b5448b9e8c3e08bc309",
+    "removed": [
+      "lascivio",
+      "punctim"
+    ],
+    "added": []
+  },
+  "combined": 20697,
+  "bits4": 57.3485361835344,
+  "factor4": 80.62538001756486,
+  "englishEvidence": {
+    "wordnet": 6492,
+    "gaps": 403,
+    "effLarge": 5571
+  },
+  "acceptance": {
+    "standard": "Independent 900-word sample (300 DE, 300 EN, 300 LA), A <= 0.5%, no primary-meaning A",
+    "historicalVerifierHead": "86962555fc22d7b9a2df50a520b7133ade3ddf51",
+    "historicalVerifierFindings": 4,
+    "historicalVerifierSampleSize": 900,
+    "observedHistoricalRate": 0.0044444444444444444,
+    "newSemanticRound": false,
+    "stage3": "Rejected by lead; no data imported"
+  },
+  "technicalVerification": {
+    "fmt": 0,
+    "clippy": 0,
+    "workspaceTest": 0,
+    "tests": {
+      "passed": 150,
+      "failed": 0,
+      "ignored": 7
+    },
+    "rebuildGermanCheck": 0,
+    "rebuildLanguagesCheck": 0,
+    "independentFindingsGate": 0,
+    "independentFindings": 0,
+    "wordnetExtractCheck": 0
+  }
+}

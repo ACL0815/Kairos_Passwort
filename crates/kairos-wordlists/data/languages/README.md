@@ -1,8 +1,9 @@
 # Englisch, Latein und die kombinierte Quelle
 
-**Bereit zur unabhängigen Prüfung (präzisierte Rubrik).** `reptile` ist
-nach Lead-Entscheid B. Die eigene zweite Probe bleibt unvollständig.
-[Lead-Entscheid und Übergabe](../curation-stage-two.md).
+**Endstufenentscheidung umgesetzt.** Der endgültige Standard verlangt eine
+unabhängige 900er-Stichprobe (je 300 DE/EN/LA), A-Quote ≤ 0,5 % und keinen
+A-Fall nach Hauptbedeutung. Die historische Verifier-Stichprobe zeigt rund
+0,4 % Restrisiko. [Lead-Entscheid und Verifier-Matrix](../curation-stage-two.md#lead-entscheid-endstufe).
 
 Aktueller Standard ist die [verbindliche A/B-Rubrik](../curation-rubric.md).
 Der historische STOP aus Stufe 1 ist in [curation-diagnosis.md](../curation-diagnosis.md)
@@ -11,11 +12,11 @@ PR #2 ist gemergt; #7 basiert jetzt auf main und enthält die deutsche A-Triage.
 
 | Sprache | Wörter | Mittelwert | SHA-256 |
 |---|---:|---:|---|
-| DE | 6.909 | 6,577 | `02911732a22dbba0967453121e60d245bc7452e13383d808acfbbef47efb2ed0` |
-| EN | 6.897 | 6,659 | `8aae2952cab7bb2406864e7f87b685f8f5c3ced1d7c7b4f04d4a666f9253899a` |
-| LA | 6.897 | 6,988 | `7ccd0262310397edb42e1c65e33d5a781a4426fd84ad14d7edf8bedee28fd8c3` |
+| DE | 6.907 | 6,577 | `d2ce7e12303150ab6c8d17f968777b9e52709fdb712949852460b0dfef8c4480` |
+| EN | 6.895 | 6,659 | `5918f9ec9fd68f6796106b447b40696527184ebc4e5935507caecb6008737655` |
+| LA | 6.895 | 6,987 | `762f102d623c66d3a898e85375b781ca3947cb0019f16b5448b9e8c3e08bc309` |
 
-Die Vereinigung hat **20.703** verschiedene Wörter mit korrekten Flags.
+Die Vereinigung hat **20.697** verschiedene Wörter mit korrekten Flags.
 Die API verwendet `&'static EmbeddedWordList`, `include_str!` und `OnceLock`.
 Nur die Wortlisten werden eingebettet; Glossen und Kuration sind Entwicklungsdaten.
 
@@ -34,16 +35,19 @@ A/B und die tatsächliche allow/block-Aktion getrennt fest.
 
 Nur A zählt als semantischer Fehler. B umfasst neutrale Anatomie, Tier-/Bewegungsverben,
 milde Wertungen und Tier-/Gegenstandsmetaphern bei neutraler Hauptbedeutung.
-Nur sexuelle, vulgäre/obszöne und Slur-Nebensinne erzwingen A; Hauptsinne
-bleiben streng nach A-Klasse ausgeschlossen. `reptile`, `pouncing`, `bladder`,
+Nebenbedeutungen zählen nur bei wortbezogener Wörterbuchmarkierung als
+vulgär/obszön/diskriminierend oder überwiegendem entsprechendem Gebrauch als A.
+Ein Grundverb in einer einzelnen sexuellen Wendung genügt nicht; Hauptsinne
+bleiben streng nach A-Klasse ausgeschlossen. `nimmst`, `scio`, `squirrel`,
+`klage`, `kappe`, `reptile`, `pouncing`, `bladder`,
 `absurde` und `situs` bleiben erlaubt;
 `servula` ist als Sklavin gesperrt. Vorherige strengere Sperren bleiben erhalten.
 
 EN-Fingerprints binden jetzt den vollständigen WordNet-Quelltext und die explizite
 EFF-Large-Mitgliedschaft. Der ganze Pool besitzt 8.924 WordNet-Treffer und 634
 ausdrückliche NO_ENTRY-Zeilen; 7.772 Kandidaten stehen in EFF Large. In der
-Endliste haben 6493 Wörter WordNet-Belege und 404
-keinen WordNet-Eintrag; 5573 tragen das EFF-Large-Signal.
+Endliste haben 6492 Wörter WordNet-Belege und 403
+keinen WordNet-Eintrag; 5571 tragen das EFF-Large-Signal.
 Lücken sind keine Wörterbuchfreigabe. EFF ist ein externes Kurationssignal,
 keine automatische A/B-Entscheidung. [Extraktor, Originalarchiv und Grenzen](upstream/wordnet/README.md).
 
@@ -58,7 +62,7 @@ konservatives Zusatznetz; sie beweisen keine vollständige semantische Eignung.
 
 EN verwendet drei EFF-Listen von 2016 mit 10.368 Rohzeilen, 8.301 passenden
 eindeutigen Wörtern und 1.257 ausdrücklichen Wordnik-Ergänzungen. Der übrige
-Wordnik-Rohbestand ist kein ungeprüfter Nachrückerpool. 1.226 ältere redaktionelle
+Wordnik-Rohbestand ist kein ungeprüfter Nachrückerpool. 1.229 redaktionelle
 Sperren bleiben wirksam. Nach Kuration und deutschem Sprachabzug gilt kürzer
 zuerst, dann ordinal.
 
@@ -66,7 +70,7 @@ LA verwendet Whitakers WORDS bei Commit `1f2f0fb0867a896d7b9284a03d615ed635d6f99
 mit 39.335 Datensätzen. Der eigene Decoder unterstützt bestimmte Nominative,
 regelmäßige/deponentische Präsensformen und unveränderliche Wörter. Fehlende
 zzz-Stämme, reine Namen und nicht unterstützte Muster werden nicht übernommen.
-2.352 ältere redaktionelle Sperren gelten zusätzlich. Die Reihenfolge ist Frequenz
+2.354 redaktionelle Sperren gelten zusätzlich. Die Reihenfolge ist Frequenz
 A vor B vor C vor D, dann Länge und ordinale Schreibweise. Identische vollständige
 erste Glossen werden auf die zuerst gerankte Form reduziert; dies kann auch
 Synonyme ausdünnen und ist keine vollständige linguistische Variantenanalyse.
@@ -77,7 +81,7 @@ EN/LA werden höchstens auf den DE-Umfang und sonst auf das verfügbare Minimum
 gekürzt. Der vorsichtige LA-Abzug gegen eine größere EN-Vorauswahl wird bei
 einer eventuellen späteren Kürzung nicht rückgängig gemacht.
 
-Vier unabhängig und gleichverteilt aus der Vereinigung gezogene Wörter ergeben bei festem Trenner **57,350 Bit**. Der Größenfaktor gegenüber DE ist **80,625**; der Sprachanteil ist bereits enthalten und darf nicht nochmals addiert werden.
+Vier unabhängig und gleichverteilt aus der Vereinigung gezogene Wörter ergeben bei festem Trenner **57,349 Bit**. Der Größenfaktor gegenüber DE ist **80,625**; der Sprachanteil ist bereits enthalten und darf nicht nochmals addiert werden.
 
 ## Prüfungen und Weitergabe
 
@@ -95,13 +99,15 @@ Die Pipeline prüft Quellen, Lizenzen, alle Entscheidungen, Ausgabehashes,
 Filterbericht und LA-Glossen. Hashfreigaben werden bewusst separat gesetzt.
 Das Stichprobengate prüft aktuelle Listenhashes, Auswahl und sämtliche
 Quelltexte; unbewertete oder veraltete Proben scheitern. B wird protokolliert.
-Ein A-Fund erlaubt einen Ursachenfix und eine neue frische Probe; findet auch
-diese A, gilt STOP. Explizite `Nebenbedeutung:`-Kategorien unterscheiden
+Die historische Nulltoleranzprüfung erlaubte einen Ursachenfix und eine neue
+Probe; bei erneutem A galt STOP. Explizite `Nebenbedeutung:`-Kategorien unterscheiden
 Sexualitaet/Vulgaer/Slur (A) von Tier-Gegenstandsmetapher (B).
 Das Gate beweist nur die ausgewählte Probe. Die historische zweite Probe
 ist unvollständig; `pwsh -NoProfile -File crates/kairos-wordlists/tools/check-semantic-sample.ps1`
-verweigert deshalb eine Freigabe. Eine neue semantische Runde führt der
-unabhängige Verifier durch.
+verweigert deshalb eine Freigabe. Dieses historische Gate implementiert nicht
+den endgültigen 900er-Standard. Der Implementierungsworker startet keine
+weitere semantische Runde. Eine Nutzer-Sperrliste für eigene Ausschlüsse
+ist als Folge-Feature geplant.
 
 Alle Wörter haben 3–9 ASCII-Kleinbuchstaben. Sechs Buchstaben sind ein Komfortziel;
 Tests begrenzen EN auf 6,7 und LA auf 7,0 im Mittel. Die frühere EN-Grenze 6,6
@@ -109,7 +115,8 @@ wurde nach zusätzlichen kurzen Ausschlüssen offengelegt angepasst.
 Allgemeine Präfixfreiheit
 und Mindest-Editierabstand werden nicht versprochen. Feste Trenner halten Grenzen
 eindeutig. [Filterbericht](report.txt), [Provenienz](PROVENANCE.md),
-[deutsche Triage](stage2-german-triage.tsv), [vollständige Wortdeltas](stage2-statistics.json).
+[deutsche Triage](stage2-german-triage.tsv), [historische Stufe-2-Deltas](stage2-statistics.json),
+[Endstufendeltas und Größen](final-curation-statistics.json).
 
 Die aktualisierten Klassifikationseingaben lassen sich mit `tools/prepare-review.ps1`
 aus dem Crate-Verzeichnis rekonstruieren. Die historischen Eingabehashes der

@@ -9,9 +9,45 @@ use kairos_wordlists::{combined, english, german, latin, EmbeddedWordList};
 const SOURCES: [fn() -> &'static EmbeddedWordList; 4] = [german, english, latin, combined];
 
 #[test]
+fn final_lead_decision_excludes_the_seven_confirmed_words() {
+    for (source, words) in [
+        (german(), &["farbig", "pritsche"][..]),
+        (english(), &["lunchbox", "pucker", "joyride"][..]),
+        (latin(), &["lascivio", "punctim"][..]),
+    ] {
+        for word in words {
+            assert!(
+                !(0..source.len()).any(|index| source.word(index) == *word),
+                "final lead exclusion returned: {word}"
+            );
+            assert!(
+                !(0..combined().len()).any(|index| combined().word(index) == *word),
+                "final lead exclusion returned in combined source: {word}"
+            );
+        }
+    }
+}
+
+#[test]
+fn final_lead_decision_preserves_ordinary_b_words() {
+    for (source, words) in [
+        (german(), &["nimmst", "klage", "kappe"][..]),
+        (english(), &["squirrel"][..]),
+        (latin(), &["scio"][..]),
+    ] {
+        for word in words {
+            assert!(
+                (0..source.len()).any(|index| source.word(index) == *word),
+                "final lead B approval removed: {word}"
+            );
+        }
+    }
+}
+
+#[test]
 fn single_language_sources_have_equal_sizes_and_valid_spelling() {
-    assert_eq!(english().len(), 6_897);
-    assert_eq!(latin().len(), 6_897);
+    assert_eq!(english().len(), 6_895);
+    assert_eq!(latin().len(), 6_895);
     assert_eq!(english().len(), latin().len());
     assert!(english().len() <= german().len());
     for (source, language, text, max_mean) in [

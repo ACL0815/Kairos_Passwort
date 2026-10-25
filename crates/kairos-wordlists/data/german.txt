@@ -2051,7 +2051,6 @@ fantasie
 fanzone
 farbdia
 farbe
-farbig
 farblich
 farbton
 farce
@@ -5019,7 +5018,6 @@ prinz
 prinzip
 prise
 prisma
-pritsche
 privat
 privileg
 probanden

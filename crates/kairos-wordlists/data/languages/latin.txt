@@ -3379,7 +3379,6 @@ largitas
 largiter
 largus
 laridum
-lascivio
 late
 latebra
 latebros
@@ -5073,7 +5072,6 @@ pumex
 pumiceus
 pumico
 pumicosus
-punctim
 puniceus
 puppis
 pupula

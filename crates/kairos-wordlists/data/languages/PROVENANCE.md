@@ -47,9 +47,9 @@ Die Autoren unterstützen oder empfehlen diese Änderungen nicht.
 
 | Sprache | Wörter | Mittelwert | SHA-256 |
 |---|---:|---:|---|
-| DE | 6.909 | 6,577 | `02911732a22dbba0967453121e60d245bc7452e13383d808acfbbef47efb2ed0` |
-| EN | 6.897 | 6,659 | `8aae2952cab7bb2406864e7f87b685f8f5c3ced1d7c7b4f04d4a666f9253899a` |
-| LA | 6.897 | 6,988 | `7ccd0262310397edb42e1c65e33d5a781a4426fd84ad14d7edf8bedee28fd8c3` |
+| DE | 6.907 | 6,577 | `d2ce7e12303150ab6c8d17f968777b9e52709fdb712949852460b0dfef8c4480` |
+| EN | 6.895 | 6,659 | `5918f9ec9fd68f6796106b447b40696527184ebc4e5935507caecb6008737655` |
+| LA | 6.895 | 6,987 | `762f102d623c66d3a898e85375b781ca3947cb0019f16b5448b9e8c3e08bc309` |
 
 Die Softwarelizenz MIT OR Apache-2.0 ersetzt keine dieser Datenlizenzen.
 [NOTICE.txt](NOTICE.txt) enthält alle vier vollständigen Texte und Attributionen
@@ -59,35 +59,35 @@ Die spätere NOTICE-Auslieferung liegt außerhalb dieses Crate-Auftrags.
 ## Reproduzierbarer Filterbericht
 
 ```text
-German retained: 6909
-Acceptance rubric A/B sha256: 65ea55de3e60a534da3243a3fe3600e3fecead5338a86daa818cd193c4e05159
-Semantic decisions sha256: 09b47c892c5f4c18560129a3137e1999ff7d9751a761059e72c94dc51ebfbba0
+German retained: 6907
+Acceptance rubric A/B sha256: 626eaa937a18892d77002970f4543b666a743230d178d0ed85aebf468ffdc525
+Semantic decisions sha256: c81944689c20f4bd340a52113adf891dfe4c22667ebc46605175b869386968d5
 English raw rows: 10368
 English eligible distinct: 8301
 English Wordnik selected additions: 1257
 English WordNet covered: 8924; explicit no-entry: 634; EFF Large positive signals: 7772
 English person meanings review: 669 candidates; sha256: 8fd57ff79446dd90c6a3fe2441dd6d827b3d471eb103874884a9d125275c6a4f
-English semantic decisions: 9558; blocked: 1782
-English editorial rejections: 1226
+English semantic decisions: 9558; blocked: 1785
+English editorial rejections: 1229
 English additional semantic blocks: 1066
 English disease/injury/decay/death guard removed: 0
 English overlap removed (German): 343
-English available after curation and overlap removal: 6923
+English available after curation and overlap removal: 6920
 Latin raw rows: 39335
 Latin eligible distinct (frequency A-D, supported lemma patterns): 11632
-Latin semantic decisions: 11632; blocked: 3095
-Latin editorial rejections: 2352
+Latin semantic decisions: 11632; blocked: 3097
+Latin editorial rejections: 2354
 Latin additional semantic blocks: 1472
 Latin sensitive-gloss/spelling guard removed: 16
 Latin overlap removed (German): 77
 Latin overlap removed (English): 99
-Latin available after curation and overlap removal: 7616
+Latin available after curation and overlap removal: 7614
 Latin identical-gloss variants removed: 719
-Latin available after variant filter: 6897
-Equal EN/LA size reduced to 6897: minimum of German target, reviewed English pool and Latin pool after overlap/variant filtering. German unchanged; Latin overlap exclusions retain the English preselection of 6909.
-English final: 6897; mean length: 6.659; sha256: 8aae2952cab7bb2406864e7f87b685f8f5c3ced1d7c7b4f04d4a666f9253899a
-Latin final: 6897; mean length: 6.988; sha256: 7ccd0262310397edb42e1c65e33d5a781a4426fd84ad14d7edf8bedee28fd8c3
-Combined distinct: 20703
+Latin available after variant filter: 6895
+Equal EN/LA size reduced to 6895: minimum of German target, reviewed English pool and Latin pool after overlap/variant filtering. German unchanged; Latin overlap exclusions retain the English preselection of 6907.
+English final: 6895; mean length: 6.659; sha256: 5918f9ec9fd68f6796106b447b40696527184ebc4e5935507caecb6008737655
+Latin final: 6895; mean length: 6.987; sha256: 762f102d623c66d3a898e85375b781ca3947cb0019f16b5448b9e8c3e08bc309
+Combined distinct: 20697
 ```
 
 Aktueller Prüfstand und semantische Grenzen: [Stufe 2](../curation-stage-two.md).

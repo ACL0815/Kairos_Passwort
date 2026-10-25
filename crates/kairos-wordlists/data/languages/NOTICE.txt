@@ -18,9 +18,11 @@ apply source-bound editorial and A/B decisions, remove variants and overlaps,
 select equal EN/LA sizes and interleave with language flags. No endorsement
 by source authors. Meaning evidence and lists are separate from the software.
 
-Curation stage 2, 2026-10-25: German 6909, English 6897, Latin 6897;
-combined 20703. A is excluded; B is logged separately, with explicitly
-documented conservative exclusions. See curation-rubric.md, curation-stage-two.md,
+Final lead decision, 2026-10-25: German 6907, English 6895, Latin 6895;
+combined 20697. Seven confirmed words additionally excluded; existing
+conservative exclusions retained. Acceptance: independent 900-word sample,
+A rate <= 0.5%, no primary-meaning A. Historical verifier: 4/900 (about 0.4%).
+Stage-3 CC-BY-SA filter data was rejected and is not included. See curation-rubric.md, curation-stage-two.md,
 semantic-decisions.tsv and report.txt. Historical stage-1 STOP evidence is kept.
 German data is corrected here after PR-2 merged; its CC0 provenance is in
 ../PROVENANCE.md. The current acceptance evidence is recorded separately.

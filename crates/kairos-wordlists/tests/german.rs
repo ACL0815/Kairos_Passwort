@@ -11,7 +11,7 @@ const TEXT: &str = include_str!("../data/german.txt");
 #[test]
 fn embedded_words_satisfy_source_contract_and_typing_rules() {
     let words: &dyn WordSource = kairos_wordlists::german();
-    assert_eq!(words.len(), 6_909);
+    assert_eq!(words.len(), 6_907);
     assert!((5_000..=21_000).contains(&words.len()));
     assert!(!words.is_empty());
     let mut seen = HashSet::new();
