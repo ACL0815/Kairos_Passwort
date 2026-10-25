@@ -9,6 +9,7 @@ compile_error!("The fake-data demo feature must never be used in a release build
 mod capture;
 mod clipboard;
 mod desktop;
+mod keepass;
 mod model;
 mod source;
 mod theme;
@@ -45,6 +46,7 @@ pub struct KairosApp {
     rotation_bonus: Option<f64>,
     copy_on_insert: bool,
     capture_protection: Option<kairos_platform::CaptureProtection>,
+    keepass: keepass::Integration,
 }
 
 impl KairosApp {
@@ -75,6 +77,7 @@ impl KairosApp {
             rotation_bonus: None,
             copy_on_insert: true,
             capture_protection: None,
+            keepass: keepass::Integration::default(),
         };
         #[cfg(all(feature = "demo", debug_assertions))]
         {
@@ -103,6 +106,7 @@ impl KairosApp {
             self.notice = "Kein externes Zielfeld gemerkt. Generieren und Kopieren sind verfügbar; für Einfügen F9 im gewünschten Feld auslösen.";
         }
         self.register_hotkeys(ctx);
+        self.start_bridge();
     }
 
     fn register_hotkeys(&mut self, ctx: &egui::Context) {
@@ -143,6 +147,17 @@ impl KairosApp {
         target: Result<Box<dyn desktop::InputTarget>, PlatformError>,
     ) {
         ctx.send_viewport_cmd(egui::ViewportCommand::Title("Kairos Passwort".into()));
+        if self
+            .keepass
+            .flow
+            .as_ref()
+            .is_some_and(|flow| flow.blocks_hotkeys())
+        {
+            self.notice =
+                "KeePassXC-Auftrag zuerst im offenen Dialog abschließen oder nach dem Ergebnis schließen.";
+            return;
+        }
+        self.keepass.flow = None;
         match action {
             Action::OpenEditor => {
                 self.target = target.map_or(Destination::Unavailable, Destination::Editor);
@@ -191,8 +206,18 @@ impl KairosApp {
             }
             Action::GenerateTypeKeePassXC => {
                 self.target = Destination::Unavailable;
+                let window = keepass::foreground_browser();
+                self.regenerate(ctx);
+                self.keepass.flow = Some(keepass::Flow::new(
+                    target.ok(),
+                    self.keepass
+                        .bridge
+                        .as_ref()
+                        .map(|bridge| bridge as &dyn keepass::ContextSource),
+                    window,
+                ));
                 self.show_popup(ctx);
-                self.notice = "KeePassXC-Anbindung folgt (PR-6)";
+                self.notice = "KeePassXC: URL und Zielfeld ausdrücklich bestätigen.";
             }
         }
     }
@@ -280,7 +305,7 @@ impl KairosApp {
         }
     }
 
-    fn editor(&mut self, ui: &mut egui::Ui) {
+    fn editor(&mut self, ui: &mut egui::Ui) -> bool {
         let id = egui::Id::unique("password");
         let size = if self.compact { 23.0 } else { 27.0 };
         let segments = &self.password.segments;
@@ -307,6 +332,7 @@ impl KairosApp {
         if output.response.changed() {
             self.password.edited();
         }
+        output.response.changed()
     }
 
     fn controls(&mut self, ui: &mut egui::Ui) {
@@ -411,6 +437,22 @@ impl KairosApp {
     }
 
     pub fn draw(&mut self, ui: &mut egui::Ui) {
+        capture::banner(
+            ui,
+            self.capture_protection.as_ref().map_or(
+                kairos_platform::CaptureStatus::Pending,
+                kairos_platform::CaptureProtection::status,
+            ),
+            self.capture_protection.as_ref().map_or(
+                kairos_platform::CapturePolicy::Protect,
+                kairos_platform::CaptureProtection::policy,
+            ),
+        );
+        self.keepass_poll();
+        if self.keepass.flow.is_some() {
+            egui::ScrollArea::vertical().show(ui, |ui| self.keepass_view(ui));
+            return;
+        }
         let ctx = ui.ctx().clone();
         let paste = ctx.memory(|memory| memory.has_focus(egui::Id::unique("password")))
             && ctx.input_mut(|input| input.consume_key(Modifiers::CTRL, Key::V));
@@ -449,17 +491,6 @@ impl KairosApp {
         if copy && !self.password.secret.is_empty() {
             self.copy(&ctx, false);
         }
-        capture::banner(
-            ui,
-            self.capture_protection.as_ref().map_or(
-                kairos_platform::CaptureStatus::Pending,
-                kairos_platform::CaptureProtection::status,
-            ),
-            self.capture_protection.as_ref().map_or(
-                kairos_platform::CapturePolicy::Protect,
-                kairos_platform::CaptureProtection::policy,
-            ),
-        );
         egui::CentralPanel::default().frame(egui::Frame::new().fill(theme::BACKGROUND).inner_margin(if self.compact { 18 } else { 28 })).show(ui, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.label(RichText::new("KAIROS").color(theme::CYAN).size(15.0).strong());
@@ -518,7 +549,8 @@ impl KairosApp {
                     });
                 } else { ui.label(assessment); }
                 self.exclusions(ui);
-                ui.label(RichText::new("Strg+Umschalt+F9: Editor · F10: Tippen + Kopieren · F11: KeePassXC-Hinweis").color(theme::MUTED).size(12.0));
+                self.bridge_controls(ui);
+                ui.label(RichText::new("Strg+Umschalt+F9: Editor · F10: Tippen + Kopieren · F11: KeePassXC-Eintrag").color(theme::MUTED).size(12.0));
                 if !self.compact {
                     ui.horizontal_wrapped(|ui| {
                         ui.label(RichText::new("Kein Passwortverlauf · Kein Cloud-Sync · Zwischenablage 30 s").color(theme::MUTED).size(12.0));
@@ -583,7 +615,12 @@ impl KairosApp {
 
 impl eframe::App for KairosApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.keepass_poll();
         self.poll_hotkeys(ctx);
+        if self.keepass.flow.is_some() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(200));
+        }
+        self.keepass_guard_close(ctx);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
@@ -726,6 +763,16 @@ mod tests {
         );
         output.textures_delta.clear();
         output
+    }
+
+    fn has_text(shape: &egui::epaint::Shape, expected: &str) -> bool {
+        match shape {
+            egui::epaint::Shape::Text(text) => text.galley.text().contains(expected),
+            egui::epaint::Shape::Vec(shapes) => {
+                shapes.iter().any(|shape| has_text(shape, expected))
+            }
+            _ => false,
+        }
     }
 
     #[test]
@@ -876,7 +923,10 @@ mod tests {
                 .iter()
                 .any(|command| matches!(command, egui::ViewportCommand::Focus)));
         }
-        assert_eq!(app.notice, "KeePassXC-Anbindung folgt (PR-6)");
+        assert_eq!(
+            app.notice,
+            "KeePassXC: URL und Zielfeld ausdrücklich bestätigen."
+        );
         assert!(clipboard.borrow().copied.is_empty());
     }
 
@@ -1000,7 +1050,7 @@ mod tests {
     }
 
     #[test]
-    fn f11_keeps_manual_work_and_does_not_authorize_a_new_destination() {
+    fn f11_generates_a_new_transaction_without_f9_input_permission() {
         let ctx = egui::Context::default();
         let (mut app, clipboard) = fixture_app(&ctx);
         app.password.edited();
@@ -1009,11 +1059,56 @@ mod tests {
             Action::GenerateTypeKeePassXC,
             Err(PlatformError::TargetUnavailable),
         );
-        assert_eq!(&**app.password.secret, "Öl-7Wiese");
-        assert!(app.password.assessment == Assessment::Edited);
+        // Empty fixture source makes the requested fresh generation fail closed.
+        assert!(app.password.secret.is_empty());
+        assert!(app.password.assessment == Assessment::Unavailable);
+        assert!(app.keepass.flow.is_some());
         assert!(!app.target.can_insert());
         assert!(clipboard.borrow().copied.is_empty());
-        assert_eq!(app.notice, "KeePassXC-Anbindung folgt (PR-6)");
+        assert_eq!(
+            app.notice,
+            "KeePassXC: URL und Zielfeld ausdrücklich bestätigen."
+        );
+    }
+
+    #[test]
+    fn f11_password_copy_uses_protected_clipboard_without_egui_export() {
+        let ctx = egui::Context::default();
+        let (mut app, clipboard) = fixture_app(&ctx);
+        app.keepass.flow = Some(keepass::Flow::new(None, None, None));
+        let _ = frame(&ctx, &mut app, vec![]);
+        ctx.memory_mut(|memory| memory.request_focus(egui::Id::unique("password")));
+        let output = frame(&ctx, &mut app, vec![key(Key::C, Modifiers::CTRL)]);
+        assert_eq!(clipboard.borrow().copied, ["Öl-7Wiese"]);
+        assert!(!output
+            .platform_output
+            .commands
+            .iter()
+            .any(|command| matches!(command, egui::OutputCommand::CopyText(_))));
+    }
+
+    #[test]
+    fn f11_generator_and_protected_copy_errors_are_visible() {
+        let ctx = egui::Context::default();
+        let (mut app, clipboard) = fixture_app(&ctx);
+        app.handle_action(
+            &ctx,
+            Action::GenerateTypeKeePassXC,
+            Err(PlatformError::TargetUnavailable),
+        );
+        let output = frame(&ctx, &mut app, vec![]);
+        assert!(output
+            .shapes
+            .iter()
+            .any(|s| has_text(&s.shape, "Noch keine Wörter verfügbar")));
+        app.password.secret.push_str("PUBLIC TEST");
+        clipboard.borrow_mut().fail_copy = true;
+        ctx.memory_mut(|memory| memory.request_focus(egui::Id::unique("password")));
+        let output = frame(&ctx, &mut app, vec![key(Key::C, Modifiers::CTRL)]);
+        assert!(output
+            .shapes
+            .iter()
+            .any(|s| has_text(&s.shape, "Sicheres Kopieren fehlgeschlagen")));
     }
 
     #[test]

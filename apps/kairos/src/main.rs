@@ -26,6 +26,8 @@ fn main() -> eframe::Result {
         "Kairos Passwort",
         options,
         Box::new(move |creation| {
+            let root = creation.egui_ctx.clone();
+            capture.set_wakeup(move || root.request_repaint_of(eframe::egui::ViewportId::ROOT));
             capture.apply_to(creation);
             let mut app =
                 kairos::KairosApp::new(&creation.egui_ctx, kairos::german_source(), compact);

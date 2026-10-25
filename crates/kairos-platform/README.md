@@ -23,16 +23,18 @@ auch später erzeugte native Viewports, nicht aktivierende Popups und eigene
 Dialoge auf diesem GUI-Thread erfasst. Child-Controls werden übersprungen;
 egui-Dialoge innerhalb eines Viewports teilen dessen Schutz. Der Guard ist
 nicht `Send`; ein künftig zusätzlicher GUI-Thread benötigt einen eigenen Guard.
-Message-Only-Fenster der Clipboard-/Hotkey-Worker enthalten keine sichtbaren
-Passwörter und benötigen keine Anzeigeaffinität. Drop entfernt den Hook.
+Der Clipboard-Worker nutzt ein Message-Only-Fenster, der Hotkey-Worker einen
+versteckten Top-Level-HWND. Beide enthalten keine sichtbaren Passwörter und
+benötigen keine Anzeigeaffinität. Drop entfernt den Hook.
 
 Reine `GWL_STYLE`-Änderungen mit `WS_VISIBLE` lösen die beobachteten Nachrichten
 nicht aus. Das inhaltslose 0×0-Ereignisfenster von winit nutzt diesen Weg und
 ist kein Passwortfenster. Ein künftiges Fenster mit sichtbarem Inhalt muss vor
-einer solchen Stiländerung ausdrücklich `apply_to` verwenden. Bei zusätzlich
-integrierten nativen Viewports nach deren Anzeige auch den Root neu zeichnen
-lassen (`Context::request_repaint`), damit ein Hook-Fehler sofort im Banner steht.
-Der heutige `--popup`-/F9-Editor verwendet denselben Root und dessen Repaints.
+einer solchen Stiländerung ausdrücklich `apply_to` verwenden. Im Creation-Callback
+`guard.set_wakeup(move || ctx.request_repaint_of(egui::ViewportId::ROOT))` mit
+einem geklonten egui-Kontext registrieren. Hook-Fehler wecken damit sofort den
+Root und dessen Banner. `--popup`, F9, F11 und Browser-Pairing zeichnen alle
+im selben Root; die Brücke erzeugt keine zusätzlichen Inhaltsfenster.
 Eine während eines Affinitätsaufrufs übersprungene verschachtelte Anzeigenachricht
 setzt den Status auf `Unavailable(NestedWindowShow)` statt Erfolg zu behaupten.
 

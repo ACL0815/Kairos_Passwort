@@ -55,6 +55,58 @@ mod tests {
     }
 
     #[test]
+    fn app_keeps_capture_warning_visible_in_editor_and_f11_dialog() {
+        for allow in [false, true] {
+            for f11 in [false, true] {
+                let ctx = egui::Context::default();
+                let mut app = crate::KairosApp::new(&ctx, crate::german_source(), true);
+                if allow {
+                    app.connect_capture_protection(kairos_platform::CaptureProtection::new(
+                        CapturePolicy::Allow,
+                    ));
+                }
+                if f11 {
+                    app.keepass.flow = Some(crate::keepass::Flow::new(None, None, None));
+                }
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(550.0, 360.0),
+                        )),
+                        ..Default::default()
+                    },
+                    |ui| app.draw(ui),
+                );
+                output.textures_delta.clear();
+                let expected = if allow {
+                    "Bildschirmaufnahme erlaubt"
+                } else {
+                    "Schutz nicht verfügbar"
+                };
+                let warning = output
+                    .shapes
+                    .iter()
+                    .find(|shape| contains_text(&shape.shape, expected))
+                    .expect("the capture warning must survive the F11 branch");
+                assert!(warning
+                    .clip_rect
+                    .contains_rect(warning.shape.visual_bounding_rect()));
+                assert!(warning.shape.visual_bounding_rect().bottom() < 120.0);
+                let content = if f11 {
+                    "KeePassXC · Eintrag bestätigen"
+                } else {
+                    "Dein nächstes Passwort."
+                };
+                assert!(output
+                    .shapes
+                    .iter()
+                    .any(|shape| contains_text(&shape.shape, content)));
+            }
+        }
+    }
+
+    #[test]
     fn warnings_are_visible_above_the_editor_including_minimum_popup_height() {
         for (status, expected) in [
             (CaptureStatus::Allowed, "Bildschirmaufnahme erlaubt"),

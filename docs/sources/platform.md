@@ -177,6 +177,7 @@ zu dokumentieren. [MANUAL-TEST.md](../MANUAL-TEST.md) enthält die Schritte.
 Reine `GWL_STYLE`-/`WS_VISIBLE`-Änderungen werden vom Show-Hook nicht erfasst.
 Das inhaltslose winit-Ereignisfenster benötigt keinen Passwortschutz; künftige
 Inhaltsfenster auf diesem Weg müssen vor der Stiländerung explizit geschützt
-werden. Neue native Viewports müssen nach dem Anzeigen einen Root-Repaint
-anfordern, damit ein Hook-Fehler sofort als Banner erscheint. Übersprungene
+werden. Die App registriert mit `CaptureProtection::set_wakeup` einen Root-Repaint
+für Hook-Fehler, damit deren Status sofort als Banner erscheint. F9, F11 und
+Browser-Pairing nutzen denselben geschützten Root. Übersprungene
 verschachtelte Show-Nachrichten führen konservativ zu einem Fehlerstatus.

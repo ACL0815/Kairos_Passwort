@@ -4,7 +4,10 @@
 //! Only the default-on policy and Win32 display-affinity principle are modelled.
 
 use raw_window_handle::HasWindowHandle;
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 /// A per-process launch choice, never persisted as an insecure default.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -75,27 +78,46 @@ pub fn set_window_capture_policy(
 /// The guard cannot move between threads. It does not inspect other applications.
 /// Visibility set only through `GWL_STYLE | WS_VISIBLE` is not observed. Apply the
 /// policy explicitly before such a style change on a content-bearing window.
-/// When adding native viewports, repaint the root after showing them so failures
-/// recorded by the hook appear immediately. The current app's popup uses the root.
+/// Register `set_wakeup` with the GUI's root repaint callback so hook failures
+/// become visible immediately, including failures in later native viewports.
 pub struct CaptureProtection {
     policy: CapturePolicy,
-    state: Rc<Cell<CaptureStatus>>,
+    state: Rc<CaptureState>,
     #[cfg(windows)]
     _hook: Option<crate::windows::capture::Hook>,
 }
 
+pub(crate) struct CaptureState {
+    status: Cell<CaptureStatus>,
+    wakeup: RefCell<Option<Box<dyn Fn()>>>,
+}
+
+impl CaptureState {
+    pub(crate) fn record(&self, next: CaptureStatus) {
+        self.status.set(self.status.get().record(next));
+        if matches!(next, CaptureStatus::Unavailable(_)) {
+            if let Some(wakeup) = self.wakeup.borrow().as_ref() {
+                wakeup();
+            }
+        }
+    }
+}
+
 impl CaptureProtection {
     pub fn new(policy: CapturePolicy) -> Self {
-        let state = Rc::new(Cell::new(match policy {
-            CapturePolicy::Protect => CaptureStatus::Pending,
-            CapturePolicy::Allow => CaptureStatus::Allowed,
-        }));
+        let state = Rc::new(CaptureState {
+            status: Cell::new(match policy {
+                CapturePolicy::Protect => CaptureStatus::Pending,
+                CapturePolicy::Allow => CaptureStatus::Allowed,
+            }),
+            wakeup: RefCell::new(None),
+        });
         #[cfg(windows)]
         let hook = if policy == CapturePolicy::Protect {
             match crate::windows::capture::Hook::install(state.clone()) {
                 Ok(hook) => Some(hook),
                 Err(error) => {
-                    state.set(CaptureStatus::Unavailable(error));
+                    state.record(CaptureStatus::Unavailable(error));
                     None
                 }
             }
@@ -104,7 +126,7 @@ impl CaptureProtection {
         };
         #[cfg(not(windows))]
         if policy == CapturePolicy::Protect {
-            state.set(CaptureStatus::Unavailable(
+            state.record(CaptureStatus::Unavailable(
                 CaptureError::UnsupportedPlatform,
             ));
         }
@@ -119,12 +141,21 @@ impl CaptureProtection {
     /// Initialize the root from eframe's borrowed raw handle before rendering secrets.
     pub fn apply_to(&self, window: &impl HasWindowHandle) -> CaptureStatus {
         let result = set_window_capture_policy(window, self.policy);
-        self.state.set(self.state.get().record(result));
+        self.state.record(result);
         result
     }
 
+    /// Called on the GUI thread after a capture failure has been recorded.
+    /// The callback should only enqueue a root repaint, without opening windows.
+    pub fn set_wakeup(&self, wakeup: impl Fn() + 'static) {
+        *self.state.wakeup.borrow_mut() = Some(Box::new(wakeup));
+        if matches!(self.status(), CaptureStatus::Unavailable(_)) {
+            self.state.record(self.status());
+        }
+    }
+
     pub fn status(&self) -> CaptureStatus {
-        self.state.get()
+        self.state.status.get()
     }
 
     pub fn policy(&self) -> CapturePolicy {

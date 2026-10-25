@@ -2,7 +2,7 @@
 //!
 //! Modelled after: KeePassXC <https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/gui/osutils/winutils/WinUtils.cpp>.
 
-use crate::{CaptureError, CapturePolicy, CaptureStatus};
+use crate::{capture::CaptureState, CaptureError, CapturePolicy, CaptureStatus};
 use std::{cell::Cell, ptr, rc::Rc};
 use windows_sys::{
     Wdk::System::SystemServices::RtlGetVersion,
@@ -14,7 +14,7 @@ use windows_sys::{
 };
 
 thread_local! {
-    static STATE: Cell<Option<Rc<Cell<CaptureStatus>>>> = const { Cell::new(None) };
+    static STATE: Cell<Option<Rc<CaptureState>>> = const { Cell::new(None) };
     static NESTED_SHOW: Cell<bool> = const { Cell::new(false) };
 }
 
@@ -72,7 +72,7 @@ pub(crate) fn apply(window: HWND, policy: CapturePolicy) -> CaptureStatus {
 pub(crate) struct Hook(HHOOK);
 
 impl Hook {
-    pub(crate) fn install(state: Rc<Cell<CaptureStatus>>) -> Result<Self, CaptureError> {
+    pub(crate) fn install(state: Rc<CaptureState>) -> Result<Self, CaptureError> {
         let occupied = STATE.with(|slot| {
             let previous = slot.take();
             let occupied = previous.is_some();
@@ -136,8 +136,8 @@ unsafe extern "system" fn before_window_message(
                     } else {
                         result
                     };
-                    state.set(state.get().record(result));
-                    slot.set(Some(state));
+                    slot.set(Some(state.clone()));
+                    state.record(result);
                 } else {
                     NESTED_SHOW.with(|skipped| skipped.set(true));
                 }
@@ -164,6 +164,9 @@ mod tests {
     #[test]
     fn skipped_nested_show_does_not_leave_a_successful_status() {
         let guard = crate::CaptureProtection::new(CapturePolicy::Protect);
+        let wakeups = Rc::new(Cell::new(0));
+        let observed = wakeups.clone();
+        guard.set_wakeup(move || observed.set(observed.get() + 1));
         let window = unsafe {
             CreateWindowExW(
                 0,
@@ -193,5 +196,6 @@ mod tests {
             guard.status(),
             CaptureStatus::Unavailable(CaptureError::NestedWindowShow)
         );
+        assert!(wakeups.get() > 0, "a hook failure must wake the root UI");
     }
 }

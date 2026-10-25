@@ -46,7 +46,7 @@ ausgeschlossenes Minuszeichen in dieser Rotation ungültig.
 | Strg+Umschalt+F9 | Merkt das externe Zielfeld vor dem Wakeup, generiert und zeigt den kompakten Editor. Nachbearbeiten und erneute Generierungen sind möglich. |
 | Einfügen | Erst nach F9 im gewünschten Zielfeld aktiv. Bestätigt dieses Ziel nach der Bearbeitung, gibt Fokus zurück und tippt über die Plattform. Optional auch kopieren, standardmäßig an. Der Auftrag wird verbraucht; kein doppeltes Tippen durch einen zweiten Klick. |
 | Strg+Umschalt+F10 | Generiert, tippt direkt ins erfasste Ziel und kopiert nach angenommener Eingabe. Fordert keinen Fokus für das Hauptfenster an. Fehler stehen im App-Hinweis und gegebenenfalls im Titel/Taskleistenhinweis. |
-| Strg+Umschalt+F11 | Sichtbarer Hinweis „KeePassXC-Anbindung folgt (PR-6)“. Keine Texteingabe, kein Kopieren und kein Tresoreintrag. Das aktuelle Passwort einschließlich Nacharbeit bleibt erhalten; kein Einfügeziel wird freigegeben. |
+| Strg+Umschalt+F11 | Frisch generieren, URL/Benutzername/Gruppe bestätigen, KeePassXC-Anfrage; erst nach Annahme mit neuem Klick einmalig ins ursprüngliche Feld tippen. Browser-Brücke liefert nur ausdrücklich übernommene Vorschläge. |
 
 Der Dienst wird einmal mit `GlobalHotkeys::with_wakeup` gestartet. Der Callback
 fordert nur `request_repaint` an. `eframe::App::logic` verarbeitet das Ereignis
@@ -202,6 +202,21 @@ in Screenshots oder Logs. Bildbelege mit echten Quellen dürfen ausschließlich
 frisch erzeugte, nirgendwo verwendete Testpasswörter zeigen.
 
 ## Open-Source-Vorbilder
+
+### F11 / KeePassXC und Browser
+
+Strg+Umschalt+F11 öffnet einen eigenen Bestätigungsdialog mit frischem Passwort,
+URL, Benutzername und optionaler bestehender Gruppe. KeePassXC läuft in einem
+Worker; erst nach Annahme erlaubt ein neuer Klick die einmalige Eingabe über das
+ursprüngliche `FocusTarget`. Ablehnung/Timeout tippt nicht, Fehler nach Annahme
+nennen das Teilergebnis. Während Anfragen laufen sind neue Hotkey-Aufträge gesperrt.
+
+Modelled after: KeePassXC-Association und bewusste Autotype-Freigabe, 2FAS-Pairing,
+Syncthing-Host-/CSRF-Schutz und isolierte Violentmonkey-GM-APIs. Keine Übernahme
+fremden Codes. Die neue Kontext-Crate verwendet den existierenden DPAPI-Adapter
+mit separatem Blob/Marker. Anleitung und Grenzen:
+[browser/README.md](../../browser/README.md), Quellen:
+[browser.md](../../docs/sources/browser.md), [keepassxc.md](../../docs/sources/keepassxc.md).
 
 - egui/eframe 0.37.0 (MIT OR Apache-2.0) liefert Widgets, LayoutJobs, `App::logic` und Wakeup-Vertrag.
 - global-hotkey 0.9.0 (MIT OR Apache-2.0) modelliert das Weiterreichen nativer Ereignisse. Den bestehenden Plattformdienst verwendet die App als Bibliothek.
