@@ -58,22 +58,29 @@ bleiben zulässig; es gibt keine zusätzliche Komplexitätspflicht oder Mindestb
 
 `rules()` leiht unveränderliche Daten. Änderungen erfolgen an einem Klon mit
 anschließendem `CustomProfile::try_from(rules)`. So lässt sich auch die reine
-Listenempfehlung einstellen. Die Empfehlung erzeugt keine Entropie.
-`ProfileRules` ist ein editierbarer Rohdatentyp; dessen Deserialisierung allein
-validiert keine Regeln. Nur `CustomProfile` darf generieren.
+Listenempfehlung einstellen und mit `custom.warnings(source.len())` prüfen.
+Die Empfehlung erzeugt keine Entropie; null deaktiviert sie.
+`ProfileRules` bleibt ein editierbarer Rohdatentyp ohne Serialisierung.
+Nur `CustomProfile` darf generieren.
 
 Die Typen implementieren Serde. Eigene Profile erscheinen in JSON als Objekt
-mit `word_count`, `separator_pool`, `separators_per_gap`, `insert_digit`, `case`
+mit `version: 1`, `word_count`, `separator_pool`, `separators_per_gap`, `insert_digit`, `case`
 und `recommended_source_len`; `case` ist `lowercase`, `random_initial` oder
-`one_random_uppercase`. Alle Felder sind erforderlich; unbekannte Felder und
-Modi werden abgelehnt. Eine Rotation ist ein Array solcher Objekte. Auch beim
-Einlesen läuft dieselbe Validierung. Serde ist eine reguläre Abhängigkeit,
+`one_random_uppercase`. `recommended_source_len` hat beim Einlesen den Default 1;
+die regelbestimmenden Felder und die Version sind erforderlich. Unbekannte
+Versionen, Felder und Modi werden abgelehnt, damit keine Sicherheitsregel still
+ignoriert wird. Ein privates `CustomProfileV1` trennt das Speicherformat von
+`ProfileRules`. Version 1 bleibt ein stabiler Vertrag; spätere Formate brauchen
+eine neue Version und explizite Migration unter Erhalt des V1-Lesepfads.
+Neue optionale V1-Metadaten müssen einen Serde-Default erhalten. Alte Programme
+dürfen unbekannte Formate ausdrücklich ablehnen. Eine Rotation ist ein Array
+solcher Objekte. Auch beim Einlesen läuft dieselbe Validierung. Serde ist eine reguläre Abhängigkeit,
 `serde_json` nur eine Testabhängigkeit. GUI/Store können den JSON-Adapter selbst
 einbinden. Core schreibt weder Dateien noch Store. Aufrufer sollten die Größe
 externer Dokumente vor dem Parsen begrenzen, denn Serde liest das Rohobjekt vor
 der Regelvalidierung ein.
 
-Eine Rotation enthält 1–256 Einträge, einschließlich Kopien eingebauter Profile.
+Eine Rotation enthält 1–16 Einträge, einschließlich Kopien eingebauter Profile.
 Jeder Aufruf von `generate_rotating(&source, &rotation, &excluded, knowledge)`
 zieht einen Eintrag erneut gleichverteilt über `OsRng` und rand-`Uniform`.
 Wiederholungen des vorherigen Profils sind erlaubt und nötig für unabhängige
@@ -111,19 +118,26 @@ Wortanzahl, unterschiedliche Trennerzahl pro Lücke, unterschiedliche Anwesenhei
 einer Ziffer oder disjunkte **effektive** Trennerpools. Die Trennerbeweise gelten
 nur bei mindestens zwei Wörtern. Alphabetische Quellwörter und sichtbare
 ASCII-Trenner/Ziffern machen diese Merkmale eindeutig. Großschreibungsmodi
-allein gelten konservativ nicht als Beweis. Scheitert auch nur ein Paar am
-Beweis, ist der gesamte Bonus null. Es wird kein Überlappungsgraph und keine
+allein gelten konservativ nicht als Beweis. Zusätzlich müssen die konservativen
+Profilstärken innerhalb von 1e-9 Bit übereinstimmen. Scheitert auch nur ein Paar
+am Beweis oder unterscheiden sich die Stärken, ist der gesamte Bonus null.
+Es wird kein Überlappungsgraph und keine
 aufwendige Ausgabemengenanalyse gebaut.
 
 16 gleich starke, disjunkte Profile liefern genau +4 Bit gegenüber einem
-bekannten festen Profil. Bei unterschiedlichen Stärken ist die Basis immer
-das schwächste Profil, niemals die Stärke des gerade gezogenen Profils oder
-der Durchschnitt. Beispielsweise liefern disjunkte Profile mit 1 und 8 Bit
-zusammen nur 2 Bit Min-Entropie, nicht 9 Bit. Bei Überschneidungen verwenden
-wir m ohne Bonus, selbst wenn eine feinere Analyse mehr nachweisen könnte.
-Für 16 gleich starke Profile von 153,1 Bit wären die im Grundkonzept genannten
-157,1 Bit erreichbar; die vorhandenen Profile 0–12 erfüllen diese Bedingungen
-nicht. Insbesondere haben 0 und 1 identische Ausgaben.
+bekannten festen Profil. Wegen maximal 16 Einträgen beträgt der Bonus niemals
+mehr als 4 Bit. Bei unterschiedlichen Stärken ist die Anzeige immer die
+schwächste Profilstärke mit **0 Bit Bonus**, niemals die gerade gezogene Stärke
+oder der Durchschnitt. So kann ein schwacher Rotationseintrag keinen positiven
+Haken suggerieren, während die Sicherheit gegenüber einer starken festen
+Auswahl sinkt. Disjunkte Profile mit 1 und 8 Bit hätten mathematisch 2 Bit
+Min-Entropie; die API zeigt konservativ 1 Bit und keinen Bonus. Auch bei
+Überschneidungen verwenden wir m ohne Bonus.
+Die 157,1 Bit im Konzept sind ein theoretisches Beispiel, keine Zusage dieser
+API. Mit den einfachen Beweiskriterien und ASCII-Pools stehen keine 16
+gleich starken Varianten von Profil 12 zur Verfügung. Die vorhandenen Profile
+0–12 erfüllen die Voraussetzungen ebenfalls nicht; 0 und 1 haben identische
+Ausgaben.
 
 `ProfileKnowledge::Unknown` setzt voraus, dass der Angreifer vor dem Raten
 Quelle, vollständige Regelliste und Algorithmus kennt, aber keine zusätzliche
@@ -135,6 +149,12 @@ Auch verratene Länge oder Struktur kann die Annahme entkräften. Das Passwort
 selbst zeigt zwangsläufig sein Muster; Rotation soll das Raten eines noch
 unbekannten Passworts erschweren, kein dem Angreifer vorliegendes Passwort
 verschleiern. Segmente und Geheimnisse dürfen nicht geloggt werden.
+Die Schranke gilt pro unabhängiger Generierung. Wählt ein Nutzer nach bewusstem
+Neu-Auswürfeln ein bevorzugtes Muster aus, ist die endgültige Auswahl nicht mehr
+gleichverteilt. Die GUI darf für eine solche Auswahl keinen Rotationshaken
+versprechen und muss mindestens den Bonus entfernen (`Known`). Das ist noch
+keine Garantie für eine unveränderte Profilentropie, wenn auch innerhalb eines
+Profils gezielt nach Wörtern oder Mustern ausgewählt wird.
 
 Die Rechnung ist eine Untergrenze der **Min-Entropie**, keine Shannon-Entropie
 und keine Messung durchschnittlicher Rateversuche oder menschlicher Auswahl.
@@ -150,6 +170,17 @@ aus 3, 7 und 16 Profilen und prüfen Chi-Quadrat sowie aufeinanderfolgende Paare
 Sie prüfen Auswahlfehler, nicht die kryptografische Qualität des Systemzufalls.
 Für alle Profile 0–12 stimmen kopierte Regeln, Segmente, Entropie und gesetzte
 Test-Seeds überein; die ursprünglichen Konzepttests bleiben erhalten.
+Erschöpfende Tests zählen zusätzlich echte Generatorausgaben mit ihren
+Wahrscheinlichkeiten. Sie prüfen die tatsächliche Mischungs-Min-Entropie und
+leere Schnittmengen bei Bonus. Dazu gehören gleiche Gesamttrennerzahl bei
+unterschiedlicher Wortzahl mit Ziffer, Ziffer/Großschreibung, variable Wortlängen
+und nicht umwandelbare Wortanfänge. Versionsfehler, Defaults, Listenempfehlungen,
+`Known`-Generierung und fehlendes `Debug`/`Clone` sind ebenfalls abgesichert.
+
+Feste eigene Profile haben bewusst einen direkten Generierungsweg. Aufrufer
+müssen dafür keine künstliche Rotation mit einem Eintrag anlegen. Die beiden
+Ergebnisformen behalten das geforderte Feld `rotation_bonus_bits`; intern
+teilen sie Quellenprüfung, Regeldaten und Geheimniskonstruktion.
 
 ## Profile und Ausschlüsse
 

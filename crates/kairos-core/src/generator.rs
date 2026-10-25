@@ -318,11 +318,15 @@ impl<'a> PreparedRotation<'a> {
             .collect::<Result<Vec<_>, _>>()?;
         let source = PreparedSource::new(source, profiles[0].rules())?;
         let mut minimum = f64::INFINITY;
+        let mut maximum = 0.0_f64;
         for (profile, pool) in profiles.iter().zip(&pools) {
             source.validate_rules(profile.rules())?;
-            minimum = minimum.min(source.entropy(profile.rules(), pool.len()));
+            let bits = source.entropy(profile.rules(), pool.len());
+            minimum = minimum.min(bits);
+            maximum = maximum.max(bits);
         }
         let disjoint = knowledge == ProfileKnowledge::Unknown
+            && maximum - minimum <= 1e-9
             && profiles.iter().enumerate().all(|(i, a)| {
                 profiles[..i].iter().enumerate().all(|(j, b)| {
                     let a = a.rules();
@@ -352,16 +356,18 @@ impl<'a> PreparedRotation<'a> {
 /// Bounds the output min-entropy of a uniform profile mixture.
 ///
 /// Starts at the minimum of all source-dependent profile bounds. Adds `log2(n)`
-/// only when every pair has provably disjoint outputs, using word count, gap
+/// only for equal conservative strengths (within 1e-9 bits) and when every pair
+/// has provably disjoint outputs, using word count, gap
 /// width, digit presence, or disjoint effective separator pools. Words are
 /// alphabetic and separators ASCII punctuation, so those proofs are unambiguous.
-/// Any unproved overlap loses the entire bonus. Different strengths never add a
-/// bonus to the stronger profile's entropy. Known profiles always get zero bonus.
+/// Any unproved overlap or unequal strength loses the entire bonus. The list
+/// contains at most 16 entries, so the bonus is capped at four bits.
+/// Known profiles always get zero bonus.
 /// All entries must be usable; invalid entries are not silently skipped.
 ///
 /// This is not Shannon entropy or a claim about average guessing effort.
 /// See the crate README for the mixture proof and disclosure assumptions.
-/// Modelled after: Bonneau <https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-819.html>.
+/// Metric definition: Bonneau, TR-819 section 3.1 <https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-819.html>.
 pub fn entropy_bits_for_rotation(
     source: &dyn WordSource,
     rotation: &ProfileRotation,

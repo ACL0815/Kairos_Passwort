@@ -42,8 +42,10 @@ Keine Wortlisten oder Assets übernommen.
   Abschreibkomfort und ehrliche Wahrscheinlichkeiten bestimmen die Regeln.
 - **Serde:** Reguläre Crate mit Derives nutzen. `CustomProfile` besitzt private
   validierte Regeln, `ProfileRules` bleibt editierbare Rohdatenstruktur.
-  `try_from` verhindert das Umgehen des Konstruktors beim Einlesen. Unbekannte
-  Felder werden abgelehnt. Kein selbst geschriebener JSON-/TOML-Parser.
+  Ein privates versioniertes V1-DTO mit `try_from` verhindert das Umgehen des
+  Konstruktors beim Einlesen. `ProfileRules` selbst wird nicht serialisiert.
+  Unbekannte Versionen/Felder werden abgelehnt, optionale Metadaten haben
+  Defaults. Kein selbst geschriebener JSON-/TOML-Parser.
 - **serde_json:** Nur als Testabhängigkeit für Roundtrip- und Fehlerprüfungen
   nutzen. GUI/Store wählen ihren Adapter selbst; Core erhält keine Dateipfade,
   Datenbankzugriffe oder automatische Speicherung.
@@ -90,15 +92,24 @@ Untergrenze vermeidet eine zusätzliche Gleitkomma-/Überlappungsanalyse.
 Disjunktheit wird nur durch unterschiedliche Wortanzahl, Trennerzahl je Lücke,
 Ziffernanwesenheit oder disjunkte effektive Trennerpools bewiesen. Ein Wort
 erhält keinen Trennerbeweis. Kann auch nur ein Paar überlappen, ist der Bonus
-null. Bei unbekannter Auswahl und 16 gleich starken, disjunkten Profilen sind
+null. Zusätzlich ist für einen positiven Haken Gleichheit der konservativen
+Profilstärken innerhalb von 1e-9 Bit erforderlich. Unterschiedlich starke
+Profile erhalten m und **0 Bit Bonus**, obwohl eine disjunkte Mischung eine
+größere Schranke hätte. Maximal 16 Einträge begrenzen den Bonus auf 4 Bit.
+Bei unbekannter Auswahl und 16 gleich starken, disjunkten Profilen sind
 die im Konzept genannten **bis +4 Bit** erreichbar. Die eingebauten Profile
 0 und 1 überlappen vollständig; Rotation 0–12 erhält folglich keinen Bonus.
-Bei unterschiedlichen Stärken wird immer zum Minimum addiert. Ein schwaches
-Profil darf nicht durch den Durchschnitt oder eine aktuell starke Auswahl
-verdeckt werden. Eine öffentlich bekannte Profilwahl erhält über
+Ein schwaches Profil darf nicht durch den Durchschnitt, eine aktuell starke
+Auswahl oder einen positiven Haken verdeckt werden. Die 157,1 Bit des Konzepts
+sind ein theoretisches Beispiel; die aktuellen ASCII-Beweiskriterien stellen
+keine 16 gleich starken Varianten von Profil 12 bereit. Eine öffentlich bekannte Profilwahl erhält über
 `ProfileKnowledge::Known` **0 Bit** Bonus. Keine gewählte Profil-ID wird im
 Ergebnis gespeichert; die Ausgabe und Segmente selbst verraten dennoch Muster.
 Nebenkanäle wie verratene Länge können die Unbekanntheitsannahme entkräften.
+Auch bewusstes wiederholtes Neu-Auswürfeln bis zu einem bevorzugten Muster
+verletzt die Gleichverteilungsannahme für die endgültige Auswahl. Die spätere
+GUI muss dann den Bonus entfernen und darf gezielte Auswahl innerhalb eines
+Profils nicht als unveränderte Generatorverteilung ausgeben.
 
 ## Recherche und Prüfungen
 

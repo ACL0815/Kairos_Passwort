@@ -55,8 +55,12 @@ fn validates_custom_rules_at_construction_and_deserialization() {
         raw.word_count = words;
         raw.separator_pool = Cow::Owned(pool.to_owned());
         raw.separators_per_gap = gaps;
-        let json = serde_json::to_string(&raw).unwrap();
-        assert!(serde_json::from_str::<CustomProfile>(&json).is_err());
+        assert!(CustomProfile::try_from(raw).is_err());
+        let mut value = serde_json::to_value(profile(4, "-")).unwrap();
+        value["word_count"] = words.into();
+        value["separator_pool"] = pool.into();
+        value["separators_per_gap"] = gaps.into();
+        assert!(serde_json::from_value::<CustomProfile>(value).is_err());
     }
     assert!(CustomProfile::new(64, "-+", 8, true, CaseRule::OneRandomUppercase).is_ok());
     let mut value = serde_json::to_value(profile(4, "-")).unwrap();
@@ -95,11 +99,11 @@ fn validates_rotation_size_including_json_boundary() {
         Err(GenerateError::InvalidConfig)
     );
     assert!(serde_json::from_str::<ProfileRotation>("[]").is_err());
-    let profiles = vec![profile(2, "-"); 257];
+    let profiles = vec![profile(2, "-"); 17];
     assert!(ProfileRotation::new(profiles.clone()).is_err());
     let json = serde_json::to_string(&profiles).unwrap();
     assert!(serde_json::from_str::<ProfileRotation>(&json).is_err());
-    assert!(ProfileRotation::new(profiles[..256].to_vec()).is_ok());
+    assert!(ProfileRotation::new(profiles[..16].to_vec()).is_ok());
 }
 
 #[test]
@@ -161,14 +165,14 @@ fn disjoint_proofs_cover_word_counts_pools_gap_widths_and_digits() {
             CustomProfile::new(2, "-", 1, true, CaseRule::Lowercase).unwrap(),
         ],
     ];
-    for profiles in pairs {
-        let minimum = profiles
-            .iter()
-            .map(|p| entropy_bits_for_custom(&Source(&["ab", "cd"]), p, &[]).unwrap())
-            .fold(f64::INFINITY, f64::min);
+    for (profiles, (bonus, bits)) in
+        pairs
+            .into_iter()
+            .zip([(0.0, 2.0), (1.0, 3.0), (1.0, 3.0), (0.0, 2.0)])
+    {
         let result = entropy(&ProfileRotation::new(profiles).unwrap(), &[]);
-        assert_eq!(result.rotation_bonus_bits, 1.0);
-        assert_eq!(result.entropy_bits, minimum + 1.0);
+        assert_eq!(result.rotation_bonus_bits, bonus);
+        assert_eq!(result.entropy_bits, bits);
     }
 }
 
@@ -191,14 +195,17 @@ fn sixteen_equal_disjoint_profiles_get_exactly_four_bits() {
     let generated = generate_rotating(&source, &rotation, &[], ProfileKnowledge::Unknown).unwrap();
     assert_eq!(generated.password.entropy_bits, 4.0);
     assert_eq!(generated.rotation_bonus_bits, 4.0);
+    let generated = generate_rotating(&source, &rotation, &[], ProfileKnowledge::Known).unwrap();
+    assert_eq!(generated.password.entropy_bits, 0.0);
+    assert_eq!(generated.rotation_bonus_bits, 0.0);
 }
 
 #[test]
 fn unequal_strengths_never_credit_bonus_to_the_selected_stronger_profile() {
     let rotation = ProfileRotation::new(vec![profile(1, "-"), profile(8, "-")]).unwrap();
     let result = entropy(&rotation, &[]);
-    assert_eq!(result.entropy_bits, 2.0);
-    assert_eq!(result.rotation_bonus_bits, 1.0);
+    assert_eq!(result.entropy_bits, 1.0);
+    assert_eq!(result.rotation_bonus_bits, 0.0);
     let known = entropy_bits_for_rotation(
         &Source(&["ab", "cd"]),
         &rotation,
@@ -220,7 +227,8 @@ fn unequal_strengths_never_credit_bonus_to_the_selected_stronger_profile() {
         )
         .unwrap();
         seen[usize::from(generated.password.secret.contains('-'))] = true;
-        assert_eq!(generated.password.entropy_bits, 2.0);
+        assert_eq!(generated.password.entropy_bits, 1.0);
+        assert_eq!(generated.rotation_bonus_bits, 0.0);
     }
     assert_eq!(seen, [true; 2]);
 }
@@ -232,6 +240,10 @@ fn overlap_duplicates_partial_overlap_and_unused_pools_get_no_bonus() {
         vec![profile(2, "-+"), profile(2, "+.")],
         vec![profile(2, "-"), profile(2, "+"), profile(2, "-")],
         vec![profile(1, "-"), profile(1, "+")],
+        vec![
+            profile(2, "-"),
+            CustomProfile::new(2, "-", 1, false, CaseRule::OneRandomUppercase).unwrap(),
+        ],
         vec![
             CustomProfile::from(ProfileId::new(0).unwrap()),
             CustomProfile::from(ProfileId::new(1).unwrap()),
@@ -382,4 +394,254 @@ fn builtin_rules_and_seeded_outputs_remain_identical_for_custom_copies() {
             assert_eq!(original.entropy_bits, copied.entropy_bits);
         }
     }
+}
+
+#[test]
+fn versioned_json_keeps_v1_defaults_and_rejects_unsupported_rules() {
+    let original = profile(2, "-");
+    let mut value = serde_json::to_value(&original).unwrap();
+    assert_eq!(value["version"], 1);
+    let mut unversioned = value.clone();
+    unversioned.as_object_mut().unwrap().remove("version");
+    assert!(serde_json::from_value::<CustomProfile>(unversioned).is_err());
+    value
+        .as_object_mut()
+        .unwrap()
+        .remove("recommended_source_len");
+    assert_eq!(
+        serde_json::from_value::<CustomProfile>(value.clone()).unwrap(),
+        original
+    );
+    for version in [
+        serde_json::json!(0),
+        serde_json::json!(2),
+        serde_json::json!("1"),
+    ] {
+        value["version"] = version;
+        assert!(serde_json::from_value::<CustomProfile>(value.clone()).is_err());
+    }
+    value["version"] = 1.into();
+    value["case"] = "future_case".into();
+    assert!(serde_json::from_value::<CustomProfile>(value.clone()).is_err());
+    value["case"] = "lowercase".into();
+    value.as_object_mut().unwrap().remove("word_count");
+    assert!(serde_json::from_value::<CustomProfile>(value).is_err());
+    for id in 0..=12 {
+        let custom = CustomProfile::from(ProfileId::new(id).unwrap());
+        let restored: CustomProfile =
+            serde_json::from_str(&serde_json::to_string(&custom).unwrap()).unwrap();
+        assert_eq!(custom, restored);
+    }
+}
+
+#[test]
+fn custom_recommendations_produce_advisories_without_changing_strength() {
+    let mut rules = profile(2, "-").rules().clone();
+    rules.recommended_source_len = 10;
+    let custom = CustomProfile::try_from(rules).unwrap();
+    assert_eq!(
+        custom.warnings(2),
+        vec![crate::ProfileWarning::SourceBelowRecommendation {
+            actual: 2,
+            recommended: 10
+        }]
+    );
+    assert!(custom.warnings(10).is_empty());
+    assert_eq!(
+        entropy_bits_for_custom(&Source(&["ab", "cd"]), &custom, &[]).unwrap(),
+        2.0
+    );
+}
+
+struct ChoiceScript(std::collections::VecDeque<u32>);
+
+impl TryRngCore for ChoiceScript {
+    type Error = &'static str;
+
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+        self.0.pop_front().ok_or("script exhausted")
+    }
+
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+        Err("unexpected 64-bit draw")
+    }
+
+    fn try_fill_bytes(&mut self, _: &mut [u8]) -> Result<(), Self::Error> {
+        Err("unexpected byte draw")
+    }
+}
+
+fn enumerate_events(
+    events: &[(usize, Option<usize>)],
+    script: &mut Vec<u32>,
+    probability: f64,
+    visit: &mut impl FnMut(&[u32], f64),
+) {
+    let Some((&(upper, fixed), tail)) = events.split_first() else {
+        visit(script, probability);
+        return;
+    };
+    let choices = fixed.map_or(0..upper, |value| value..value + 1);
+    for choice in choices {
+        let midpoint = (((2 * choice + 1) as u64 * (1_u64 << 32)) / (2 * upper) as u64) as u32;
+        script.push(midpoint);
+        enumerate_events(tail, script, probability / upper as f64, visit);
+        script.pop();
+    }
+}
+
+fn exhaust_mixture(source: &dyn WordSource, profiles: Vec<CustomProfile>, expect_disjoint: bool) {
+    let rotation = ProfileRotation::new(profiles).unwrap();
+    let mut mixture = std::collections::HashMap::<String, f64>::new();
+    let mut supports = Vec::new();
+    let mut reported = None;
+    let mut bonus = 0.0;
+    for (index, profile) in rotation.profiles().iter().enumerate() {
+        let rules = profile.rules();
+        let prepared = PreparedSource::new(source, rules).unwrap();
+        let pool = separators_for(rules, &[]).unwrap();
+        let mut support = HashSet::new();
+        for mut word_code in 0..prepared.words.len().pow(rules.word_count as u32) {
+            let words: Vec<_> = (0..rules.word_count)
+                .map(|_| {
+                    let word = word_code % prepared.words.len();
+                    word_code /= prepared.words.len();
+                    word
+                })
+                .collect();
+            for digit_word in 0..if rules.insert_digit {
+                rules.word_count
+            } else {
+                1
+            } {
+                let mut events = vec![(rotation.profiles().len(), Some(index))];
+                if rules.insert_digit {
+                    events.push((rules.word_count, Some(digit_word)));
+                }
+                for (word_index, &choice) in words.iter().enumerate() {
+                    if word_index > 0 {
+                        events.extend(std::iter::repeat_n(
+                            (pool.len(), None),
+                            rules.separators_per_gap,
+                        ));
+                    }
+                    events.push((prepared.words.len(), Some(choice)));
+                    let word = &prepared.words[choice];
+                    let digit_here = rules.insert_digit && word_index == digit_word;
+                    if digit_here {
+                        events.push((word.chars().count() - 1, None));
+                    }
+                    match rules.case {
+                        CaseRule::Lowercase => (),
+                        CaseRule::RandomInitial => events.push((2, None)),
+                        CaseRule::OneRandomUppercase => events.push((
+                            word.chars().filter(|&c| uppercase(c).is_some()).count(),
+                            None,
+                        )),
+                    }
+                    if digit_here {
+                        events.push((10, None));
+                    }
+                }
+                enumerate_events(&events, &mut Vec::new(), 1.0, &mut |script, probability| {
+                    let mut rng = ChoiceScript(script.iter().copied().collect());
+                    let result = generate_rotating_with_rng(
+                        source,
+                        &rotation,
+                        &[],
+                        ProfileKnowledge::Unknown,
+                        &mut rng,
+                    )
+                    .unwrap();
+                    assert!(rng.0.is_empty());
+                    if let Some(previous) = reported {
+                        assert_eq!(result.password.entropy_bits, previous);
+                    }
+                    reported = Some(result.password.entropy_bits);
+                    bonus = result.rotation_bonus_bits;
+                    let output = result.password.secret.to_string();
+                    support.insert(output.clone());
+                    *mixture.entry(output).or_default() += probability;
+                });
+            }
+        }
+        supports.push(support);
+    }
+    assert!((mixture.values().sum::<f64>() - 1.0).abs() < 1e-10);
+    let actual_bits = -mixture.values().copied().fold(0.0_f64, f64::max).log2();
+    assert!(
+        actual_bits + 1e-10 >= reported.unwrap(),
+        "actual {actual_bits}, reported {reported:?}"
+    );
+    let disjoint = supports
+        .iter()
+        .enumerate()
+        .all(|(i, a)| supports[..i].iter().all(|b| a.is_disjoint(b)));
+    assert_eq!(disjoint, expect_disjoint);
+    if bonus > 0.0 {
+        assert!(disjoint);
+    }
+}
+
+#[test]
+fn exhausts_actual_mixture_probabilities_and_disjointness() {
+    let make = |w, s: &str, k, d, c| CustomProfile::new(w, s, k, d, c).unwrap();
+    exhaust_mixture(
+        &Source(&["ab", "cd"]),
+        vec![
+            make(2, "-", 1, false, CaseRule::Lowercase),
+            make(2, "-", 2, false, CaseRule::Lowercase),
+        ],
+        true,
+    );
+    exhaust_mixture(
+        &Source(&["ab", "cde"]),
+        vec![
+            make(2, "-", 2, true, CaseRule::Lowercase),
+            make(3, "-", 1, true, CaseRule::Lowercase),
+        ],
+        true,
+    );
+    exhaust_mixture(
+        &Source(&["ab", "cd"]),
+        vec![
+            make(2, "-", 1, false, CaseRule::RandomInitial),
+            make(2, "-", 1, true, CaseRule::OneRandomUppercase),
+        ],
+        true,
+    );
+    exhaust_mixture(
+        &Source(&["ab", "中文"]),
+        vec![
+            make(2, "-", 1, false, CaseRule::Lowercase),
+            make(2, "+", 1, false, CaseRule::RandomInitial),
+        ],
+        true,
+    );
+    exhaust_mixture(
+        &Source(&["ab", "cde"]),
+        vec![profile(2, "-+"), profile(3, "-")],
+        true,
+    );
+    exhaust_mixture(
+        &Source(&["ab", "cd"]),
+        vec![
+            make(1, "-", 1, true, CaseRule::RandomInitial),
+            make(2, "-", 1, true, CaseRule::Lowercase),
+        ],
+        true,
+    );
+    exhaust_mixture(
+        &Source(&["ab", "cde"]),
+        vec![profile(2, "-+"), profile(2, "+.")],
+        false,
+    );
+    exhaust_mixture(
+        &Source(&["ab", "中文"]),
+        vec![
+            profile(2, "-"),
+            make(2, "-", 1, false, CaseRule::RandomInitial),
+        ],
+        false,
+    );
 }
