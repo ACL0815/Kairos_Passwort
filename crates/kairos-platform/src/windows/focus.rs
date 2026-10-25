@@ -77,6 +77,22 @@ pub(crate) fn capture() -> Result<Snapshot, PlatformError> {
 }
 
 impl Snapshot {
+    pub(crate) fn is_current_process(&self) -> bool {
+        self.process == unsafe { GetCurrentProcessId() }
+    }
+
+    pub(crate) fn confirm_from_editor(&self) -> Result<Self, PlatformError> {
+        self.restore()?;
+        Ok(Self {
+            window: self.window,
+            control: self.control,
+            process: self.process,
+            thread: self.thread,
+            captured: Instant::now(),
+            trigger_key: self.trigger_key,
+        })
+    }
+
     fn check_alive(&self) -> Result<(), PlatformError> {
         let window = self.window as HWND;
         let control = self.control as HWND;

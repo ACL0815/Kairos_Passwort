@@ -56,6 +56,15 @@ pub struct FocusTarget {
 }
 
 impl FocusTarget {
+    /// Whether the captured destination belongs to this process. Applications
+    /// can refuse to type their own generated secrets back into their editor.
+    pub fn is_current_process(&self) -> bool {
+        #[cfg(windows)]
+        return self.snapshot.is_current_process();
+        #[cfg(not(windows))]
+        false
+    }
+
     /// Captures the foreground window and its focused native control.
     pub fn capture() -> Result<Self, PlatformError> {
         #[cfg(windows)]
@@ -72,6 +81,27 @@ impl FocusTarget {
         return self.snapshot.restore();
         #[cfg(not(windows))]
         Err(PlatformError::UnsupportedPlatform)
+    }
+
+    /// Explicit editor confirmation after potentially lengthy manual editing.
+    /// Restores and revalidates the original window/process/thread/control, then
+    /// starts a fresh five-second input deadline. Never captures a new target.
+    /// Use only for a new user click on Insert, never for queued hotkey events.
+    /// All `type_text` input, integrity, modifier and partial-input rules apply.
+    ///
+    /// Modelled after: KeePassXC <https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/autotype/AutoType.cpp>.
+    pub fn restore_and_type_text(&self, text: &str) -> Result<(), PlatformError> {
+        #[cfg(windows)]
+        {
+            crate::validate_text(text, true)?;
+            let confirmed = self.snapshot.confirm_from_editor()?;
+            crate::windows::focus::type_text(&confirmed, text)
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = text;
+            Err(PlatformError::UnsupportedPlatform)
+        }
     }
 
     /// Types literal Unicode into this same field, waiting at most two seconds

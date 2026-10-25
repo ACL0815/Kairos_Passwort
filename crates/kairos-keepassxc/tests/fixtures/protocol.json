@@ -1,0 +1,15 @@
+{
+  "get-databasehash": {"action": "get-databasehash"},
+  "associate": {"action": "associate", "key": "<client public key>", "idKey": "<identification public key>"},
+  "test-associate": {"action": "test-associate", "id": "kairos-test", "key": "<identification public key>"},
+  "set-login": {
+    "action": "set-login",
+    "id": "kairos-test",
+    "url": "https://example.invalid/signup",
+    "submitUrl": "https://example.invalid/signup",
+    "login": "dummy-user",
+    "password": "dummy-Äpfel\"\\password",
+    "group": "Test group",
+    "groupUuid": "0123456789abcdef0123456789abcdef"
+  }
+}
