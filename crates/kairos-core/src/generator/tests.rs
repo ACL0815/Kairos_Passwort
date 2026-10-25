@@ -195,7 +195,7 @@ fn rejects_empty_non_alphabetic_and_lowercase_collisions() {
         assert_error(
             &TestSource::new(words),
             &config(0),
-            GenerateError::InvalidConfig,
+            GenerateError::InvalidSource,
         );
     }
 }
@@ -204,7 +204,7 @@ fn rejects_empty_non_alphabetic_and_lowercase_collisions() {
 fn short_words_only_fail_when_an_inner_digit_position_is_required() {
     let source = TestSource::new(&["a"]);
     assert!(generate(&source, &config(2)).is_ok());
-    assert_error(&source, &config(3), GenerateError::InvalidConfig);
+    assert_error(&source, &config(3), GenerateError::InvalidSource);
 }
 
 #[test]
@@ -227,7 +227,7 @@ fn uncased_letters_do_not_gain_fictitious_entropy() {
         entropy_bits_for(&source, &config(8)),
         entropy_bits_for(&source, &config(7))
     );
-    assert_error(&source, &config(11), GenerateError::InvalidConfig);
+    assert_error(&source, &config(11), GenerateError::InvalidSource);
 }
 
 #[test]
@@ -241,7 +241,7 @@ fn normalizes_dictionary_case_before_generation() {
 
 #[test]
 fn unicode_casing_is_reversible_and_keeps_exactly_one_uppercase() {
-    let source = TestSource::new(&["ßß", "äö", "ȿɀ"]);
+    let source = TestSource::new(&["aß", "äö", "ȿɀ"]);
     for profile in [11, 12] {
         for seed in 0..100 {
             let result = seeded(&source, &config(profile), seed);
@@ -250,10 +250,11 @@ fn unicode_casing_is_reversible_and_keeps_exactly_one_uppercase() {
                 6
             );
             assert!(!result.secret.contains("SS"));
+            assert!(!result.secret.contains('ẞ'));
             assert_segments(&result);
         }
     }
-    assert_eq!(uppercase('ß'), Some('ẞ'));
+    assert_eq!(uppercase('ß'), None);
     assert_eq!(uppercase('ﬀ'), None);
     assert_eq!(uppercase('ς'), None);
 }
@@ -305,13 +306,13 @@ fn segments_cover_utf8_bytes_and_split_on_digit_and_uppercase() {
 
 #[test]
 fn buffer_capacity_is_sufficient_even_when_uppercase_utf8_grows() {
-    let source = TestSource::new(&["ȿɀ", "ßß", "äö"]);
+    let source = TestSource::new(&["ȿɀ", "aß", "äö"]);
     let prepared = PreparedSource::new(&source, profile_rules(config(12).profile)).unwrap();
     let expected = prepared.max_word_bytes * 6 + 10 + 1;
     for seed in 0..100 {
         let result = seeded(&source, &config(12), seed);
         assert!(result.secret.len() <= expected);
-        assert_eq!(result.secret.capacity(), expected);
+        assert!(result.secret.capacity() >= expected);
     }
 }
 
@@ -362,7 +363,24 @@ fn failure_during_rejection_terminates_and_is_not_a_fallback() {
         draw(&mut rng, 3),
         Err(GenerateError::RandomSourceUnavailable)
     );
-    for bound in [1, 2, 3, 5, 20, 21_000, usize::MAX] {
+    let bounds = vec![
+        1,
+        2,
+        3,
+        5,
+        20,
+        21_000,
+        (1 << 31) + 1,
+        u32::MAX as usize,
+        usize::MAX,
+    ];
+    #[cfg(target_pointer_width = "64")]
+    let bounds = {
+        let mut all = bounds;
+        all.extend([1 << 32, (1 << 63) + 1]);
+        all
+    };
+    for bound in bounds {
         let mut rng = FailAfter {
             remaining: 0,
             first_zero: false,
@@ -439,17 +457,19 @@ fn seeded_chi_square_checks_words_separators_digit_positions_and_initials() {
             separators[pool.iter().position(|&p| p == c).unwrap()] += 1;
         }
     }
-    for counts in [
-        &words[..],
-        &separators,
-        &digit_words,
-        &digit_positions,
-        &digits,
-        &initial_pairs,
+    // Chi-square critical values at p = 0.001 for each bin count (df = bins - 1).
+    // Source: https://www.itl.nist.gov/div898/handbook/eda/section3/eda3674.htm
+    for (counts, threshold) in [
+        (&words[..], 13.82),
+        (&separators[..], 43.82),
+        (&digit_words[..], 16.27),
+        (&digit_positions[..], 18.47),
+        (&digits[..], 27.88),
+        (&initial_pairs[..], 16.27),
     ] {
         let statistic = chi_square(counts);
         assert!(
-            statistic < 60.0,
+            statistic < threshold,
             "chi-square {statistic}, {} bins",
             counts.len()
         );
@@ -523,4 +543,136 @@ fn error_texts_never_include_source_or_rng_error_details() {
         GenerateError::RandomSourceUnavailable.to_string(),
         "the system random source is unavailable"
     );
+    assert_eq!(
+        GenerateError::InvalidSource.to_string(),
+        "the word source is invalid for this profile"
+    );
+}
+
+#[test]
+fn mixed_initials_use_the_smallest_actual_choice_count() {
+    let source = TestSource::new(&["中文", "ab"]);
+    assert_eq!(
+        entropy_bits_for(&source, &config(8)),
+        entropy_bits_for(&source, &config(7))
+    );
+    for seed in 0..50 {
+        assert_segments(&seeded(&source, &config(8), seed));
+    }
+}
+
+#[test]
+fn decomposed_latin_accents_are_rejected_as_invalid_source() {
+    for word in ["a\u{0308}pfel", "cafe\u{0301}", "i\u{0307}gel"] {
+        assert_error(
+            &TestSource::new(&[word]),
+            &config(0),
+            GenerateError::InvalidSource,
+        );
+    }
+}
+
+#[test]
+fn built_in_pools_are_unique_non_alphanumeric_ascii_and_rules_are_usable() {
+    for profile in 0..=12 {
+        let rules = profile_rules(config(profile).profile);
+        let pool: HashSet<_> = rules.separator_pool.chars().collect();
+        assert_eq!(pool.len(), rules.separator_pool.len());
+        assert!(pool.iter().all(|c| c.is_ascii_punctuation()));
+        assert!(!pool.is_empty());
+        assert!(rules.word_count > 0);
+        assert!(rules.separators_per_gap > 0);
+    }
+}
+
+struct ScriptedRng(std::collections::VecDeque<u32>);
+
+impl TryRngCore for ScriptedRng {
+    type Error = &'static str;
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+        self.0.pop_front().ok_or("script exhausted")
+    }
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+        Err("unexpected 64-bit draw")
+    }
+    fn try_fill_bytes(&mut self, _: &mut [u8]) -> Result<(), Self::Error> {
+        Err("unexpected byte draw")
+    }
+}
+
+fn midpoint(choices: usize, choice: usize) -> u32 {
+    (((2 * choice + 1) as u64 * (1_u64 << 32)) / (2 * choices) as u64) as u32
+}
+
+fn assert_unique_with_entropy(mut outputs: Vec<GeneratedPassword>, expected_count: usize) {
+    assert_eq!(outputs.len(), expected_count);
+    outputs.sort_unstable_by(|a, b| a.secret.as_str().cmp(b.secret.as_str()));
+    assert!(outputs
+        .windows(2)
+        .all(|pair| pair[0].secret.as_str() != pair[1].secret.as_str()));
+    let exact = (expected_count as f64).log2();
+    for result in &outputs {
+        assert!(result.entropy_bits <= exact + 1e-10);
+        assert!((result.entropy_bits - exact).abs() < 1e-10);
+        assert_segments(result);
+    }
+}
+
+#[test]
+fn exhausts_variable_length_word_sequences_and_separator_choices() {
+    let source = TestSource::new(&["ab", "cde"]);
+    let mut cfg = config(2);
+    cfg.excluded_chars = vec!['.', ',', '#'];
+    let mut outputs = Vec::new();
+    for word_mask in 0..16 {
+        for separator_mask in 0..8 {
+            let mut script = std::collections::VecDeque::new();
+            for index in 0..4 {
+                if index > 0 {
+                    script.push_back(midpoint(2, (separator_mask >> (index - 1)) & 1));
+                }
+                script.push_back(midpoint(2, (word_mask >> index) & 1));
+            }
+            let mut rng = ScriptedRng(script);
+            outputs.push(generate_with_rng(&source, &cfg, &mut rng).unwrap());
+            assert!(rng.0.is_empty());
+        }
+    }
+    assert_unique_with_entropy(outputs, 128);
+}
+
+#[test]
+fn exhausts_profile_twelve_digit_and_uppercase_choices_without_collisions() {
+    let source = TestSource::new(&["ab"]);
+    let mut cfg = config(12);
+    cfg.excluded_chars = profile_rules(cfg.profile)
+        .separator_pool
+        .chars()
+        .filter(|&c| c != '-')
+        .collect();
+    let mut outputs = Vec::new();
+    for digit_word in 0..6 {
+        for digit in 0..10 {
+            for uppercase_mask in 0..64 {
+                let mut script = std::collections::VecDeque::from([midpoint(6, digit_word)]);
+                for index in 0..6 {
+                    if index > 0 {
+                        script.extend([midpoint(1, 0); 2]);
+                    }
+                    script.push_back(midpoint(1, 0));
+                    if index == digit_word {
+                        script.push_back(midpoint(1, 0));
+                    }
+                    script.push_back(midpoint(2, (uppercase_mask >> index) & 1));
+                    if index == digit_word {
+                        script.push_back(midpoint(10, digit));
+                    }
+                }
+                let mut rng = ScriptedRng(script);
+                outputs.push(generate_with_rng(&source, &cfg, &mut rng).unwrap());
+                assert!(rng.0.is_empty());
+            }
+        }
+    }
+    assert_unique_with_entropy(outputs, 3_840);
 }

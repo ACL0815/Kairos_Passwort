@@ -2,10 +2,13 @@
 //!
 //! Modelled after: KeePassXC <https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/core/PassphraseGenerator.cpp>.
 
+use std::borrow::Cow;
+
 use crate::{GenerateError, GeneratorConfig, ProfileId};
 
 /// Letter casing applied independently to each word.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CaseRule {
     Lowercase,
     RandomInitial,
@@ -13,10 +16,16 @@ pub enum CaseRule {
 }
 
 /// Rule data shared by generation, entropy, and future custom profiles.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+///
+/// Built-ins satisfy: positive word/gap counts, and a nonempty, unique ASCII
+/// punctuation pool. Future custom-rule constructors must validate these
+/// invariants before passing rules to generation or entropy calculations.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub struct ProfileRules {
     pub word_count: usize,
-    pub separator_pool: &'static str,
+    /// Built-ins borrow static data; future custom rules may own a runtime pool.
+    pub separator_pool: Cow<'static, str>,
     pub separators_per_gap: usize,
     pub insert_digit: bool,
     pub case: CaseRule,
@@ -27,7 +36,7 @@ const ALL_SEPARATORS: &str = "-+.,#*!?_:;/()\"'$%&=";
 
 const BASE: ProfileRules = ProfileRules {
     word_count: 4,
-    separator_pool: "-",
+    separator_pool: Cow::Borrowed("-"),
     separators_per_gap: 1,
     insert_digit: false,
     case: CaseRule::Lowercase,
@@ -43,7 +52,7 @@ const DIGIT: ProfileRules = ProfileRules {
     ..LARGE
 };
 const INITIAL: ProfileRules = ProfileRules {
-    separator_pool: ALL_SEPARATORS,
+    separator_pool: Cow::Borrowed(ALL_SEPARATORS),
     case: CaseRule::RandomInitial,
     ..DIGIT
 };
@@ -52,31 +61,31 @@ const SIX: ProfileRules = ProfileRules {
     ..INITIAL
 };
 
-const RULES: [ProfileRules; 13] = [
+static RULES: [ProfileRules; 13] = [
     BASE,
     LARGE,
     ProfileRules {
-        separator_pool: "-+.,#",
+        separator_pool: Cow::Borrowed("-+.,#"),
         ..LARGE
     },
     ProfileRules {
-        separator_pool: "-+.,#",
+        separator_pool: Cow::Borrowed("-+.,#"),
         ..DIGIT
     },
     ProfileRules {
-        separator_pool: "-+.,#*!?",
+        separator_pool: Cow::Borrowed("-+.,#*!?"),
         ..DIGIT
     },
     ProfileRules {
-        separator_pool: "-+.,#*!?_:;/",
+        separator_pool: Cow::Borrowed("-+.,#*!?_:;/"),
         ..DIGIT
     },
     ProfileRules {
-        separator_pool: "-+.,#*!?_:;/()\"'",
+        separator_pool: Cow::Borrowed("-+.,#*!?_:;/()\"'"),
         ..DIGIT
     },
     ProfileRules {
-        separator_pool: ALL_SEPARATORS,
+        separator_pool: Cow::Borrowed(ALL_SEPARATORS),
         ..DIGIT
     },
     INITIAL,
@@ -103,6 +112,7 @@ pub const fn profile_rules(profile: ProfileId) -> &'static ProfileRules {
 
 /// Advisory metadata; a small source remains usable and contributes its real size.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ProfileWarning {
     SourceBelowRecommendation { actual: usize, recommended: usize },
 }

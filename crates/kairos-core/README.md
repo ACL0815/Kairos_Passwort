@@ -18,10 +18,21 @@ Wörter werden unabhängig mit Zurücklegen gezogen; Wiederholungen sind erlaubt
   Listenempfehlung. Profil 0 empfiehlt 7.000, Profil 1–12 empfiehlt 21.000
   Wörter. Kleinere Quellen bleiben nutzbar; ihre reale Größe zählt.
 - `entropy_bits(source_len, &config)` bildet das Sechs-Buchstaben-Modell ab.
-  Für leere Quellen und unzulässige Trennerausschlüsse gibt es `0.0` zurück.
+  Es ist nicht für die Sicherheitsanzeige geeignet. Für leere Quellen und
+  unzulässige Trennerausschlüsse gibt es `0.0` zurück.
 - `entropy_bits_for(&source, &config)` prüft die tatsächlichen Wörter und liefert
   `Result<f64, GenerateError>`. `GeneratedPassword.entropy_bits` verwendet
   ausschließlich diese konservative Berechnung.
+
+Die GUI muss `GeneratedPassword.entropy_bits` oder `entropy_bits_for` anzeigen.
+`CaseRule`, `ProfileRules` und `ProfileWarning` sind `#[non_exhaustive]`, damit
+spätere Ergänzungen additiv bleiben. Der Trennerpool ist `Cow<'static, str>`;
+eingebaute Regeln leihen Literale, künftige eigene Regeln können zur Laufzeit
+erzeugte Strings besitzen. `profile_rules` liefert nur eingebaute Regeln.
+Bevor PR-8 eigene Regeln an die Berechnung übergibt, muss deren Konstruktor
+mindestens Wortzahl ≥ 1, Trennerzahl je Lücke ≥ 1 und einen nichtleeren,
+eindeutigen ASCII-Sonderzeichenpool validieren. Die heutigen Regeln erfüllen
+diese Voraussetzungen; ein Test sichert ihre Invarianten ab.
 
 ## Profile und Ausschlüsse
 
@@ -62,20 +73,29 @@ Die Quelle bleibt während eines Aufrufs stabil. Vor jeder Generierung prüft de
 Core die gesamte Quelle. Er schreibt ihre Wörter klein und verlangt danach
 nichtleere, eindeutige alphabetische Einträge ohne verbleibende Großbuchstaben.
 Ziffern, Trenner, Leerzeichen sowie Kollisionen wie `Haus`/`haus` führen zu
-`InvalidConfig`. Eine Quelle mit einem solchen Eintrag wird vollständig
+`InvalidSource`. Eine Quelle mit einem solchen Eintrag wird vollständig
 abgelehnt und nicht still verkleinert. Externe Importer müssen diese
 Voraussetzungen vor der Nutzung erfüllen. Die Prüfung benötigt O(N) Zeit und
 O(N) Referenzen; bereits kleingeschriebene Wörter werden nur ausgeliehen.
 Normalisierte Wörter sind Wörterbuchdaten, keine Kopien ausgewählter Passwörter.
+Importer sollen NFC liefern. Übliche zerlegte lateinische Akzente (NFD) werden
+als nichtalphabetische Folge abgelehnt; Core führt keine NFC-Normalisierung
+oder vollständige Prüfung der Unicode-Normalform durch. `InvalidSource`
+unterscheidet ungeeignete Quellen von `InvalidConfig` für Trennerausschlüsse.
 
 Ziffernprofile benötigen mindestens zwei Unicode-Skalare je Wort. Profil 11/12
 benötigt je Wort mindestens eine Position mit einer umkehrbaren Großschreibung
-auf genau einen Unicode-Skalar. Deutsche Umlaute funktionieren. `ß` wird zu `ẞ`,
-damit genau ein Großbuchstabe entsteht. Erweiterungen wie `ﬀ` zu `FF` und nicht
+auf genau einen Unicode-Skalar. Deutsche Umlaute funktionieren. `ß` bleibt
+klein und zählt nicht als Großschreibposition; so wird kein schwer abtippbares
+`ẞ` eingefügt. Erweiterungen wie `ß` zu `SS`, `ﬀ` zu `FF` und nicht
 umkehrbare Abbildungen wie finales `ς` zu `Σ` werden als Großschreibposition
 ausgeschlossen. Bei Profil 8–10 bleibt ein nicht umwandelbarer Anfang gleich;
 dafür werden keine Auswahlbits angerechnet. Wortpositionen zählen Skalare,
 keine Graphemcluster; Highlight-Bereiche zählen UTF-8-Bytes.
+Bei alphabetischen kombinierenden Zeichen anderer Schriftsysteme kann eine
+Skalargrenze innerhalb eines sichtbaren Zeichens liegen. Deren komfortable
+Unterstützung braucht eine Graphemprüfung oder passende Quellenfilter im
+Sprach-/Importbereich; diese PR verspricht sie nicht.
 
 Mit N Wörtern, W Ziehungen, S verbleibenden Trennern, K Trennern je Lücke,
 I als minimaler Zahl innerer Grenzen und C als minimaler Zahl von
@@ -108,6 +128,9 @@ verschiedenen Sechs-Buchstaben-Wörtern auf ±0,1 Bit. Statistische Tests prüfe
 Wortwahl, Trenner, Ziffern, Wort-/Innenpositionen, Anfangspaare, doppelte Trenner
 und Großschreibpositionen mit festen `StdRng`-Seeds. Der Produktionspfad bietet
 keine öffentliche RNG-Injektion und verwendet ausschließlich `OsRng`.
+Zusätzlich werden 128 Ausgaben mit variablen Wortlängen/Trennern und sämtliche
+3.840 Ausgaben von Profil 12 für die Quelle `ab` bei festem `-` erschöpfend
+geprüft. Eindeutigkeit und berechnete Min-Entropie stimmen überein.
 
 ## Zufall und Lebensdauer
 
@@ -122,6 +145,8 @@ Beenden des Samplers `MAX`; `draw` verwirft diesen Wert und liefert immer
 `RandomSourceUnavailable`. Es gibt keinen Ersatzgenerator und kein Passwort
 aus solchen Werten. Die Terminierung folgt aus dem geprüften Lemire-Pfad in
 rand 0.9.5 und ist einschließlich eines Fehlers nach Zurückweisung getestet.
+Grenzfälle betreffen beide Integerpfade auf einem 64-Bit-Windows-Ziel;
+ein eigener 32-Bit-Zielbuild wurde nicht ausgeführt.
 Darum ist diese Version exakt gepinnt. Ein Update muss den Adapter erneut
 prüfen. `unbiased` ist zusätzlich aktiviert, falls später ein anderer
 Integer-Sampling-Pfad der Crate genutzt wird. `StdRng` ist nur Testabhängigkeit.
@@ -138,6 +163,14 @@ Typ und Bytebereich; Großbuchstaben und Ziffern teilen die Wortsegmente.
 dürfen das öffentliche `secret`-Feld nicht loggen. Diese API kann Kopien durch
 Aufrufer, UI, Zwischenablage, Register und Betriebssystem nicht verhindern.
 Speicherhärtung bleibt PR-9 zugeordnet.
+Auch Segmente dürfen nicht geloggt werden, da sie Wortlängen und Positionen
+verraten. Zufallswerte und ausgewählte Indizes/Zeichen können kurzzeitig in
+Stack oder Registern verbleiben; deren vollständiges Löschen ist mit diesem
+Guard nicht zugesichert und bleibt Teil der späteren Speicherhärtung.
+
+Der gesperrte gemeinsame Architekturtext beschreibt noch das Scaffold. Sein
+Abgleich auf die implementierten APIs und die Anzeigeregel ist bei Integration
+durch den zuständigen Lead nötig; diese Bereichs-PR ändert ihn nicht.
 
 ## Open-Source-Vorbilder
 

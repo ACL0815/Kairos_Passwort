@@ -109,6 +109,7 @@ pub enum SegmentKind {
 ///
 /// Ranges use valid character boundaries, are ordered, and do not overlap.
 /// Uppercase letters and inserted digits split surrounding word segments.
+/// Even without secret bytes, logging segments discloses lengths and positions.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Segment {
     pub kind: SegmentKind,
@@ -146,6 +147,8 @@ pub enum GenerateError {
     NotImplemented,
     EmptySource,
     InvalidConfig,
+    /// The dictionary cannot produce unambiguous output under this profile.
+    InvalidSource,
     RandomSourceUnavailable,
 }
 
@@ -155,6 +158,7 @@ impl fmt::Display for GenerateError {
             Self::NotImplemented => "password generation is not implemented yet",
             Self::EmptySource => "the word source is empty",
             Self::InvalidConfig => "the generation configuration is invalid",
+            Self::InvalidSource => "the word source is invalid for this profile",
             Self::RandomSourceUnavailable => "the system random source is unavailable",
         };
         formatter.write_str(message)
@@ -169,6 +173,8 @@ impl std::error::Error for GenerateError {}
 /// uppercase mappings. A digit has five inner insertion positions per word.
 /// This model is not a lower bound for arbitrary words. Use [`entropy_bits_for`]
 /// for an honest, source-dependent bound, as [`generate`] does.
+/// This concept model must not be used for a password strength display; display
+/// [`GeneratedPassword::entropy_bits`] or the result of [`entropy_bits_for`].
 /// Empty sources or invalid separator exclusions return `0.0`.
 ///
 /// Modelled after: xkcdpass <https://github.com/redacted/XKCD-password-generator/blob/b981361292ae7328313e116178acacc90680df5e/xkcdpass/xkcd_password.py>.

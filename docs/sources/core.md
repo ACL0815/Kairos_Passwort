@@ -12,7 +12,7 @@ keine Wortlisten oder Assets übernommen.
 | KeePassXC | [2.8.0, Random.cpp](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/crypto/Random.cpp) | GPL-2.0-only OR GPL-3.0-only laut Dateikopf | `Random::randomUInt` | Zufallswerte vor der Bereichsabbildung zurückweisen. Nur das Prinzip wird übertragen, die Implementierung übernimmt rand. | 5 |
 | KeePassXC | [2.8.0, PassphraseGenerator.cpp](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/core/PassphraseGenerator.cpp) | GPL-2.0-only OR GPL-3.0-only laut Dateikopf | `setWordList`, `estimateEntropy`, `generatePassphrase` | Eindeutige Quellmenge und reale Größe sind Grundlage für unabhängige Wortziehungen und `W * log2(N)`. Regeln und Formatierung sind getrennt. | 5 |
 | xkcdpass | [b981361, xkcd_password.py](https://github.com/redacted/XKCD-password-generator/blob/b981361292ae7328313e116178acacc90680df5e/xkcdpass/xkcd_password.py) | [BSD-3-Clause](https://github.com/redacted/XKCD-password-generator/blob/b981361292ae7328313e116178acacc90680df5e/LICENSE.BSD); Wortdaten separat | `generate_wordlist`, `verbose_reports` | Erst filtern/deduplizieren, dann die tatsächliche Quellgröße zählen. Sonderregeln benötigen ihre eigene Ausgabemengenrechnung. | 5 |
-| diceware, Uli Fouquet | [89534ea, README](https://github.com/ulif/diceware/blob/89534ea7b2c2d090e76307d55497a27ff90cc3d/README.rst) | [GPL-3.0-or-later](https://github.com/ulif/diceware/blob/89534ea7b2c2d090e76307d55497a27ff90cc3d/LICENSE); Wortdaten separat | Hinweis zu Prefix-Codes; [`WordList`](https://github.com/ulif/diceware/blob/89534ea7b2c2d090e76307d55497a27ff90cc3d/diceware/wordlist.py) | Ohne eindeutige Wortgrenzen können verschiedene Wortfolgen dieselbe Ausgabe bilden. Explizite Trenner außerhalb des Wortalphabets verhindern das. | 5 |
+| diceware, Uli Fouquet | [89534ea, README](https://github.com/ulif/diceware/blob/89534ea7b2c2d090e76307d55497a27ff90cc3d9/README.rst) | [GPL-3.0-or-later](https://github.com/ulif/diceware/blob/89534ea7b2c2d090e76307d55497a27ff90cc3d9/LICENSE); Wortdaten separat | Hinweis zu Prefix-Codes; [`WordList`](https://github.com/ulif/diceware/blob/89534ea7b2c2d090e76307d55497a27ff90cc3d9/diceware/wordlist.py) | Ohne eindeutige Wortgrenzen können verschiedene Wortfolgen dieselbe Ausgabe bilden. Explizite Trenner außerhalb des Wortalphabets verhindern das. | 5 |
 | pwgen-go | [5a53dce, README](https://github.com/gabe565/pwgen-go/blob/5a53dce1f9cbde823855ee6facf6889eb5275fde/README.md) | [MIT](https://github.com/gabe565/pwgen-go/blob/5a53dce1f9cbde823855ee6facf6889eb5275fde/LICENSE); Wortdaten separat | Dokumentierte Profile und Templates, eingebettete EFF-Quellen | Benannte Profile als Daten und Quellwahl getrennt halten. Hier wurde die dokumentierte Oberfläche bewertet, kein interner Algorithmus behauptet. | 3 |
 | Bitwarden SDK, Rust-Generator | [rust-v4.0.0, passphrase.rs](https://github.com/bitwarden/sdk-internal/blob/rust-v4.0.0/crates/bitwarden-generators/src/passphrase.rs) | [GPL-3.0-only OR Bitwarden SDK License](https://github.com/bitwarden/sdk-internal/blob/rust-v4.0.0/crates/bitwarden-generators/Cargo.toml) | `PassphraseGeneratorRequest`, `validate_options`, `gen_words` | Validierung vor Auswahl und Ziehen mit Zurücklegen. Der Generator filtert Bindestrich-Wörter für eindeutige Wortgrenzen. | 4 |
 | zeroize | [zeroize-v1.8.2, lib.rs](https://github.com/RustCrypto/utils/blob/zeroize-v1.8.2/zeroize/src/lib.rs) | [MIT OR Apache-2.0](https://github.com/RustCrypto/utils/blob/zeroize-v1.8.2/zeroize/Cargo.toml) | `String::zeroize`, `Zeroizing::drop`, Stack/Heap Zeroing Notes | Drop-Guard ab der ersten geheimen Ausgabe; Bytekapazität vorab reservieren. Vorherige Kopien und Reallokationen kann ein Guard nicht beseitigen. | 5 |
@@ -31,7 +31,9 @@ Unter Windows 10+ nutzt die aufgelöste getrandom-Version 0.3.4
 Adapter auf `Uniform::sample` reicht jeden OS-Fehler als
 `RandomSourceUnavailable` weiter. Ein MAX-Sentinel beendet nur rand-intern die
 Zurückweisung; sein Ergebnis verlässt die fehlerhafte Auswahl nie. Die
-Terminierung ist im Code begründet und für 32-/64-Bit-Bereichsgrößen getestet.
+Terminierung ist im Code begründet; beide Integerpfade einschließlich
+Grenzbereichen werden auf einem 64-Bit-Windows-Ziel getestet. Ein eigener
+32-Bit-Zielbuild wurde nicht ausgeführt.
 Die genutzte rand-Version ist dafür exakt gepinnt.
 
 Der alternative Weg `StdRng::try_from_os_rng` spart diesen Adapter, führt aber
@@ -69,7 +71,10 @@ Die ausführlichen Regeln und Formel stehen im
 [Crate-README](../../crates/kairos-core/README.md). `ProfileRules` bildet die
 13 Profile als Tabelle ab; Generator und Entropie verwenden dieselben Daten.
 Additiv kommen `entropy_bits_for`, `profile_rules` und `profile_warnings` dazu.
-Bestehende Signaturen und Felder bleiben unverändert. Der Warnhinweis für
+Bestehende Signaturen und Felder bleiben unverändert. Die neuen Profiltypen
+sind nicht erschöpfend; der Pool kann über `Cow` auch Laufzeitdaten besitzen.
+Eigene Regeln müssen vor Verwendung positive Wort-/Lückenzahlen sowie einen
+nichtleeren, eindeutigen ASCII-Sonderzeichenpool validieren. Der Warnhinweis für
 Profil 1 sagt, wenn 21.000 Wörter unterschritten sind; er erhöht die Bits nicht.
 
 - Profil 6 ergänzt genau `(`, `)`, `"`, `'`. Runde Klammern plus zwei gerade
@@ -80,9 +85,10 @@ Profil 1 sagt, wenn 21.000 Wörter unterschritten sind; er erhöht die Bits nich
   gleichverteilt; Positionen sind innerhalb des gewählten Wortes gleichverteilt.
 - Kleinschreibung vor Auswahl verhindert `Haus`/`haus`-Mehrfachgewichtung;
   Kollisionen, nichtalphabetische Wörter und unbrauchbare Profile liefern
-  `InvalidConfig`. Umkehrbare Großschreibung vermeidet Ausgabe-Kollisionen.
-  `ß` wird ausdrücklich zu `ẞ`; expandierende und nicht umkehrbare Positionen
-  werden nicht als Großschreibauswahl verwendet.
+  `InvalidSource`; Trennerausschlüsse bleiben `InvalidConfig`. Umkehrbare
+  Großschreibung vermeidet Ausgabe-Kollisionen. `ß` bleibt zum bequemen
+  Abschreiben klein; expandierende und nicht umkehrbare Positionen werden
+  nicht als Großschreibauswahl verwendet. Importer sollen NFC liefern.
 - `entropy_bits(N, cfg)` ist das dokumentierte Modell mit sechs Buchstaben.
   `entropy_bits_for` verwendet minimale Innen- und Großschreibpositionszahlen
   über der gesamten Quelle. Das ergibt eine konservative Schranke der
@@ -92,7 +98,8 @@ Profil 1 sagt, wenn 21.000 Wörter unterschritten sind; er erhöht die Bits nich
   sich aus der Ausgabe eindeutig entfernen und die Wörter nach umkehrbarer
   Kleinschreibung rekonstruieren. Wiederholte Buchstaben oder Wortziehungen
   erzeugen keine zusätzlichen Ausgabekollisionen. Ein Profilbonus wird nicht
-  behauptet.
+  behauptet. Die GUI muss den quellabhängigen Wert anzeigen, niemals die
+  einfache Sechs-Buchstaben-Modellfunktion.
 
 ## Prüfung und Rechercheprotokoll
 
@@ -102,17 +109,29 @@ A prüfte Passphrasen und Kollisionen, B Zufall und Gleichverteilung,
 C Geheimnislebensdauer. Stichproben am tatsächlich eingebundenen Stand betrafen
 rand 0.9.5, getrandom 0.3.4, KeePassXC 2.8.0, xkcdpass, diceware,
 Bitwarden-Generator/-Wrapper und zeroize. Die pwgen-go-Oberfläche wurde
-zusätzlich direkt gelesen. Die beschädigte ursprüngliche diceware-Commit-ID
-wurde durch den nachweisbar erreichbaren 40-stelligen Commit ersetzt.
+zusätzlich direkt gelesen. Das Review korrigierte eine zwischenzeitlich auf
+39 Zeichen gekürzte diceware-ID zurück auf die ursprüngliche, per GitHub-API
+bestätigte vollständige ID `89534ea7b2c2d090e76307d55497a27ff90cc3d9`.
 
 Die Tests erzeugen künstliche Quellen mit 7.000 beziehungsweise 21.000
 eindeutigen Sechs-Buchstaben-Wörtern und reproduzieren alle Konzeptwerte auf
 ±0,1 Bit. Sie prüfen außerdem Quellenfehler, Ausschlüsse, Unicode-Bytebereiche,
 konservative Werte, Speichergröße, Fehler der Zufallsquelle auch nach
 teilweiser Ausgabe sowie statistische Verteilungen mit festen Seeds.
+Nach dem Review kamen erschöpfende Prüfungen von 128 Wort-/Trennerausgaben
+und allen 3.840 Ausgaben von Profil 12 für `ab` mit festem Trenner hinzu.
+Sie prüfen Eindeutigkeit und die angegebene Ausgabe-Min-Entropie am Generator.
 Die Pflichtprüfungen sind `cargo fmt --check`,
 `cargo clippy --workspace --all-targets -- -D warnings` und
 `cargo test --workspace`; Ergebnisse und Review-Nachbesserungen stehen in der PR.
+
+Genau ein kritisches Review lief auf `claudeAgent/claude-opus-5-5`,
+`effort=medium`, `fastMode=false`. Die Erweiterbarkeit der Profiltypen wurde
+nachgebessert. Stack-/Registerreste und Graphemgrenzen anderer Schriften sind
+im README als Grenzen dokumentiert und bleiben den Folgearbeiten zugeordnet.
+Der Pin bleibt mit sichtbarer Manifestbegründung bestehen. Der gemeinsame
+Architekturtext ist gemäß Schreibverbot unverändert; sein Scaffold-Abgleich
+muss bei der Integration durch den zuständigen Lead erfolgen.
 
 Die Lizenzangaben beziehen sich auf die verlinkten Softwarestände. Wörterbücher
 und andere Daten können abweichende Lizenzen haben und werden hier nicht

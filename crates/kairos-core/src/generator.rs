@@ -48,7 +48,7 @@ impl<'a> PreparedSource<'a> {
                 Cow::Owned(original.to_lowercase())
             };
             if word.is_empty() || !word.chars().all(|c| c.is_alphabetic() && !c.is_uppercase()) {
-                return Err(GenerateError::InvalidConfig);
+                return Err(GenerateError::InvalidSource);
             }
             let len = word.chars().count();
             min_inner = min_inner.min(len.saturating_sub(1));
@@ -66,7 +66,7 @@ impl<'a> PreparedSource<'a> {
             max_word_bytes = max_word_bytes.max(
                 word.len()
                     .checked_add(extra)
-                    .ok_or(GenerateError::InvalidConfig)?,
+                    .ok_or(GenerateError::InvalidSource)?,
             );
             words.push(word);
         }
@@ -75,7 +75,7 @@ impl<'a> PreparedSource<'a> {
             || (rules.insert_digit && min_inner == 0)
             || (rules.case == CaseRule::OneRandomUppercase && min_uppercase == 0)
         {
-            return Err(GenerateError::InvalidConfig);
+            return Err(GenerateError::InvalidSource);
         }
         Ok(Self {
             words,
@@ -99,11 +99,8 @@ impl<'a> PreparedSource<'a> {
 }
 
 // Reversible one-scalar mappings keep distinct words and casing choices distinct.
-// Unicode's default ß -> SS expansion is replaced by the single capital ẞ.
+// Expansions such as ß -> SS are excluded for predictable typing and highlighting.
 fn uppercase(c: char) -> Option<char> {
-    if c == 'ß' {
-        return Some('ẞ');
-    }
     let mut upper = c.to_uppercase();
     let u = upper.next()?;
     if upper.next().is_some() || u == c || !u.is_uppercase() {
@@ -117,7 +114,7 @@ fn uppercase(c: char) -> Option<char> {
 ///
 /// Words are lowercased and must remain distinct, nonempty, and alphabetic,
 /// without uppercase scalars that have no lowercase mapping.
-/// Otherwise returns [`GenerateError::InvalidConfig`]. Digit profiles require
+/// Otherwise returns [`GenerateError::InvalidSource`]. Digit profiles require
 /// at least two Unicode scalars in every word. Profile 11/12 requires at least
 /// one reversible uppercase position per word. Empty sources return
 /// [`GenerateError::EmptySource`]. Excluding all separators is invalid.
@@ -191,6 +188,7 @@ fn generate_with_rng<R: TryRngCore + ?Sized>(
         .and_then(|n| n.checked_add(gaps + usize::from(rules.insert_digit)))
         .ok_or(GenerateError::InvalidConfig)?;
     let mut secret = Zeroizing::new(String::with_capacity(capacity));
+    let reserved_capacity = secret.capacity();
     let mut segments = Vec::with_capacity(rules.word_count * 5 + gaps);
     let digit_word = if rules.insert_digit {
         Some(draw(rng, rules.word_count)?)
@@ -245,6 +243,7 @@ fn generate_with_rng<R: TryRngCore + ?Sized>(
         }
     }
     debug_assert!(secret.len() <= capacity);
+    debug_assert_eq!(secret.capacity(), reserved_capacity);
     Ok(GeneratedPassword {
         secret,
         segments,
