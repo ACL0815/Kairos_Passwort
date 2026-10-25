@@ -250,7 +250,7 @@ impl EncryptedStore {
         let integrity_key = integrity::derive_key(key);
         integrity::create_table(&tx)?;
         if is_new {
-            integrity::write_manifest(&tx, &integrity_key)?;
+            integrity::write_manifest(&tx, integrity_key.as_slice())?;
         }
         tx.commit()?;
         Ok(Self {
@@ -320,7 +320,7 @@ impl EncryptedStore {
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        integrity::require_unchanged(&tx, &self.integrity_key)?;
+        integrity::require_unchanged(&tx, self.integrity_key.as_slice())?;
         tx.execute(
             "INSERT INTO lists(name, imported_at, source_sha256, source_path) VALUES (?1, ?2, ?3, ?4)",
             params![name, imported_at, source_sha256.as_slice(), source_path_text],
@@ -333,7 +333,7 @@ impl EncryptedStore {
                 insert.execute(params![id, word, language])?;
             }
         }
-        integrity::write_manifest(&tx, &self.integrity_key)?;
+        integrity::write_manifest(&tx, self.integrity_key.as_slice())?;
         tx.commit()?;
         Ok(ImportOutcome {
             list: ListMetadata {
@@ -377,7 +377,7 @@ impl EncryptedStore {
         language: Option<&Language>,
     ) -> Result<StoredWordList, StoreError> {
         let tx = self.connection.unchecked_transaction()?;
-        integrity::require_unchanged(&tx, &self.integrity_key)?;
+        integrity::require_unchanged(&tx, self.integrity_key.as_slice())?;
         let language = language.map(encode_language).transpose()?;
         let mut query = tx.prepare(
             "SELECT word, language FROM words WHERE id IN (

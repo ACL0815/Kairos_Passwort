@@ -46,7 +46,7 @@ impl EncryptedStore {
     /// SQLCipher corruption may instead return a database/authentication error.
     pub fn verify_integrity(&self) -> Result<IntegrityStatus, StoreError> {
         let tx = self.connection.unchecked_transaction()?;
-        verify(&tx, &self.integrity_key)
+        verify(&tx, self.integrity_key.as_slice())
     }
 
     /// Explicitly trusts the current database as a new baseline, for migration
@@ -57,7 +57,7 @@ impl EncryptedStore {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         create_table(&tx)?;
-        write_manifest(&tx, &self.integrity_key)?;
+        write_manifest(&tx, self.integrity_key.as_slice())?;
         tx.commit()?;
         Ok(())
     }
@@ -67,7 +67,7 @@ impl EncryptedStore {
     /// Call only for trusted local paths; this can touch removable/network media.
     pub fn verify_original_sources(&self) -> Result<Vec<SourceCheck>, StoreError> {
         let tx = self.connection.unchecked_transaction()?;
-        require_unchanged(&tx, &self.integrity_key)?;
+        require_unchanged(&tx, self.integrity_key.as_slice())?;
         let mut query =
             tx.prepare("SELECT id, source_path, source_sha256 FROM lists ORDER BY id")?;
         let rows = query.query_map([], |r| {

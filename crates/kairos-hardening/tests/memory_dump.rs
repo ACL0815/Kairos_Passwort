@@ -59,11 +59,11 @@ fn contains(path: &Path, marker: &[u8]) -> bool {
 
 #[test]
 #[ignore = "writes two full synthetic-process dumps; run explicitly in release"]
+#[allow(
+    clippy::assertions_on_constants,
+    reason = "manual diagnostic must reject debug runs at runtime"
+)]
 fn released_secret_dump_has_positive_control() {
-    #[allow(
-        clippy::assertions_on_constants,
-        reason = "manual diagnostic must reject debug runs at runtime"
-    )]
     assert!(
         !cfg!(debug_assertions),
         "run this diagnostic with cargo test --release"

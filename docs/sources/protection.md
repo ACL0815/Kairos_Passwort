@@ -147,4 +147,3 @@ bewusst anbieten und LockedSecret-Lebensdauer samt UI-/Clipboardkopien prüfen.
 Das geschieht später. PR-9b übernimmt nach PR #7 die gesonderte Bewertung und
 Integration von obfstr/Wortlistenschutz. Hier bleiben `apps`, `kairos-core`,
 `kairos-platform`, `kairos-keepassxc` und `kairos-wordlists` unverändert.
-
