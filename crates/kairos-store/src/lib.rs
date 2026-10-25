@@ -21,6 +21,7 @@
 //! ```
 
 mod import;
+mod integrity;
 mod key;
 
 use std::{
@@ -35,6 +36,7 @@ use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
 
 pub use import::{ImportReport, ImportRules};
+pub use integrity::{IntegrityStatus, SourceCheck, SourceStatus};
 pub use key::DatabaseKey;
 
 /// Operational errors never contain key bytes or rejected words.
@@ -75,6 +77,8 @@ pub enum StoreError {
     OutOfRange,
     #[error("SQLCipher or its required memory protection is unavailable")]
     EncryptionUnavailable,
+    #[error("word-list integrity warning: {0:?}; loading/import is blocked")]
+    IntegrityWarning(IntegrityStatus),
 }
 
 /// Explicit paths allow portable installations and isolated integration tests.
@@ -143,6 +147,7 @@ impl WordSource for StoredWordList {
 /// An open SQLCipher connection. The native codec owns its working keys.
 pub struct EncryptedStore {
     connection: Connection,
+    integrity_key: Box<Zeroizing<[u8; 32]>>,
 }
 
 impl EncryptedStore {
@@ -212,6 +217,7 @@ impl EncryptedStore {
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let version: i64 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
         let app: i64 = tx.pragma_query_value(None, "application_id", |r| r.get(0))?;
+        let is_new = version == 0 && app == 0;
         match (version, app) {
             (0, 0) => {
                 let tables: i64 =
@@ -235,14 +241,22 @@ impl EncryptedStore {
                      );
                      CREATE INDEX words_list ON words(list_id);
                      PRAGMA application_id = 1262573906;
-                     PRAGMA user_version = 1;",
+                     PRAGMA user_version = 2;",
                 )?;
             }
-            (1, 1262573906) => {}
+            (1 | 2, 1262573906) => {}
             _ => return Err(StoreError::UnsupportedSchema),
         }
+        let integrity_key = integrity::derive_key(key);
+        if is_new {
+            integrity::create_table(&tx)?;
+            integrity::write_manifest(&tx, integrity_key.as_slice())?;
+        }
         tx.commit()?;
-        Ok(Self { connection })
+        Ok(Self {
+            connection,
+            integrity_key,
+        })
     }
 
     /// Reads a UTF-8 file once so its hash and imported contents cannot diverge.
@@ -303,7 +317,10 @@ impl EncryptedStore {
             .as_secs()
             .try_into()
             .map_err(|_| StoreError::OutOfRange)?;
-        let tx = self.connection.transaction()?;
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        integrity::require_unchanged(&tx, self.integrity_key.as_slice())?;
         tx.execute(
             "INSERT INTO lists(name, imported_at, source_sha256, source_path) VALUES (?1, ?2, ?3, ?4)",
             params![name, imported_at, source_sha256.as_slice(), source_path_text],
@@ -316,6 +333,7 @@ impl EncryptedStore {
                 insert.execute(params![id, word, language])?;
             }
         }
+        integrity::write_manifest(&tx, self.integrity_key.as_slice())?;
         tx.commit()?;
         Ok(ImportOutcome {
             list: ListMetadata {
@@ -330,8 +348,11 @@ impl EncryptedStore {
         })
     }
 
+    /// Authenticates the entire store before returning any display metadata.
     pub fn lists(&self) -> Result<Vec<ListMetadata>, StoreError> {
-        let mut query = self.connection.prepare(
+        let tx = self.connection.unchecked_transaction()?;
+        integrity::require_unchanged(&tx, self.integrity_key.as_slice())?;
+        let mut query = tx.prepare(
             "SELECT l.id, l.name, l.imported_at, l.source_sha256, count(w.id), l.source_path
              FROM lists l LEFT JOIN words w ON w.list_id = l.id GROUP BY l.id ORDER BY l.id",
         )?;
@@ -358,8 +379,10 @@ impl EncryptedStore {
         list_id: Option<i64>,
         language: Option<&Language>,
     ) -> Result<StoredWordList, StoreError> {
+        let tx = self.connection.unchecked_transaction()?;
+        integrity::require_unchanged(&tx, self.integrity_key.as_slice())?;
         let language = language.map(encode_language).transpose()?;
-        let mut query = self.connection.prepare(
+        let mut query = tx.prepare(
             "SELECT word, language FROM words WHERE id IN (
                 SELECT min(id) FROM words
                 WHERE (?1 IS NULL OR list_id = ?1) AND (?2 IS NULL OR language = ?2)
@@ -432,6 +455,8 @@ mod tests {
         store.connection.execute_batch(
             "CREATE TRIGGER reject_word BEFORE INSERT ON words BEGIN SELECT RAISE(ABORT, 'test'); END;"
         ).unwrap();
+        // Trust the fault-injection fixture so import reaches the failing INSERT.
+        integrity::write_manifest(&store.connection, store.integrity_key.as_slice()).unwrap();
         assert!(store
             .import_bytes(
                 b"apfel\nbirne",
@@ -452,7 +477,7 @@ mod tests {
         let store = EncryptedStore::open_with_key(&path, &key).unwrap();
         store
             .connection
-            .pragma_update(None, "user_version", 2)
+            .pragma_update(None, "user_version", 3)
             .unwrap();
         drop(store);
         assert!(matches!(
