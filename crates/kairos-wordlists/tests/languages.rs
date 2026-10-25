@@ -10,21 +10,22 @@ const SOURCES: [fn() -> &'static EmbeddedWordList; 4] = [german, english, latin,
 
 #[test]
 fn single_language_sources_have_equal_sizes_and_valid_spelling() {
+    assert_eq!(english().len(), latin().len());
+    assert!(english().len() <= german().len());
     for (source, language, text, max_mean) in [
         (
             english(),
             Language::English,
             include_str!("../data/languages/english.txt"),
-            6.5,
+            6.6,
         ),
         (
             latin(),
             Language::Latin,
             include_str!("../data/languages/latin.txt"),
-            6.8,
+            7.0,
         ),
     ] {
-        assert_eq!(source.len(), 7_130);
         assert!(!source.is_empty());
         let mut seen = BTreeSet::new();
         for (index, word) in text.lines().enumerate() {
@@ -58,7 +59,10 @@ fn all_spelling_sets_are_pairwise_disjoint_and_union_keeps_every_flag() {
         }
     }
     let union: &dyn WordSource = combined();
-    assert_eq!(union.len(), 21_390);
+    assert_eq!(
+        union.len(),
+        german().len() + english().len() + latin().len()
+    );
     let mut seen = BTreeSet::new();
     let mut counts = [0; 3];
     for index in 0..union.len() {
@@ -72,23 +76,33 @@ fn all_spelling_sets_are_pairwise_disjoint_and_union_keeps_every_flag() {
             other => panic!("unexpected language: {other:?}"),
         }
     }
-    assert_eq!(counts, [7_130; 3]);
+    assert_eq!(counts, [german().len(), english().len(), latin().len()]);
     assert_eq!(seen.len(), expected.len());
 }
 
 #[test]
 fn combined_order_is_interleaved_without_language_blocks() {
     let lists = [german(), english(), latin()];
-    for index in 0..combined().len() {
+    let interleaved = english().len() * 3;
+    for index in 0..interleaved {
         assert_eq!(combined().word(index), lists[index % 3].word(index / 3));
         assert_eq!(
             combined().language(index),
             lists[index % 3].language(index / 3)
         );
     }
-    // Equal, disjoint vocabularies support the concept's factor 3^4 = 81.
-    let gain = 4.0 * (combined().len() as f64 / german().len() as f64).log2();
-    assert!((gain - 81_f64.log2()).abs() < 1e-12);
+    for (offset, index) in (interleaved..combined().len()).enumerate() {
+        assert_eq!(combined().language(index), Language::German);
+        assert_eq!(
+            combined().word(index),
+            german().word(english().len() + offset)
+        );
+    }
+    if english().len() == german().len() {
+        // Only equal, disjoint vocabularies support the factor 3^4 = 81.
+        let gain = 4.0 * (combined().len() as f64 / german().len() as f64).log2();
+        assert!((gain - 81_f64.log2()).abs() < 1e-12);
+    }
 }
 
 #[test]
@@ -242,6 +256,11 @@ fn sensitive_latin_meanings_and_reviewed_spellings_are_excluded() {
         "genitalia",
         "ejaculate; (somewhat rude)",
         "enema",
+        "sausage; (rude word)",
+        "cleft; (sometimes rude)",
+        "vulgar expression",
+        "scrotum",
+        "penis",
     ] {
         assert!(
             pipeline::sensitive_gloss(gloss),
@@ -252,6 +271,7 @@ fn sensitive_latin_meanings_and_reviewed_spellings_are_excluded() {
         "water; sea, lake",
         "peace; harmony",
         "procure goods; provide",
+        "peninsula; promontory",
     ] {
         assert!(!pipeline::sensitive_gloss(harmless));
     }
@@ -392,7 +412,7 @@ fn english_selection_passes_the_same_disease_classes_as_latin_glosses() {
         assert!(words.contains(word), "neutral English word removed: {word}");
     }
     assert!(!words.contains("hamstring"));
-    for word in ["dies", "rota", "roto", "rotundus", "scabo"] {
+    for word in ["dies", "rota", "roto", "rotundus", "pax"] {
         assert!(
             (0..latin().len()).any(|index| latin().word(index) == word),
             "Latin spelling treated as an English gloss: {word}"
@@ -431,5 +451,99 @@ fn identical_first_glosses_do_not_repeat_in_latin_selection() {
         &["praesaepe", "praesepe"],
     ] {
         assert!(group.iter().filter(|word| words.contains(**word)).count() <= 1);
+    }
+}
+
+#[test]
+fn re_verifier_round_two_findings_have_semantic_blocks() {
+    let decisions = include_str!("../data/languages/semantic-decisions.tsv");
+    for (language, source, words) in [
+        ("en", english(), &["dagger"][..]),
+        (
+            "la",
+            latin(),
+            &[
+                "scrotum", "follis", "motio", "inustum", "tardipes", "viduitas", "hydromel",
+                "potor", "merso", "bardus", "morio", "botulus", "hasta",
+            ][..],
+        ),
+    ] {
+        for word in words {
+            assert!(
+                !(0..source.len()).any(|index| source.word(index) == *word),
+                "regression: {language}/{word}"
+            );
+            assert!(
+                decisions
+                    .lines()
+                    .any(|row| row.starts_with(&format!("{word}\t{language}\tblock\t"))),
+                "missing semantic block: {word}"
+            );
+        }
+    }
+}
+
+#[test]
+fn every_embedded_english_and_latin_word_has_a_source_bound_semantic_approval() {
+    let decisions: BTreeMap<_, _> = include_str!("../data/languages/semantic-decisions.tsv")
+        .lines()
+        .map(|row| {
+            let fields: Vec<_> = row.split('\t').collect();
+            ((fields[1], fields[0]), fields)
+        })
+        .collect();
+    let glosses: BTreeMap<_, _> = include_str!("../data/languages/latin-glosses.tsv")
+        .lines()
+        .map(|row| row.split_once('\t').unwrap())
+        .collect();
+    for (language, source) in [("en", english()), ("la", latin())] {
+        for index in 0..source.len() {
+            let word = source.word(index);
+            let decision = &decisions[&(language, word)];
+            assert_eq!(
+                &decision[2..4],
+                &["allow", "neutral"],
+                "unapproved {language}/{word}"
+            );
+            let meaning = if language == "en" {
+                word
+            } else {
+                glosses[word]
+            };
+            assert_eq!(
+                decision[5],
+                pipeline::checksum(meaning.as_bytes()),
+                "stale review: {word}"
+            );
+        }
+    }
+}
+
+#[test]
+fn semantic_review_fails_closed_on_missing_unknown_changed_or_invalid_decisions() {
+    let sources = BTreeMap::from([("alpha".to_owned(), "neutral meaning".to_owned())]);
+    let digest = pipeline::checksum(b"neutral meaning");
+    let valid = format!("alpha\ten\tallow\tneutral\tReviewed neutral meaning.\t{digest}\n");
+    assert!(pipeline::semantic_blocks(&valid, "en", &sources)
+        .unwrap()
+        .is_empty());
+    let blocked = valid.replace("allow\tneutral", "block\tZweifel");
+    assert!(pipeline::semantic_blocks(&blocked, "en", &sources)
+        .unwrap()
+        .contains("alpha"));
+    for invalid in [
+        String::new(),
+        valid.replace("alpha", "unknown"),
+        valid.replace(&digest, &"0".repeat(64)),
+        valid.replace("allow", "maybe"),
+        valid.replace("neutral", "Zweifel"),
+        valid.replace("Reviewed neutral meaning.", ""),
+        format!("{valid}{valid}"),
+        blocked.replace("Zweifel", "other"),
+    ] {
+        assert!(
+            pipeline::semantic_blocks(&invalid, "en", &sources).is_err(),
+            "accepted: {invalid}"
+        );
     }
 }

@@ -106,14 +106,95 @@ pub fn rejections(text: &str, candidates: &BTreeSet<String>) -> Result<BTreeSet<
     Ok(rejected)
 }
 
+/// Exact, source-bound semantic decisions for the entire eligible candidate pool.
+/// Unknown words, missing reviews and changed secondary meanings fail closed.
+pub fn semantic_blocks(
+    text: &str,
+    language: &str,
+    sources: &BTreeMap<String, String>,
+) -> Result<BTreeSet<String>> {
+    let mut seen = BTreeSet::new();
+    let mut blocked = BTreeSet::new();
+    let mut previous = None;
+    for row in text.lines() {
+        let fields: Vec<_> = row.split('\t').collect();
+        if fields.len() != 6 {
+            return Err("semantic decision needs six fields".into());
+        }
+        let [word, lang, decision, class, reason, fingerprint] = fields[..] else {
+            unreachable!()
+        };
+        let key = (lang, word);
+        if previous.is_some_and(|prev| prev >= key)
+            || !["en", "la"].contains(&lang)
+            || !["allow", "block"].contains(&decision)
+            || reason.trim().is_empty()
+            || fingerprint.len() != 64
+            || !fingerprint.bytes().all(|b| b.is_ascii_hexdigit())
+            || (decision == "allow" && class != "neutral")
+            || (decision == "block"
+                && !class.split(',').all(|c| {
+                    [
+                        "Krankheit",
+                        "Verletzung",
+                        "Tod-Trauer",
+                        "Gewalt-Waffen",
+                        "Sexualitaet",
+                        "Drogen-Alkohol",
+                        "Abwertung",
+                        "Vulgaer",
+                        "Zweifel",
+                    ]
+                    .contains(&c)
+                }))
+        {
+            return Err(format!("invalid semantic decision: {lang}/{word}").into());
+        }
+        previous = Some(key);
+        if lang != language {
+            continue;
+        }
+        if sources
+            .get(word)
+            .map(|source| checksum(source.as_bytes()))
+            .as_deref()
+            != Some(fingerprint)
+        {
+            return Err(format!("missing or changed semantic source: {lang}/{word}").into());
+        }
+        seen.insert(word.to_owned());
+        if decision == "block" {
+            blocked.insert(word.to_owned());
+        }
+    }
+    if seen.len() != sources.len() {
+        return Err(format!(
+            "incomplete semantic review: {language}: {}/{}",
+            seen.len(),
+            sources.len()
+        )
+        .into());
+    }
+    Ok(blocked)
+}
+
 /// Rejects explicit sensitive dictionary meanings, including secondary senses.
 /// This guard is conservative; it is not a general semantic classifier.
 pub fn sensitive_gloss(gloss: &str) -> bool {
     let gloss = gloss.to_ascii_lowercase();
     distressing_terms(&gloss)
+        || gloss
+            .split(|ch: char| !ch.is_ascii_alphabetic())
+            .any(|token| ["scrotum", "testes", "penis", "phallus"].contains(&token))
         || [
             "(rude)",
             "(somewhat rude)",
+            "rude word",
+            "rude term",
+            "sometimes rude",
+            "rude expression",
+            "vulgar",
+            "obscene",
             "genital",
             "urinat",
             "sodomy",
@@ -473,8 +554,13 @@ pub fn build() -> Result<Build> {
         return Err("German checksum mismatch; rebuild and review PR-2 data first".into());
     }
     let german: BTreeSet<String> = german.lines().map(str::to_owned).collect();
-    let size = german.len();
-    let mut report = format!("German retained: {size}\n");
+    let german_size = german.len();
+    let mut report = format!("German retained: {german_size}\n");
+    let decisions = fs::read_to_string(root.join("semantic-decisions.tsv"))?;
+    report.push_str(&format!(
+        "Semantic decisions sha256: {}\n",
+        checksum(decisions.as_bytes())
+    ));
 
     let mut english = BTreeSet::new();
     let mut raw_count = 0;
@@ -530,6 +616,19 @@ pub fn build() -> Result<Build> {
         "English Wordnik selected additions: {}\n",
         supplement.lines().count()
     ));
+    let semantic = semantic_blocks(
+        &decisions,
+        "en",
+        &english
+            .iter()
+            .map(|word| (word.clone(), word.clone()))
+            .collect(),
+    )?;
+    report.push_str(&format!(
+        "English semantic decisions: {}; blocked: {}\n",
+        english.len(),
+        semantic.len()
+    ));
     let rejected = rejections(
         &fs::read_to_string(root.join("english-rejected.tsv"))?,
         &english,
@@ -539,6 +638,12 @@ pub fn build() -> Result<Build> {
         rejected.len()
     ));
     english.retain(|word| !rejected.contains(word));
+    let before_semantic = english.len();
+    english.retain(|word| !semantic.contains(word));
+    report.push_str(&format!(
+        "English additional semantic blocks: {}\n",
+        before_semantic - english.len()
+    ));
     let before_guard = english.len();
     english.retain(|word| !distressing_terms(word));
     report.push_str(&format!(
@@ -547,6 +652,7 @@ pub fn build() -> Result<Build> {
     ));
     let overlap = english.intersection(&german).count();
     report.push_str(&format!("English overlap removed (German): {overlap}\nEnglish available after curation and overlap removal: {}\n", english.len() - overlap));
+    let size = german_size.min(english.len() - overlap);
     let english = select(
         english.into_iter().map(|word| (0, word)).collect(),
         &german,
@@ -566,13 +672,14 @@ pub fn build() -> Result<Build> {
         };
         if let Some(word) = latin_lemma(prefix) {
             let frequency = prefix.as_bytes()[106];
+            // A rare secondary sense still belongs to the same spelling.
+            glosses.entry(word.clone()).or_default().push(format!(
+                "{} {} {}",
+                index + 1,
+                char::from(frequency),
+                &line[110..]
+            ));
             if (b'A'..=b'D').contains(&frequency) {
-                glosses.entry(word.clone()).or_default().push(format!(
-                    "{} {} {}",
-                    index + 1,
-                    char::from(frequency),
-                    &line[110..]
-                ));
                 latin
                     .entry(word)
                     .and_modify(|rank: &mut u8| *rank = (*rank).min(frequency))
@@ -581,12 +688,31 @@ pub fn build() -> Result<Build> {
         }
     }
     report.push_str(&format!("Latin raw rows: {}\nLatin eligible distinct (frequency A-D, supported lemma patterns): {}\n", raw.lines().count(), latin.len()));
+    let semantic = semantic_blocks(
+        &decisions,
+        "la",
+        &latin
+            .keys()
+            .map(|word| (word.clone(), glosses[word].join(" | ")))
+            .collect(),
+    )?;
+    report.push_str(&format!(
+        "Latin semantic decisions: {}; blocked: {}\n",
+        latin.len(),
+        semantic.len()
+    ));
     let rejected = rejections(
         &fs::read_to_string(root.join("latin-rejected.tsv"))?,
         &latin.keys().cloned().collect(),
     )?;
     report.push_str(&format!("Latin editorial rejections: {}\n", rejected.len()));
     latin.retain(|word, _| !rejected.contains(word));
+    let before_semantic = latin.len();
+    latin.retain(|word, _| !semantic.contains(word));
+    report.push_str(&format!(
+        "Latin additional semantic blocks: {}\n",
+        before_semantic - latin.len()
+    ));
     let before_guard = latin.len();
     latin.retain(|word, _| {
         !["vagina", "semen", "genital"].contains(&word.as_str())
@@ -623,6 +749,21 @@ pub fn build() -> Result<Build> {
         before_variants - latin.len(),
         latin.len()
     ));
+    let final_size = size.min(latin.len());
+    if final_size == 0 {
+        return Err("semantic curation left an empty language pool".into());
+    }
+    // Keep the overlap exclusions made against the larger English preselection:
+    // reducing the size never restores a spelling that was already excluded.
+    let english = select(
+        english.lines().map(|word| (0, word.to_owned())).collect(),
+        &BTreeSet::new(),
+        final_size,
+    )?;
+    if final_size < german_size {
+        report.push_str(&format!("Equal EN/LA size reduced to {final_size}: minimum of German target, reviewed English pool and Latin pool after overlap/variant filtering. German unchanged; Latin overlap exclusions retain the English preselection of {size}.\n"));
+    }
+    let size = final_size;
     let latin = select(latin, &BTreeSet::new(), size)?;
     let latin_glosses = latin
         .lines()
@@ -636,7 +777,7 @@ pub fn build() -> Result<Build> {
             checksum(text.as_bytes())
         ));
     }
-    report.push_str(&format!("Combined distinct: {}\n", size * 3));
+    report.push_str(&format!("Combined distinct: {}\n", german_size + size * 2));
     Ok(Build {
         english,
         latin,

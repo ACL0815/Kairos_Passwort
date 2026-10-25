@@ -92,7 +92,8 @@ pub fn latin() -> &'static EmbeddedWordList {
 /// Pass this source to the generator for independent language choice per word:
 /// uniformly sampling `0..len()` samples every distinct spelling once. Do not
 /// choose one language for an entire password or add a separate language bonus
-/// to `log2(len())`. Equal list sizes give each language probability 1/3.
+/// to `log2(len())`. Equal list sizes give each language probability 1/3;
+/// otherwise language probabilities follow the actual retained list sizes.
 ///
 /// Entries are deterministically interleaved, retaining their language flags.
 /// This order is public, carries no entropy, and needs no initialization RNG.
@@ -103,7 +104,8 @@ pub fn latin() -> &'static EmbeddedWordList {
 /// ```
 /// use kairos_core::WordSource;
 /// let source: &dyn WordSource = kairos_wordlists::combined();
-/// assert_eq!(source.len(), 21_390);
+/// assert_eq!(source.len(), kairos_wordlists::german().len()
+///     + kairos_wordlists::english().len() + kairos_wordlists::latin().len());
 /// assert_eq!(source.word(1), kairos_wordlists::english().word(0));
 /// ```
 pub fn combined() -> &'static EmbeddedWordList {

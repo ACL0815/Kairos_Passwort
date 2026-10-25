@@ -1,13 +1,14 @@
 # kairos-wordlists
 
-**Mehrsprachige Erweiterung (PR-7):** `english()`, `latin()` und `combined()`
-ergänzen die unveränderte deutsche Quelle. Je Sprache **7.130 Wörter**,
-zusammen **21.390 eindeutige Wörter** mit Sprachflag. Jede Wortposition kann
-unabhängig aus der Vereinigung gezogen werden. API, Auswahl, disjunkte
-Schnittmengen, Datenlizenzen, Grenzen und Offline-Pipeline stehen im
-[Sprachen-README](data/languages/README.md). Englisch: Mittelwert **6,284**,
-Latein **6,744** Buchstaben.
-
+**Mehrsprachige Erweiterung (PR-7), Arbeitsstand mit STOP:** `english()`,
+`latin()` und `combined()` ergänzen die unveränderte deutsche Quelle.
+DE **7.130**, EN/LA **je 6.966**, zusammen **21.062 eindeutige Wörter** mit
+Sprachflag. Mittlere Länge EN **6,541**, LA **6,990**. Die zweite eigene
+semantische Abnahme ist trotz grünem Build und grünem 14-Wörter-Gate
+fehlgeschlagen; gemäß Auftrag werden keine weiteren semantischen Reparaturen
+in dieser Leiterstufe vorgenommen. **Keine fachliche Freigabe.**
+[Diagnose, Stop-Regel und Befunde](data/curation-diagnosis.md),
+[API, Datenlizenzen und Offline-Pipeline](data/languages/README.md).
 Die deutsche Wortliste ist mit `include_str!` in die Anwendung eingebettet.
 `german() -> &'static EmbeddedWordList` stellt `kairos_core::WordSource`
 bereit: **7.130 eindeutige Wörter**, je Wort `Language::German`, nur `a`–`z`,
@@ -83,7 +84,7 @@ Die D1-Nachprüfung sperrt `drink`, `bowle`, `hanf` und `prost` dauerhaft
 neutraler Teilworttreffer stehen im [Kuratierungsbericht](data/curation-review.md).
 
 Die Mindestgröße von Profil 0 ist erreicht. Die kombinierte Quelle aus PR-7
-erreicht Profil 1; die folgende Rechnung betrifft die deutsche Einzelquelle. Vier unabhängig
+erreicht numerisch den Umfang von Profil 1, ist aber semantisch nicht abgenommen; die folgende Rechnung betrifft die deutsche Einzelquelle. Vier unabhängig
 gleichverteilt gezogene Wörter ergeben bei festem Trenner rund **51,199 Bit**.
 Die durchschnittlichen **6,565 statt sechs Buchstaben** sind eine begründete
 Zielabweichung: unterscheidbare Wörter und Grundformen haben Vorrang vor
@@ -206,11 +207,16 @@ im Offline-Lauf geprüft. Der Mittelwert darf höchstens 6,6 betragen; die
 engere ±0,5-Spanne um sechs wird zugunsten der erläuterten Grundformauswahl
 nicht erzwungen.
 
-PR-7 ergänzt fünfzehn Integrationstests und einen Rustdoc-Test, insgesamt **26 + 2**.
+PR-7 ergänzt achtzehn Integrationstests und einen Rustdoc-Test, insgesamt **29 + 2**.
 Sie prüfen die drei disjunkten Sprachmengen, alle Flags, vollständige Union,
 Größen, Interleaving, Platzhalter, Glossen-/Variantenfilter, Prüfsummen und
 Offline-Reproduktion einschließlich
-Bedeutungsregister. [Details](data/languages/README.md).
+Bedeutungsregister. Die zweite Abnahmerunde ergänzt quellengebundene
+semantische Einzelentscheidungen für jeden EN-/LA-Kandidaten einschließlich
+aller Reserven; fehlende oder veraltete Entscheidungen brechen den Build ab.
+Tests sichern die 14 Re-Verifier-Fälle, die vollständige Freigabeabdeckung und
+ungültige Entscheidungsdaten. [Diagnose und Stichprobe](data/curation-diagnosis.md),
+[Details](data/languages/README.md).
 
 Für die Weitergabe der neuen englischen/lateinischen Wortdaten liegt eine
 [NOTICE.txt](data/languages/NOTICE.txt) mit Attribution, Änderungen und

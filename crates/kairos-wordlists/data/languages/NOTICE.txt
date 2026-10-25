@@ -25,6 +25,19 @@ The software license does not replace these word-data licenses. Include this
 notice with binary distributions that embed the English or Latin word data.
 German word-data provenance is documented separately in data/PROVENANCE.md.
 
+Curation revision 2026-10-25 (acceptance round 2): review every eligible English
+and Latin candidate and every reserve candidate against the explicit semantic
+rubric, including all available secondary Latin meanings regardless of their
+frequency. Apply versioned source-bound allow/block decisions before selection;
+fail on missing reviews or changed meanings. Retain the keyword guard as an
+additional check. German data and German curation rules are unchanged here;
+German findings are reported separately for PR-2. See curation-diagnosis.md,
+semantic-decisions.tsv and report.txt for decisions, coverage and final counts.
+This snapshot retains 6,966 English and 6,966 Latin words alongside 7,130 German
+words. Semantic acceptance failed again; work stopped under the assigned stop
+rule. This reproducible curation snapshot is not a semantic approval. See
+../curation-diagnosis.md for the remaining findings and decision handoff.
+
 ===== EFF: CC BY 4.0 =====
 
 Attribution 4.0 International

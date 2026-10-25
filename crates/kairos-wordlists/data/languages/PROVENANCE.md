@@ -46,7 +46,7 @@ Ständen nennen rund 39.000.
 Änderungen von Kairos: Würfelpräfixe entfernt, ASCII-/Längenfilter,
 Deduplizierung, positive Ergänzungsauswahl, kategorisierte Ausschlüsse,
 begrenzte Rekonstruktion lateinischer Grundformen, Vorrang Deutsch vor
-Englisch vor Latein und Auswahl auf jeweils 7.130 Wörter. Stammfelder werden nicht pauschal übernommen; ein begrenzter Decoder und
+Englisch vor Latein und Auswahl auf EN/LA jeweils 6.966 Wörter bei unverändertem DE-Umfang von 7.130. Stammfelder werden nicht pauschal übernommen; ein begrenzter Decoder und
 versionierte redaktionelle Sperren bestimmen die lateinischen Wörter.
 
 Die Freigaben betreffen die Wortdaten getrennt von der Crate-Software
@@ -62,28 +62,35 @@ des Schreibbereichs dieses Crate-PRs.
 
 ## Reproduzierbarer Filterbericht
 
+Arbeitsstand mit STOP, keine semantische Abnahme; siehe [Diagnose](../curation-diagnosis.md).
+
 ```text
 German retained: 7130
+Semantic decisions sha256: e2b7f51f134ce27745cf3813c73d10f0a1bdd3fcc9e1652cf71e511fdfeccb86
 English raw rows: 10368
 English eligible distinct: 8301
 English Wordnik selected additions: 1257
+English semantic decisions: 9558; blocked: 1408
 English editorial rejections: 1226
-English disease/injury/decay/death guard removed: 9
-English overlap removed (German): 383
-English available after curation and overlap removal: 7940
+English additional semantic blocks: 757
+English disease/injury/decay/death guard removed: 0
+English overlap removed (German): 361
+English available after curation and overlap removal: 7214
 Latin raw rows: 39335
 Latin eligible distinct (frequency A-D, supported lemma patterns): 11632
+Latin semantic decisions: 11632; blocked: 2952
 Latin editorial rejections: 2352
-Latin sensitive-gloss/spelling guard removed: 183
-Latin overlap removed (German): 83
-Latin overlap removed (English): 119
-Latin available after curation and overlap removal: 8895
-Latin identical-gloss variants removed: 889
-Latin available after variant filter: 8006
-English final: 7130; mean length: 6.284; sha256: bf7d2f435d6ef38500ac72cb81bb69a7ba1ca9336096b5ff986088cc08c7aac3
-Latin final: 7130; mean length: 6.744; sha256: 024b97d5c68cd68adc8fabcbfa558914dd8a10d259da95e03013a6fc6aba539b
-Combined distinct: 21390
+Latin additional semantic blocks: 1388
+Latin sensitive-gloss/spelling guard removed: 16
+Latin overlap removed (German): 77
+Latin overlap removed (English): 108
+Latin available after curation and overlap removal: 7691
+Latin identical-gloss variants removed: 725
+Latin available after variant filter: 6966
+Equal EN/LA size reduced to 6966: minimum of German target, reviewed English pool and Latin pool after overlap/variant filtering. German unchanged; Latin overlap exclusions retain the English preselection of 7130.
+English final: 6966; mean length: 6.541; sha256: 511107e3b370cb4c184ef9c5fc0675fbe226fbbe06ee533f1eba6a6047784881
+Latin final: 6966; mean length: 6.990; sha256: 95d8b89f37c794ce6c2ea446f59551aff7cb08ce98e087fa6269630d0e0d0987
+Combined distinct: 21062
 ```
 
-Die separat freigegebenen Endprüfwerte stehen in [english.sha256](english.sha256)
-und [latin.sha256](latin.sha256). `rebuild-languages` aktualisiert sie nicht.
+Die Ergebnisprüfwerte stehen in [english.sha256](english.sha256) und [latin.sha256](latin.sha256). Sie fixieren den reproduzierbaren Arbeitsstand und behaupten keine semantische Freigabe. Rohquellen und Lizenztexte bleiben unverändert.
