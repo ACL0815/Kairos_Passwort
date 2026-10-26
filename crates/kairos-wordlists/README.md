@@ -40,6 +40,9 @@ auch Hash und Prüfroutine patchen. Das ist keine Authentisierung der EXE, kein
 Ersatz für Codesignaturen und kein Schutz gegen Debugger oder privilegierte
 Angreifer. `black_box` erschwert konstante Rückfaltung, garantiert dies aber nicht
 für alle Compiler. Deshalb gehört eine Release-Artefaktprobe zur Prüfung.
+Der öffentliche Digest bleibt buildübergreifend gleich und kann selbst als
+Suchanker dienen, um Daten und Maske zu lokalisieren. Ein gezielter Austausch
+von Daten und Digest ist auch ohne Änderung des Prüfcodes möglich.
 
 Die Klartext-Pipeline und ihre `--check`-Ergebnisse bleiben reproduzierbar.
 Byteidentische EXEs sind bewusst nicht zugesichert: Bei jedem erneuten Lauf des
@@ -83,6 +86,9 @@ pwsh -NoProfile -File crates/kairos-wordlists/tools/check-embedded.ps1 `
 Der konkrete Vorher-/Nachher-Beleg steht in [obfuscation-probe.json](obfuscation-probe.json).
 `-SampleFile crates/kairos-wordlists/obfuscation-probe.json` verwendet dieselben
 Wörter erneut, einschließlich Prüfung ihrer Zugehörigkeit zur freigegebenen Liste.
+Die Probe ist derzeit manuell. Ein separater CI-Release-Job für diesen Scanner
+bleibt Folgearbeit außerhalb der Schreibfreigabe von PR-9b; die normalen Unit-
+Tests ersetzen keine Artefaktprüfung bei Compiler-/Linkeränderungen.
 
 | Sprache | Wörter | Mittelwert | SHA-256 |
 |---|---:|---:|---|
@@ -154,6 +160,13 @@ cargo run -p kairos-wordlists --example rebuild-german -- --check
 cargo run -p kairos-wordlists --example rebuild-languages -- --check
 node crates/kairos-wordlists/tools/prepare-english-senses.mjs --check
 ```
+
+Ein `rebuild-*`-Schreiblauf ohne `--check` kann die `.txt`-Dateien verändern.
+Danach müssen die neuen Klartexte zuerst geprüft und ihre `.sha256`-Freigaben
+bewusst von Hand gesetzt werden. Bis dahin verweigert das Build-Gate jeden Build
+dieser Crate, einschließlich weiterer Beispiele, Tests und `rebuild-* -- --check`.
+Die Hashes nicht nur zur Beseitigung des Fehlers ungeprüft aktualisieren.
+Bei beschädigten Daten zunächst die freigegebene Fassung wiederherstellen.
 
 `check-semantic-sample.ps1` gehört zur historischen Nulltoleranzprüfung der
 unvollständigen EN/LA-Probe; es implementiert nicht den endgültigen Standard.

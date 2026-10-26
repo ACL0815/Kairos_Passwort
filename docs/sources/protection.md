@@ -233,6 +233,9 @@ keine Passwörter oder Wörter aus einem beschädigten Puffer.
 Der Vergleich erkennt Manipulation der Daten-/Maskenbytes nur, solange erwarteter
 Hash und Prüfcode unverändert bleiben. Er ist **keine Authentisierung der EXE**:
 ein gezielter Angreifer kann Daten, Hash oder Prüfzweig gemeinsam patchen.
+Der öffentliche Klartext-Digest ist buildübergreifend gleich und kann selbst
+als Suchanker zum Lokalisieren von Daten und Maske dienen. Ein gemeinsamer
+Daten-/Digest-Patch kann die Prüfung ohne jede Codeänderung bestehen.
 Die Wortliste bleibt öffentlich. Codesignaturen bzw. ein externer Vertrauensanker
 wären gesonderte Maßnahmen. Die Maskierung schützt weder Klartext im Prozess
 noch öffentliche Quellen und verändert keine Entropieberechnung.
@@ -251,12 +254,20 @@ und Masken am Anfang/in der Mitte/am Ende, falsche Hashes, Längenfehler, die kl
 Panic und gemeinsame Puffer bei Zugriff aus mehreren Threads. Bestehende
 Integrationstests vergleichen alle Wörter und Flags mit den Originalen und
 prüfen DE **6.907**, EN **6.895**, LA **6.895**, kombiniert **20.697**.
+Ein zusätzlicher Regressionstest fordert über 90 % veränderte Bytepositionen
+in jeder Buildausgabe und lehnt damit eine überwiegend wirkungslose Maske ab.
+Dies ist eine grobe Plausibilitätsprüfung, kein Test kryptografischer RNG-Güte.
 
 Eine zusätzliche manuelle Probe führt das echte Release-Buildskript mit einer
 separaten Kopie der sechs Daten-/Hashdateien aus: unveränderte Daten ergeben
 Exit 0, ein zweiter Lauf verändert alle drei Masken, und ein geändertes DE-Byte
 bei unverändertem Freigabehash ergibt Exit 1 mit „approved SHA-256 mismatch“.
 Die Originaldaten und Cargo-Buildausgaben werden dabei nicht verändert.
+Nach einem beabsichtigten Pipeline-Schreiblauf müssen geänderte Klartexte zuerst
+geprüft und ihre Freigabehashes bewusst von Hand gesetzt werden. Bis dahin
+blockiert das neue Build-Gate die Crate einschließlich weiterer Pipeline-
+Beispiele, Tests und `--check`-Läufe. Bei unbeabsichtigter Beschädigung ist die
+freigegebene Fassung wiederherzustellen; ein Hashfehler ist keine Freigabe.
 
 Die Release-Probe nutzt `examples/embedded-probe.rs` mit ausschließlich produktiver
 API. Das Vorher-Artefakt stammt aus derselben Beispielquelle mit der unveränderten
@@ -280,3 +291,6 @@ Diese EXE beendet sich mit Exit **101** und der Meldung
 mismatch; embedded word list may have been modified“. Das unveränderte
 Nachher-Artefakt bleibt unangetastet. Dies prüft den realen Release-Panicpfad,
 weiterhin ohne eine Garantie gegen einen gemeinsam gepatchten Verifier.
+Die Artefaktprobe läuft bislang manuell. Ein eigener CI-Release-Job für den
+Scanner ist Folgearbeit außerhalb der Schreibfreigabe; reine Unit-Tests
+erkennen eine Rückfaltung durch neue Compiler-/Linkeroptionen nicht zuverlässig.

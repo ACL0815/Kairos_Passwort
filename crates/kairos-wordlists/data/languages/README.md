@@ -99,6 +99,11 @@ node crates/kairos-wordlists/tools/prepare-english-senses.mjs --check
 
 Die Pipeline prüft Quellen, Lizenzen, alle Entscheidungen, Ausgabehashes,
 Filterbericht und LA-Glossen. Hashfreigaben werden bewusst separat gesetzt.
+Nach einem Schreiblauf müssen geänderte Klartexte geprüft und die zugehörigen
+`.sha256`-Freigaben von Hand aktualisiert werden. Bis dahin blockiert `build.rs`
+auch weitere Pipeline-Beispiele, Tests und `--check`-Builds. Bei ungewollter
+Beschädigung die freigegebenen Dateien wiederherstellen, statt neue Hashes blind
+zu akzeptieren. [Build-Gate und Reproduktion](../../README.md#reproduktion-und-datenlizenzen).
 Das Stichprobengate prüft aktuelle Listenhashes, Auswahl und sämtliche
 Quelltexte; unbewertete oder veraltete Proben scheitern. B wird protokolliert.
 Die historische Nulltoleranzprüfung erlaubte einen Ursachenfix und eine neue

@@ -91,6 +91,22 @@ mod tests {
     }
 
     #[test]
+    fn build_masks_change_most_plaintext_positions() {
+        // Catch regressions such as a zero-filled mask with just one changed
+        // byte. This is a coarse sanity check, not an RNG quality/security test.
+        for data in [&GERMAN, &ENGLISH, &LATIN] {
+            let original = decode(data.encoded, data.mask, &data.sha256).unwrap();
+            let changed = data
+                .encoded
+                .iter()
+                .zip(original.as_bytes())
+                .filter(|(encoded, plain)| encoded != plain)
+                .count();
+            assert!(changed > data.encoded.len() * 9 / 10);
+        }
+    }
+
+    #[test]
     fn changed_data_mask_and_checksum_are_rejected_before_indexing() {
         for data in [&GERMAN, &ENGLISH, &LATIN] {
             for position in [0, data.encoded.len() / 2, data.encoded.len() - 1] {
