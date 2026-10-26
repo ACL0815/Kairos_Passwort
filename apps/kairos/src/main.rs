@@ -24,6 +24,15 @@ fn main() -> eframe::Result {
         clipboard_shortcuts: false,
         ..Default::default()
     };
+    #[cfg(all(feature = "demo", debug_assertions))]
+    let options = if std::env::var_os("KAIROS_DEMO_LARGE").is_some() {
+        eframe::NativeOptions {
+            viewport: options.viewport.with_inner_size([1000.0, 1050.0]),
+            ..options
+        }
+    } else {
+        options
+    };
     eframe::run_native(
         "Kairos Passwort",
         options,

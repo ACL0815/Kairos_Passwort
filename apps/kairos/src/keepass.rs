@@ -285,6 +285,7 @@ impl KairosApp {
     }
     pub(crate) fn bridge_controls(&mut self, ui: &mut egui::Ui) {
         egui::CollapsingHeader::new("Browser-Brücke koppeln").show(ui, |ui| {
+            crate::help::info(ui, "Violentmonkey-Kopplung", crate::help::BRIDGE);
             if self.keepass.bridge_error { ui.label("Browser-Brücke nicht verfügbar (Port belegt oder DPAPI-Datei nicht lesbar). URL im F11-Dialog manuell eingeben. Keine Klartext-Ersatzablage."); }
             if let Some(bridge) = &self.keepass.bridge {
                 match bridge.status() {
@@ -328,6 +329,7 @@ impl KairosApp {
             }
         }
         ui.heading("KeePassXC · Eintrag bestätigen");
+        crate::help::info(ui, "KeePassXC", crate::help::KEEPASS);
         if !self.notice.is_empty() {
             ui.label(self.notice);
         }

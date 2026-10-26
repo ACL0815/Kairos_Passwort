@@ -24,18 +24,28 @@ cargo run --target-dir $kairosTargetDir -p kairos -- --popup --allow-screencaptu
 Profile 0–12 und 20 Trennerausschlüsse werden an Core übergeben. Strg+R oder
 „Neu generieren“ ersetzt das Passwort. Bei sauberem Generatorergebnis erzeugen
 neue Einstellungen sofort neu; manuelle Nacharbeit bleibt bis zur nächsten
-Generierung erhalten. Die GUI zeigt ausschließlich die quellenabhängigen
-Core-Metadaten. Nach Änderungen steht „bearbeitet – nicht mehr bewertbar“.
+Generierung erhalten. Die GUI trennt Konzeptreferenzen, quellenabhängige
+Core-Metadaten und einen definierten Zufallszeichen-/G50-Vergleich. Nach
+Änderungen steht „bearbeitet – nicht mehr bewertbar“.
 
 „Profil bei jeder Generierung wechseln“ zieht bei jeder Generierung erneut
-gleichverteilt aus Profil 0–12. Wiederholungen sind möglich. Die feste Profilwahl
+gleichverteilt aus mindestens zwei frei gewählten Profilen 0–12. Aktivierung und
+Auswahl stehen ohne Passwörter in `%APPDATA%\Kairos\settings.json`, für Tests
+über `KAIROS_SETTINGS_FILE` überschreibbar. Wiederholungen sind möglich. Die feste Profilwahl
 ist währenddessen deaktiviert. Der Core prüft jede Profilquelle und liefert die
 konservative Stärke der gesamten Rotation und `rotation_bonus_bits`.
-Hier sind es **+0,0 Bit** wegen
-überlappender Ausgaben und ungleicher Profilstärken. Die Anzeige nennt die
+Die App nutzt derzeit immer den Mehrquellen-Pfad, auch mit „Nur deutsche Wörter“.
+Dieser vergibt aktuell für jede auswählbare Rotation **+0,0 Bit**. Ungleiche
+Stärken oder überlappende Ausgaben verhindern einen Bonus zusätzlich. Die Anzeige nennt die
 schwächste Stärke; eine Rotation kann gegenüber einem starken festen Profil
 schwächer sein. Ausschlüsse müssen für alle Profile gelten, deshalb ist ein
-ausgeschlossenes Minuszeichen in dieser Rotation ungültig.
+ausgeschlossenes Minuszeichen bei ausgewähltem Profil 0 oder 1 ungültig.
+„Profile erklärt“ zeigt Regeln, Konzeptgewinn, öffentliche Beispiele und
+aktuelle Einzelwerte für alle 13 Profile. ⓘ bietet Hover- und Klick-Hilfe.
+Im Kompaktmodus liegen „Nur deutsche Wörter“ und die Quellgrößen unter
+„Wortquelle“; Profilwahl, Passwort und Stärke erhalten so mehr Platz.
+Die Rechenmodelle und Dateifehler sind im
+[Haupt-README](../../README.md#profile-und-stärke) beschrieben.
 
 | Aktion | Bedienung und Ergebnis |
 |---|---|
@@ -181,8 +191,18 @@ Zielgrenzen. Sie prüfen echte german()-Generierung, Hotkey-Aktionen, fehlende
 Ziele, Abbruch/Teileingabe, Fokus-Rückgabe, Einfüge-Opt-out, Entropieentwertung,
 Rotation, TextEdit-Undo und Ausgabe ohne normalen egui-Clipboard-Export.
 
-Die Debug-Demo enthält das öffentliche Beispiel `Ahorn-Wolke7-Kiesel-Falke`
-und einen ausdrücklich fiktiven Wert von 82 Bit. `--release --features demo`
+Die Debug-Demo enthält öffentliche Lehrbeispiele je Profil. Die angezeigten
+Metadaten stammen aus dem realen Core für die Einstellungen; der sichtbare Text
+wird anschließend durch das feste, ausdrücklich unbrauchbare Beispiel ersetzt.
+`KAIROS_DEMO_PROFILE` (0–12, sonst 8) wählt das Beispiel,
+`KAIROS_DEMO_HELP=1` öffnet die Profilhilfe. Rotation lässt sich über eine eigene
+`KAIROS_SETTINGS_FILE` mit z. B. Profilen 2/4/8/12 starten.
+`KAIROS_DEMO_LARGE=1` startet die Demo für Gesamtaufnahmen mit 1000×1050 Punkten;
+normale Builds und ihre Fenstergrößen bleiben davon unberührt.
+Für offene Hilfefenster `KAIROS_DEMO_CAPTURE_TO=<PNG-Pfad>` statt
+`EFRAME_SCREENSHOT_TO` verwenden: Dieser reine Demo-Export wartet mehrere
+Renderframes ab und beendet anschließend die App.
+`--release --features demo`
 wird durch `compile_error!` abgewiesen. Eine Demo ist kein Zufallsgenerator;
 globale Hotkeys sind darin deaktiviert.
 
