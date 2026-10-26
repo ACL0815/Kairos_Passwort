@@ -24,7 +24,49 @@ Windows kann Fokusaktivierung verweigern; erhöhte Zielprozesse werden abgewiese
 `SendInput` bestätigt angenommene Ereignisse, keine geprüfte Feldzustellung.
 Clipboard-Kennzeichnungen wirken nur bei beachtender Software; lokale Leser,
 bereits gespeicherte Kopien, dauerhaft belegte Zwischenablage und Prozessabstürze
-liegen außerhalb dieser Zusage. Bildschirmfreigabeschutz folgt in PR-11.
+liegen außerhalb dieser Zusage.
+
+## Bildschirmfreigabe und Aufnahmen (PR #12, Prio 7)
+
+Build-SHA, Windows-Version/Build, Grafiktreiber, Teams-/Snipping-Tool-Version,
+Aufnahmeweg und Ergebnis dokumentieren. Nur frische, nirgendwo verwendete
+Testpasswörter oder `cargo run -p kairos --features demo` verwenden. Für Teams
+eine ausdrücklich eingerichtete Testsitzung nutzen; keine fremden Teilnehmer
+ungefragt einladen. Ausgeführte API-Tests ersetzen diese Desktop-Prüfung nicht.
+
+1. Kairos ohne Parameter starten. Auf dem lokalen Monitor muss das Fenster normal
+   sichtbar bleiben. Mit Snipping Tool und separat **Win+Shift+S** einen Bereich
+   aufnehmen, der Kairos und einen Teil des Desktops umfasst. Ab Windows 10 2004
+   darf Kairos im Ergebnis nicht erscheinen; auf älterem Windows darf höchstens
+   die leere Fensterfläche bleiben, mit „Eingeschränkter Aufnahmeschutz“ in der App.
+2. Dasselbe mit `--popup` und mit über Strg+Umschalt+F9 geöffnetem Kompakteditor
+   prüfen. Minimieren, zurückholen, Größe ändern und Neu generieren wiederholen.
+   „Lizenzen und Wortherkunft“ öffnen; dessen Inhalt darf ebenfalls nicht in der
+   Aufnahme stehen. Künftige native Viewports/Dialoge auch nach dem Start öffnen
+   und prüfen. Auch F11-Bestätigungsdialog und Browser-Pairing im Root prüfen.
+   Automatisiert wird die Affinität solcher späteren Fenster geprüft.
+3. In Teams erst den ganzen Bildschirm und dann, falls angeboten, das einzelne
+   Kairos-Fenster teilen. Ergebnis am separaten empfangenden Testgerät prüfen.
+   Ein geschütztes Fenster kann aus der Auswahlliste fehlen. Passwortinhalt darf
+   über einen unterstützten Aufnahmeweg nicht sichtbar werden. Bei Sichtbarkeit
+   Aufnahmeweg als nicht unterstützt dokumentieren; kein Schutzversprechen ableiten.
+4. Kairos beenden und mit `--allow-screencapture` starten. „Bildschirmaufnahme
+   erlaubt“ muss dauerhaft über dem Editor stehen. Schritt 1 und 3 wiederholen;
+   Kairos samt öffentlichem Testinhalt muss jetzt aufnehmbar sein. Erneut mit
+   `--popup --allow-screencapture`, kleinster Fensterhöhe, Scrollen und F9 prüfen.
+   F11 ohne KeePassXC öffnen und Browser-Pairing aufklappen. Der Hinweis muss
+   auch dort oberhalb des scrollbaren Inhalts sichtbar bleiben.
+5. Wieder ohne Freigabeparameter starten. Schutz muss erneut an sein; der vorherige
+   Start darf ihn nicht dauerhaft abschalten. Bei einer tatsächlich nicht verfügbaren
+   API/DWM-Sitzung muss „Schutz nicht verfügbar“ sichtbar sein. Erfolgs-, Opt-out-,
+   Fehler- und Fallback-Hinweise werden zusätzlich durch UI-/Status-Tests geprüft;
+   DWM nicht im laufenden Nutzerdesktop absichtlich abschalten.
+
+Anzeigeaffinität benötigt DWM und hängt von Windows-Version und Aufnahmeweg ab.
+Kein Schutz gegen Kameras, Admin-/Treiber-Tools oder jede Fernwartung. `WDA_MONITOR`
+blendet Inhalte aus, garantiert aber keine unsichtbare Fensterfläche. Eigene
+Renderer-Bildexporte (z. B. eframes Debug-Screenshot-Feature) umgehen den OS-Capture-
+Pfad und sind kein Nachweis für oder gegen den Windows-Schutz.
 
 ## F11 + Violentmonkey + KeePassXC (isolierte Testumgebung)
 

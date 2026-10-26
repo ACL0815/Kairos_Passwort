@@ -8,6 +8,80 @@ und Konfliktprüfung bleiben plattformunabhängig nutzbar.
 
 ## API und Integration
 
+### Bildschirmfreigabe und Aufnahmen (PR-11, Prio 7)
+
+`CaptureProtection::new(CapturePolicy::Protect)` vor `eframe::run_native`
+auf dem GUI-Thread erstellen und bis zum App-Ende behalten. In dessen
+Creation-Callback `guard.apply_to(creation)` aufrufen. Die Plattform leiht
+den HWND über `raw-window-handle 0.6`; es gibt keinen Titel-/Vordergrundfenster-
+Lookup und keine gespeicherte HWND-Kopie in der App. `set_window_capture_policy`
+ist auch für einen geliehenen winit-Handle separat nutzbar.
+
+Ein threadgebundener `WH_CALLWNDPROC`-Hook erfasst zusätzlich Top-Level-Fenster
+vor `WM_SHOWWINDOW` bzw. `WM_WINDOWPOSCHANGING` mit `SWP_SHOWWINDOW`. Damit sind
+auch später erzeugte native Viewports, nicht aktivierende Popups und eigene
+Dialoge auf diesem GUI-Thread erfasst. Child-Controls werden übersprungen;
+egui-Dialoge innerhalb eines Viewports teilen dessen Schutz. Der Guard ist
+nicht `Send`; ein künftig zusätzlicher GUI-Thread benötigt einen eigenen Guard.
+Der Clipboard-Worker nutzt ein Message-Only-Fenster, der Hotkey-Worker einen
+versteckten Top-Level-HWND. Beide enthalten keine sichtbaren Passwörter und
+benötigen keine Anzeigeaffinität. Drop entfernt den Hook.
+
+Reine `GWL_STYLE`-Änderungen mit `WS_VISIBLE` lösen die beobachteten Nachrichten
+nicht aus. Das inhaltslose 0×0-Ereignisfenster von winit nutzt diesen Weg und
+ist kein Passwortfenster. Ein künftiges Fenster mit sichtbarem Inhalt muss vor
+einer solchen Stiländerung ausdrücklich `apply_to` verwenden. Im Creation-Callback
+`guard.set_wakeup(move || ctx.request_repaint_of(egui::ViewportId::ROOT))` mit
+einem geklonten egui-Kontext registrieren. Hook-Fehler wecken damit sofort den
+Root und dessen Banner. `--popup`, F9, F11 und Browser-Pairing zeichnen alle
+im selben Root; die Brücke erzeugt keine zusätzlichen Inhaltsfenster.
+Eine während eines Affinitätsaufrufs übersprungene verschachtelte Anzeigenachricht
+setzt den Status auf `Unavailable(NestedWindowShow)` statt Erfolg zu behaupten.
+
+Ab Windows 10 2004 (Build 19041) wird `WDA_EXCLUDEFROMCAPTURE` verwendet,
+auf älteren Systemen ausdrücklich `WDA_MONITOR`. Die Betriebssystemversion
+kommt über `RtlGetVersion`, unabhängig vom App-Manifest. Jeder Set-Aufruf
+wird mit `GetWindowDisplayAffinity` geprüft. `CaptureStatus` unterscheidet
+`Pending`, `Excluded`, `MonitorOnly`, `Allowed` und `Unavailable(CaptureError)`.
+Ein Fehler in irgendeinem Fenster bleibt im aggregierten Status sichtbar;
+ein später erfolgreicher Aufruf verdeckt ihn nicht. Fehler enthalten nur
+Operation und numerischen OS-Code. Bei fehlgeschlagenem Hook bleibt der
+Status auch dann fehlerhaft, wenn der Root-Aufruf gelingt.
+
+Die App schützt standardmäßig. `--allow-screencapture` wählt für diesen Start
+`CapturePolicy::Allow`, setzt am Root `WDA_NONE` und installiert keinen Hook.
+Neue Fenster behalten dann ihren ungeschützten Windows-Standard. Die GUI zeigt
+dauerhaft „Bildschirmaufnahme erlaubt“. Bei fehlendem/fehlgeschlagenem Schutz
+steht „Schutz nicht verfügbar“, beim älteren Fallback „Eingeschränkter
+Aufnahmeschutz“. Der Hinweis steht außerhalb des scrollbaren Editors, auch im
+`--popup`-Modus. Die Freigabe wird nicht gespeichert.
+Schlägt bei bewusstem Opt-out die Bestätigung von `WDA_NONE` fehl, bleibt der
+Freigabehinweis sichtbar und erklärt die nicht bestätigte Freigabe separat.
+
+**Grenzen:** Anzeigeaffinität benötigt DWM und erfasst nur Windows-Aufnahmewege,
+die diese Einstellung beachten. `WDA_MONITOR` kann eine leere/schwarze Fensterfläche
+zurücklassen, statt das Fenster ganz auszublenden. Kameras, Admin-/Treiber-Tools
+und manche Fernwartungs-/Capture-Verfahren können den Schutz umgehen. Ein
+erfolgreicher API-Aufruf belegt keine universelle Unsichtbarkeit. Teams und
+Snipping Tool sind mit [MANUAL-TEST.md](../../docs/MANUAL-TEST.md) am Zielsystem
+zu prüfen. Die App bleibt bei Fehlern nutzbar und warnt sichtbar.
+
+**Vorbild:** [KeePassXC 2.8.0, WinUtils.cpp](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/gui/osutils/winutils/WinUtils.cpp)
+modelliert den Win32-Aufruf; [main.cpp](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/main.cpp)
+den gleichnamigen Startparameter und den Schutz aller Top-Level-Fenster.
+Lizenz der Vorbilddateien ist GPL-2.0 OR GPL-3.0. Nur diese Prinzipien wurden
+modelliert; kein fremder Anwendungscode wurde übernommen. Belege und Bewertung
+stehen in [platform.md](../../docs/sources/platform.md).
+
+`cargo test -p kairos-platform --test capture_protection` prüft reale Affinität
+an eigenen Fenstern sowie spätere unabhängige/Owned-Popups vor dem Anzeigen,
+erneutes Anzeigen, Child-Filterung, Hook-Abbau und Opt-out. Fenster stehen
+außerhalb des sichtbaren Desktops und werden ohne Fokusanforderung gezeigt.
+Die Tests verändern weder Zwischenablage noch Hotkeys und verwenden keine
+echten Passwörter. Sie benötigen eine Windows-Sitzung mit DWM. Der Unit-Test
+der Versionsentscheidung prüft auch die Buildgrenze 19040/19041; ein tatsächlicher
+Alt-Windows-Lauf wird dadurch nicht ersetzt.
+
 ```rust,no_run
 use kairos_platform::{copy_secret, Action, GlobalHotkeys, HotkeyBinding};
 use std::time::Duration;

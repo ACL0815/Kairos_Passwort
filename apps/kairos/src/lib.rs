@@ -6,6 +6,7 @@
 #[cfg(all(feature = "demo", not(debug_assertions)))]
 compile_error!("The fake-data demo feature must never be used in a release build.");
 
+mod capture;
 mod clipboard;
 mod desktop;
 mod keepass;
@@ -44,6 +45,7 @@ pub struct KairosApp {
     rotate_profiles: bool,
     rotation_bonus: Option<f64>,
     copy_on_insert: bool,
+    capture_protection: Option<kairos_platform::CaptureProtection>,
     keepass: keepass::Integration,
 }
 
@@ -74,6 +76,7 @@ impl KairosApp {
             rotate_profiles: false,
             rotation_bonus: None,
             copy_on_insert: true,
+            capture_protection: None,
             keepass: keepass::Integration::default(),
         };
         #[cfg(all(feature = "demo", debug_assertions))]
@@ -82,6 +85,11 @@ impl KairosApp {
         }
         app.regenerate(ctx);
         app
+    }
+
+    /// Keeps the GUI-thread hook alive for all subsequent native viewports and dialogs.
+    pub fn connect_capture_protection(&mut self, protection: kairos_platform::CaptureProtection) {
+        self.capture_protection = Some(protection);
     }
 
     /// Connects OS services after the destination was captured before run_native.
@@ -429,6 +437,17 @@ impl KairosApp {
     }
 
     pub fn draw(&mut self, ui: &mut egui::Ui) {
+        capture::banner(
+            ui,
+            self.capture_protection.as_ref().map_or(
+                kairos_platform::CaptureStatus::Pending,
+                kairos_platform::CaptureProtection::status,
+            ),
+            self.capture_protection.as_ref().map_or(
+                kairos_platform::CapturePolicy::Protect,
+                kairos_platform::CaptureProtection::policy,
+            ),
+        );
         self.keepass_poll();
         if self.keepass.flow.is_some() {
             egui::ScrollArea::vertical().show(ui, |ui| self.keepass_view(ui));

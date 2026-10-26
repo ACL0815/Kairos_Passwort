@@ -328,6 +328,9 @@ impl KairosApp {
             }
         }
         ui.heading("KeePassXC · Eintrag bestätigen");
+        if !self.notice.is_empty() {
+            ui.label(self.notice);
+        }
         ui.label("Zuerst KeePassXC, dann mit erneutem Klick ins gemerkte Feld. Der Fensterhinweis kann bei verzögerter Hotkey-Verarbeitung von einem anderen Fenster stammen. Ursprüngliches Ziel selbst prüfen; Tab-/DOM-Feldwechsel sind nicht erkennbar.");
         let draft = flow.phase == Phase::Draft;
         if flow.target.is_none() {
@@ -380,9 +383,6 @@ impl KairosApp {
         if flow.phase == Phase::Finished && ui.button("Passwort manuell kopieren (30 s)").clicked()
         {
             self.copy(&ctx, false);
-        }
-        if !self.notice.is_empty() {
-            ui.label(self.notice);
         }
         if !flow.busy() && ui.button("Dialog schließen").clicked() {
             self.target = crate::desktop::Destination::Unavailable;

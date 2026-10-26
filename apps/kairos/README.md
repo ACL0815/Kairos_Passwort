@@ -19,6 +19,8 @@ In PowerShell zuerst die bereitgestellte Build-Umgebung laden:
 # Beispiel: . '<Hauptcheckout>\target\Enter-KairosBuildEnv.ps1'
 cargo run -p kairos
 cargo run -p kairos -- --popup
+cargo run -p kairos -- --allow-screencapture
+cargo run -p kairos -- --popup --allow-screencapture
 ```
 
 Profile 0–12 und 20 Trennerausschlüsse werden an Core übergeben. Strg+R oder
@@ -120,8 +122,29 @@ können weitere Kopien halten. Der Adapter erzeugt für egui ein normales
 anlegen. Kein vollständiger Lösch- oder RAM-Härtungsnachweis. Schutzformate
 wirken nur bei beachtender Software. Ein Absturz oder dauerhaft belegtes Clipboard
 kann die Löschung verhindern. Speicherhärtung folgt in PR-9a, Wortlistenschutz
-in PR-9b. Fensterinhalte sind weiterhin in Bildschirmaufnahmen sichtbar;
-PR-11 plant den gesonderten Bildschirmfreigabeschutz.
+in PR-9b. Der folgende Aufnahmeschutz begrenzt unterstützte Windows-Aufnahmewege.
+
+## Bildschirmfreigabe und Aufnahmen
+
+Der Schutz ist bei jedem Start an, auch mit `--popup` und nach F9. Ab Windows 10
+2004 schließt `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` die Kairos-Fenster
+aus unterstützten Aufnahmen aus. Ältere Windows-Versionen verwenden `WDA_MONITOR`
+und können eine leere Fensterfläche hinterlassen. Root-HWND aus eframe und ein
+GUI-Thread-Hook decken spätere Viewports und native Dialoge vor dem Anzeigen ab.
+Der Herkunftsdialog ist ein egui-Fenster innerhalb des geschützten Root-Viewports.
+
+Mit **`--allow-screencapture`** lässt sich der Schutz für diesen Start ausschalten.
+Der dauerhaft sichtbare Hinweis **„Bildschirmaufnahme erlaubt“** steht über dem
+Editor, auch in der Kompaktansicht. **„Schutz nicht verfügbar“** meldet fehlenden,
+fehlgeschlagenen oder nicht bestätigten Schutz. Der Monitor-Fallback erhält einen
+eigenen Hinweis. Neugenerieren und Hotkeys entfernen diese Hinweise nicht.
+
+Anzeigeaffinität ist kein Schutz gegen Kameras, privilegierte Admin-/Treiber-
+Werkzeuge oder alle Fernwartungsprogramme. Ein erfolgreicher Windows-Status
+ersetzt keinen Test des verwendeten Teams-/Capture-Pfads. Für Tests nur frische,
+nirgendwo verwendete Passwörter oder die öffentliche Demo verwenden.
+[MANUAL-TEST.md](../../docs/MANUAL-TEST.md) enthält die Schritte mit/ohne Opt-out.
+Künftige zusätzliche GUI-Threads benötigen jeweils einen eigenen Plattform-Guard.
 
 ## Schrift, Lizenzen und Wortherkunft
 
@@ -198,6 +221,7 @@ mit separatem Blob/Marker. Anleitung und Grenzen:
 - egui/eframe 0.37.0 (MIT OR Apache-2.0) liefert Widgets, LayoutJobs, `App::logic` und Wakeup-Vertrag.
 - global-hotkey 0.9.0 (MIT OR Apache-2.0) modelliert das Weiterreichen nativer Ereignisse. Den bestehenden Plattformdienst verwendet die App als Bibliothek.
 - KeePassXC 2.8.0 (verlinkte Dateien GPL-2.0 OR GPL-3.0) liefert Zielidentität vor dem Popup, Abbruch bei Fokuswechsel und separate Clipboard-Lebensdauer als Prinzipien.
+- KeePassXC modelliert außerdem den standardmäßig aktiven Aufnahmeschutz und `--allow-screencapture`, belegt durch [main.cpp](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/main.cpp) und [WinUtils.cpp](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/gui/osutils/winutils/WinUtils.cpp). Eigene Rust-Umsetzung, kein übernommener Anwendungscode.
 - Password Tech (GPL-2.0-or-later) liefert den kurzen Generierungs-/Bearbeitungsablauf als Prinzip.
 - pwgen-go liefert die Trennung eingebetteter Wortquellen und Generator als Prinzip. Wortdaten und Lizenzen stammen aus kairos-wordlists.
 - clipboard-win 5.4.3 (BSL-1.0) bleibt ausschließlich als normaler lesender Windows-Clipboard-Adapter. arboard ist keine direkte App-Abhängigkeit mehr; eframe kann es transitiv weiterhin einbinden.
