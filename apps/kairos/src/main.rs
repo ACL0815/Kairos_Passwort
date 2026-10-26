@@ -1,10 +1,12 @@
-//! Native entry point with the embedded German word source.
+//! Early process hardening and native entry point with profile-dependent sources.
 //!
 //! Modelled after: egui https://github.com/emilk/egui/tree/0.37.0/examples/hello_world
+//! Modelled after: KeePassXC https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/core/Bootstrap.cpp
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() -> eframe::Result {
+    let hardening = kairos_hardening::harden_process();
     let target = kairos_platform::FocusTarget::capture();
     let arguments = Arguments::parse(std::env::args_os().skip(1));
     let compact = arguments.compact;
@@ -31,6 +33,7 @@ fn main() -> eframe::Result {
             capture.apply_to(creation);
             let mut app =
                 kairos::KairosApp::new(&creation.egui_ctx, kairos::german_source(), compact);
+            app.connect_startup(&creation.egui_ctx, hardening);
             app.connect_capture_protection(capture);
             app.connect_desktop(&creation.egui_ctx, target);
             Ok(Box::new(app))

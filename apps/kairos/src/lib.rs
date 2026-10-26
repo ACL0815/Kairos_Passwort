@@ -6,11 +6,13 @@
 #[cfg(all(feature = "demo", not(debug_assertions)))]
 compile_error!("The fake-data demo feature must never be used in a release build.");
 
+mod blocked;
 mod capture;
 mod clipboard;
 mod desktop;
 mod keepass;
 mod model;
+mod security;
 mod source;
 mod theme;
 
@@ -32,6 +34,14 @@ use model::{
 
 pub struct KairosApp {
     source: Box<dyn WordSource>,
+    expanded_source: Box<dyn WordSource>,
+    german_only: bool,
+    blocked: blocked::BlockedWords,
+    show_blocked: bool,
+    blocked_input: String,
+    blocked_notice: &'static str,
+    hardening: Option<kairos_hardening::HardeningReport>,
+    show_security: bool,
     config: GeneratorConfig,
     excluded: [bool; 20],
     password: PasswordState,
@@ -63,6 +73,14 @@ impl KairosApp {
         theme::install(ctx);
         let mut app = Self {
             source,
+            expanded_source: source::combined_source(),
+            german_only: false,
+            blocked: blocked::BlockedWords::default(),
+            show_blocked: false,
+            blocked_input: String::new(),
+            blocked_notice: "",
+            hardening: None,
+            show_security: false,
             config: GeneratorConfig::default(),
             excluded: [false; 20],
             password: PasswordState::default(),
@@ -90,6 +108,17 @@ impl KairosApp {
     /// Keeps the GUI-thread hook alive for all subsequent native viewports and dialogs.
     pub fn connect_capture_protection(&mut self, protection: kairos_platform::CaptureProtection) {
         self.capture_protection = Some(protection);
+    }
+
+    /// Attaches the report produced before eframe and reloads explicit exclusions.
+    pub fn connect_startup(
+        &mut self,
+        ctx: &egui::Context,
+        report: kairos_hardening::HardeningReport,
+    ) {
+        self.hardening = Some(report);
+        self.blocked = blocked::BlockedWords::configured();
+        self.regenerate(ctx);
     }
 
     /// Connects OS services after the destination was captured before run_native.
@@ -234,8 +263,27 @@ impl KairosApp {
 
     fn regenerate(&mut self, ctx: &egui::Context) {
         self.rotation_bonus = None;
+        if self.blocked.error.is_some() {
+            self.password.clear();
+            self.password.message =
+                "Sperrliste nicht verfügbar. Datei im Sperrlisten-Dialog prüfen und neu laden.";
+            self.notice = "";
+            ctx.data_mut(|data| {
+                data.remove::<egui::text_edit::TextEditState>(egui::Id::unique("password"))
+            });
+            return;
+        }
+        let german = source::FilteredSource::new(self.source.as_ref(), &self.blocked.words);
+        let expanded =
+            source::FilteredSource::new(self.expanded_source.as_ref(), &self.blocked.words);
+        let selected: &dyn WordSource =
+            if source::uses_german(self.config.profile, self.german_only) {
+                &german
+            } else {
+                &expanded
+            };
         #[cfg(all(feature = "demo", debug_assertions))]
-        let result = demo::generate(self.source.as_ref(), &self.config);
+        let result = demo::generate(selected, &self.config);
         #[cfg(not(all(feature = "demo", debug_assertions)))]
         let result = if self.rotate_profiles {
             let rotation = kairos_core::ProfileRotation::new(
@@ -244,18 +292,29 @@ impl KairosApp {
                     .collect(),
             )
             .expect("thirteen built-in profiles");
-            kairos_core::generate_rotating(
-                self.source.as_ref(),
+            let sources: Vec<&dyn WordSource> = (0..=12)
+                .map(|id| {
+                    if source::uses_german(
+                        ProfileId::new(id).expect("built-in profile"),
+                        self.german_only,
+                    ) {
+                        &german as &dyn WordSource
+                    } else {
+                        &expanded as &dyn WordSource
+                    }
+                })
+                .collect();
+            kairos_core::generate_rotating_from_sources(
+                &sources,
                 &rotation,
                 &self.config.excluded_chars,
-                kairos_core::ProfileKnowledge::Unknown,
             )
             .map(|result| {
                 self.rotation_bonus = Some(result.rotation_bonus_bits);
                 result.password
             })
         } else {
-            generate(self.source.as_ref(), &self.config)
+            generate(selected, &self.config)
         };
         self.password.set_result(result);
         self.notice = "";
@@ -400,7 +459,31 @@ impl KairosApp {
                 ui.label(format!("Profilbonus: +{bonus:.1} Bit. Bei 0 Bit: Profile überlappen oder sind unterschiedlich stark."));
             }
         }
-        ui.label(format!("Wortquelle: {} Einträge", self.source.len()));
+        if ui
+            .checkbox(&mut self.german_only, "Nur deutsche Wörter")
+            .changed()
+        {
+            self.settings_changed(ui.ctx());
+        }
+        if self.german_only {
+            ui.label("Deutsch-Override: Die zusätzlichen Wortauswahl-Bits von Profil 1 werden nicht erreicht.");
+        }
+        let german = source::FilteredSource::new(self.source.as_ref(), &self.blocked.words);
+        let expanded =
+            source::FilteredSource::new(self.expanded_source.as_ref(), &self.blocked.words);
+        if self.rotate_profiles && !self.german_only {
+            ui.label(format!("Wortquelle: Profil 0 Deutsch ({}); Profil 1–12 DE+EN+LA ({}). Sprache je Wort unabhängig.", german.len(), expanded.len()));
+        } else if source::uses_german(self.config.profile, self.german_only) {
+            ui.label(format!(
+                "Wortquelle: Deutsch · {} Wörter nach Sperrliste",
+                german.len()
+            ));
+        } else {
+            ui.label(format!(
+                "Wortquelle: DE+EN+LA · {} Wörter nach Sperrliste · Sprache je Wort unabhängig",
+                expanded.len()
+            ));
+        }
     }
 
     fn exclusions(&mut self, ui: &mut egui::Ui) {
@@ -448,6 +531,34 @@ impl KairosApp {
                 kairos_platform::CaptureProtection::policy,
             ),
         );
+        if let Some(error) = self.hotkey_error {
+            ui.colored_label(
+                model::segment_color(kairos_core::SegmentKind::Separator),
+                error,
+            );
+            if ui.button("Hotkeys erneut registrieren").clicked() {
+                self.register_hotkeys(ui.ctx());
+            }
+        }
+        ui.horizontal_wrapped(|ui| {
+            let status = security::summary(self.hardening.as_ref());
+            if self
+                .hardening
+                .as_ref()
+                .is_some_and(|report| report.all_applied())
+            {
+                ui.label(status);
+            } else {
+                ui.colored_label(Color32::from_rgb(251, 191, 36), status);
+            }
+            if ui.small_button("Sicherheitsreport").clicked() {
+                self.show_security = true;
+            }
+        });
+        egui::Window::new("Sicherheitsreport")
+            .open(&mut self.show_security)
+            .vscroll(true)
+            .show(ui.ctx(), |ui| security::view(ui, self.hardening.as_ref()));
         self.keepass_poll();
         if self.keepass.flow.is_some() {
             egui::ScrollArea::vertical().show(ui, |ui| self.keepass_view(ui));
@@ -498,10 +609,6 @@ impl KairosApp {
                 if !self.compact { ui.label(RichText::new("Leicht abzuschreiben. Sicher per Zufall.").color(theme::MUTED)); }
                 #[cfg(all(feature = "demo", debug_assertions))]
                 ui.colored_label(Color32::from_rgb(251, 191, 36), "DEMO · Öffentliche Beispieldaten, kein sicheres Passwort");
-                if let Some(error) = self.hotkey_error {
-                    ui.colored_label(model::segment_color(kairos_core::SegmentKind::Separator), error);
-                    if ui.button("Hotkeys erneut registrieren").clicked() { self.register_hotkeys(&ctx); }
-                }
                 ui.add_space(10.0);
                 theme::panel().show(ui, |ui| {
                     self.controls(ui);
@@ -549,6 +656,10 @@ impl KairosApp {
                     });
                 } else { ui.label(assessment); }
                 self.exclusions(ui);
+                ui.horizontal_wrapped(|ui| {
+                    if ui.button(format!("Sperrliste verwalten ({})", self.blocked.words.len())).clicked() { self.show_blocked = true; }
+                    if self.blocked.error.is_some() { ui.colored_label(Color32::from_rgb(251, 191, 36), "Sperrliste prüfen"); }
+                });
                 self.bridge_controls(ui);
                 ui.label(RichText::new("Strg+Umschalt+F9: Editor · F10: Tippen + Kopieren · F11: KeePassXC-Eintrag").color(theme::MUTED).size(12.0));
                 if !self.compact {
@@ -564,6 +675,16 @@ impl KairosApp {
             .vscroll(true)
             .show(&ctx, |ui| {
                 for (title, license) in [
+                    (
+                        "Englische und lateinische Wortdaten · Herkunft",
+                        include_str!(
+                            "../../../crates/kairos-wordlists/data/languages/PROVENANCE.md"
+                        ),
+                    ),
+                    (
+                        "EN/LA-Datenlizenzen und Hinweise",
+                        include_str!("../../../crates/kairos-wordlists/data/languages/NOTICE.txt"),
+                    ),
                     (
                         "Deutsche Wortliste · Herkunft und Änderungen",
                         include_str!("../../../crates/kairos-wordlists/data/PROVENANCE.md"),
@@ -602,6 +723,54 @@ impl KairosApp {
                     });
                 }
             });
+        self.blocked_dialog(&ctx);
+    }
+
+    fn blocked_dialog(&mut self, ctx: &egui::Context) {
+        let mut open = self.show_blocked;
+        egui::Window::new("Eigene Sperrliste").open(&mut open).vscroll(true).show(ctx, |ui| {
+            ui.label("Gespeichert werden ausschließlich ausdrücklich gesperrte Wörter, keine Passwörter. Die Textdatei ist unverschlüsselt und kann persönliche Vorlieben verraten.");
+            if let Some(path) = &self.blocked.path { ui.label(path.display().to_string()); }
+            if let Some(error) = self.blocked.error { ui.colored_label(Color32::from_rgb(251, 191, 36), error); }
+            if ui.button("Datei neu laden").clicked() {
+                if let Some(path) = self.blocked.path.clone() {
+                    self.blocked = blocked::BlockedWords::load(path);
+                } else { self.blocked = blocked::BlockedWords::configured(); }
+                self.regenerate(ctx);
+            }
+            ui.label("Wort des aktuellen, unbearbeiteten Passworts sperren:");
+            let mut change = None;
+            ui.add_enabled_ui(self.blocked.error.is_none(), |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    for word in self.password.block_candidates() {
+                        if ui.button(format!("{word} sperren")).clicked() { change = Some((word, true)); }
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut self.blocked_input).char_limit(9).hint_text("Ein Wort (a–z, 3–9)"));
+                    if ui.button("Wort sperren").clicked() { change = Some((self.blocked_input.clone(), true)); }
+                });
+                ui.separator();
+                for word in &self.blocked.words {
+                    ui.horizontal(|ui| {
+                        ui.label(word);
+                        if ui.small_button("Entfernen").clicked() { change = Some((word.clone(), false)); }
+                    });
+                }
+            });
+            if let Some((word, blocked)) = change {
+                match self.blocked.change(&word, blocked) {
+                    Ok(()) => {
+                        self.blocked_input.clear();
+                        self.blocked_notice = "Sperrliste gespeichert. Neues Passwort aus der gefilterten Quelle erzeugt.";
+                        self.regenerate(ctx);
+                    }
+                    Err(_) => self.blocked_notice = "Speichern fehlgeschlagen oder ungültiges Wort. Bisherige Sperrliste bleibt aktiv; 3–9 Buchstaben a–z und Dateizugriff prüfen.",
+                }
+            }
+            ui.label(self.blocked_notice);
+        });
+        self.show_blocked = open;
     }
 
     fn settings_changed(&mut self, ctx: &egui::Context) {
@@ -650,6 +819,72 @@ fn profile_name(profile: u8) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(feature = "demo"))]
+    #[test]
+    fn app_profile_source_override_and_persisted_filter_change_real_generation() {
+        let ctx = egui::Context::default();
+        let mut app = KairosApp::new(&ctx, german_source(), false);
+        assert!(app.password.assessment == Assessment::Generated(4.0 * 6907_f64.log2()));
+        app.config.profile = ProfileId::new(1).unwrap();
+        app.regenerate(&ctx);
+        assert!(app.password.assessment == Assessment::Generated(4.0 * 20697_f64.log2()));
+        app.german_only = true;
+        app.regenerate(&ctx);
+        assert!(app.password.assessment == Assessment::Generated(4.0 * 6907_f64.log2()));
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("blocked.txt");
+        let blocked = (0..app.source.len() - 1)
+            .map(|index| app.source.word(index))
+            .collect::<Vec<_>>()
+            .join("\n");
+        std::fs::write(&path, blocked).unwrap();
+        app.blocked = blocked::BlockedWords::load(path);
+        app.regenerate(&ctx);
+        let retained = app.source.word(app.source.len() - 1);
+        assert!(app.password.secret.split('-').all(|word| word == retained));
+        assert!(app.password.assessment == Assessment::Generated(0.0));
+        app.rotate_profiles = true;
+        app.regenerate(&ctx);
+        assert!(app.password.assessment == Assessment::Generated(0.0));
+        assert_eq!(app.rotation_bonus, Some(0.0));
+        let _ = frame(&ctx, &mut app, vec![]);
+        app.blocked.error = Some("PUBLIC BLOCKLIST FAILURE");
+        app.regenerate(&ctx);
+        assert!(app.password.secret.is_empty());
+        assert!(matches!(app.password.assessment, Assessment::Unavailable));
+        assert!(egui::TextEdit::load_state(&ctx, egui::Id::unique("password")).is_none());
+    }
+
+    #[test]
+    fn blocking_offers_dictionary_words_without_digits_only_before_editing() {
+        let mut state = PasswordState::default();
+        state.set_result(Ok(kairos_core::GeneratedPassword {
+            secret: zeroize::Zeroizing::new("Aho7rn++wIEse".into()),
+            segments: vec![],
+            entropy_bits: 12.0,
+        }));
+        assert_eq!(state.block_candidates(), ["ahorn", "wiese"]);
+        state.edited();
+        assert!(state.block_candidates().is_empty());
+    }
+
+    #[test]
+    fn hardening_failure_summary_is_rendered_without_opening_report() {
+        let ctx = egui::Context::default();
+        let (mut app, _) = fixture_app(&ctx);
+        app.hardening = Some(kairos_hardening::HardeningReport {
+            measures: vec![(
+                kairos_hardening::Measure::ImageLoads,
+                kairos_hardening::Outcome::Failed(kairos_hardening::OsError::Win32(5)),
+            )],
+        });
+        let output = frame(&ctx, &mut app, vec![]);
+        assert!(output
+            .shapes
+            .iter()
+            .any(|shape| has_text(&shape.shape, "Prozesshärtung unvollständig")));
+    }
     use crate::desktop::InputTarget;
     use kairos_core::{GeneratedPassword, Language};
     use std::{cell::RefCell, rc::Rc};

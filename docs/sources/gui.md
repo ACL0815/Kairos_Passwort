@@ -125,3 +125,19 @@ installierten 0.37.0-Quelltext geprüft. Die genaue aktuelle Wortherkunft wird
 nicht dupliziert: Der Lizenzdialog bindet PROVENANCE.md und Original-Lizenztexte
 aus kairos-wordlists ein. Die Wortdaten sind CC0-1.0; die vorhandene
 Font-Asset-Übernahme bleibt davon getrennt.
+
+## Abschluss: bewusste Wortauswahl und Report
+
+| Projekt | Permalink | Lizenz | Datei | Prinzip | Passung | Abrufdatum |
+|---|---|---|---|---|---|---|
+| egui | [0.37.0 TextEdit](https://github.com/emilk/egui/blob/0.37.0/crates/egui/src/widgets/text_edit/builder.rs) | MIT OR Apache-2.0 | TextEdit | Bearbeitungszustand getrennt von Generatorbewertung | 5/5 | 2026-10-26 |
+| xkcdpass | [b981361](https://github.com/redacted/XKCD-password-generator/blob/b981361292ae7328313e116178acacc90680df5e/xkcdpass/xkcd_password.py) | BSD-3-Clause | generate_wordlist | Ausschlüsse auf der Quelle vor Generierung | 5/5 | 2026-10-26 |
+
+Eigene Wortschaltflächen gibt es nur beim unbearbeiteten Generatorergebnis.
+Persistiert wird ausschließlich der ausgewählte Einzelbegriff, keine
+Passwortfolge. Der Verwaltungsdialog erklärt Klartext/Vorlieben und erlaubt
+Entfernen/Neuladen. Quellenlabel nennt gefilterte Größe und Deutsch-Override.
+Der Sicherheitsstatus bleibt auch oberhalb des F11-Inhalts sichtbar; der Report
+führt jede Maßnahme auf. EN/LA-Provenienz und Datenhinweise sind im Lizenzdialog
+enthalten. Kein Code kopiert. Die bestehenden egui-Kopien bleiben; LockedSecret-
+TextBuffer und direkte Erzeugung sind Folgearbeit, keine erledigte RAM-Härtung.

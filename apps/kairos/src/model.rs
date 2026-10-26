@@ -41,6 +41,26 @@ impl Default for PasswordState {
 }
 
 impl PasswordState {
+    /// Offers original dictionary spellings only for an unedited generation.
+    pub fn block_candidates(&self) -> Vec<String> {
+        if !matches!(self.assessment, Assessment::Generated(_)) {
+            return Vec::new();
+        }
+        self.secret
+            .split(|c: char| !c.is_alphanumeric())
+            .filter_map(|part| {
+                crate::blocked::normalize(
+                    &part
+                        .chars()
+                        .filter(|c| c.is_alphabetic())
+                        .collect::<String>(),
+                )
+            })
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+
     pub fn set_result(&mut self, result: Result<GeneratedPassword, GenerateError>) {
         self.clear();
         match result {

@@ -33,6 +33,46 @@ fn entropy(rotation: &ProfileRotation, excluded: &[char]) -> RotationEntropy {
 }
 
 #[test]
+fn per_profile_sources_use_their_own_words_and_the_global_minimum() {
+    let small = Source(&["eins"]);
+    let large = Source(&["alpha", "beta", "gamma", "delta"]);
+    let rotation = ProfileRotation::new(vec![profile(2, "-"), profile(3, "+")]).unwrap();
+    for _ in 0..32 {
+        let result = generate_rotating_from_sources(&[&small, &large], &rotation, &[]).unwrap();
+        assert_eq!(result.password.entropy_bits, 0.0);
+        assert_eq!(result.rotation_bonus_bits, 0.0);
+        if result.password.secret.contains('-') {
+            assert_eq!(&*result.password.secret, "eins-eins");
+        } else {
+            assert_eq!(result.password.secret.split('+').count(), 3);
+            assert!(result
+                .password
+                .secret
+                .split('+')
+                .all(|word| large.0.contains(&word)));
+        }
+    }
+    for sources in [
+        vec![&small as &dyn WordSource],
+        vec![&small, &large, &small],
+    ] {
+        assert!(matches!(
+            generate_rotating_from_sources(&sources, &rotation, &[]),
+            Err(GenerateError::InvalidConfig)
+        ));
+    }
+    let empty = Source(&[]);
+    assert!(matches!(
+        generate_rotating_from_sources(&[&small, &empty], &rotation, &[]),
+        Err(GenerateError::EmptySource)
+    ));
+    assert!(matches!(
+        generate_rotating_from_sources(&[&small, &large], &rotation, &['+']),
+        Err(GenerateError::InvalidConfig)
+    ));
+}
+
+#[test]
 fn validates_custom_rules_at_construction_and_deserialization() {
     for (words, pool, gaps) in [
         (0, "-", 1),

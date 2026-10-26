@@ -349,3 +349,14 @@ Die vollständige Bewertung einschließlich verworfener Kandidaten, Lizenzen und
 Abrufdatum steht in [core.md](../../docs/sources/core.md). Übernommen wurden
 Prinzipien und reguläre Crate-Abhängigkeiten, kein fremder Generatorcode,
 keine Wörterbücher und keine Assets.
+
+## Abschlussintegration mit mehreren Quellen
+
+Die additive `generate_rotating_from_sources(&[&dyn WordSource], &rotation,
+&excluded)` verlangt genau eine Quelle je Profileintrag in derselben Reihenfolge.
+Jedes Paar wird vor der Zufallsauswahl geprüft. Das Ergebnis nennt stets das
+Minimum der individuellen quellenabhängigen Grenzen und null Bonus, auch bei
+Disjunktheit. Bestehende APIs mit einer gemeinsamen Quelle bleiben unverändert.
+Die App verwendet dies für Deutsch bei Profil 0 und DE+EN+LA ab Profil 1,
+jeweils nach Nutzer-Sperrliste. Die frühere Aussage zu identischen Ausgaben von
+Profil 0/1 gilt für dieselbe übergebene Quelle, nicht für diese App-Zuordnung.

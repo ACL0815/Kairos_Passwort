@@ -6,8 +6,8 @@ Daten-/Asset-Übernahmen (Wortlisten, Schriftarten) nur mit redistributionsfähi
 Lizenz, Lizenz dokumentiert. Die Softwarelizenz eines Generators erlaubt nicht
 automatisch die Weitergabe sämtlicher beigelegter Wörterbücher oder Schriften.
 Herkunft, konkrete Version, Lizenztext und erforderliche Hinweise werden vor einer
-Übernahme separat festgehalten. Im Scaffold sind keine fremden Wortlisten oder
-Schriften enthalten; `zeroize` ist die für den API-Vertrag benötigte Abhängigkeit.
+Übernahme separat festgehalten. Eingebettete Wortdaten und Schriften sind inzwischen enthalten. Ihre Herkunft und
+Lizenztexte stehen in den verlinkten Bereichsdateien und im App-Lizenzdialog.
 
 ## Fester Index und Zuständigkeit
 

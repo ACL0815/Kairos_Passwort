@@ -1277,9 +1277,11 @@ dependencies = [
  "eframe",
  "kairos-bridge",
  "kairos-core",
+ "kairos-hardening",
  "kairos-keepassxc",
  "kairos-platform",
  "kairos-wordlists",
+ "tempfile",
  "windows-sys 0.61.2",
  "zeroize",
 ]
