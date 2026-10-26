@@ -241,6 +241,41 @@ fn sixteen_equal_disjoint_profiles_get_exactly_four_bits() {
 }
 
 #[test]
+fn rotation_bonus_uses_conditioned_separator_strengths() {
+    // Three words with two binary separators now have 3 + log2(4 - 2) = 4
+    // bits. Before conditioning they matched five fixed-separated words.
+    let changed = profile(3, "-+");
+    let rotation = ProfileRotation::new(vec![changed.clone(), profile(5, ".")]).unwrap();
+    let result = entropy(&rotation, &[]);
+    assert_eq!(result.entropy_bits, 4.0);
+    assert_eq!(result.rotation_bonus_bits, 0.0);
+    let rotation = ProfileRotation::new(vec![changed.clone(), profile(4, ".")]).unwrap();
+    let result = entropy(&rotation, &[]);
+    assert_eq!(result.entropy_bits, 5.0);
+    assert_eq!(result.rotation_bonus_bits, 1.0);
+    let rotation = ProfileRotation::new(vec![changed, profile(3, ".!")]).unwrap();
+    assert_eq!(entropy(&rotation, &[]).rotation_bonus_bits, 1.0);
+    assert_eq!(entropy(&rotation, &['+']).rotation_bonus_bits, 0.0);
+    for knowledge in [ProfileKnowledge::Known, ProfileKnowledge::Unknown] {
+        let expected =
+            entropy_bits_for_rotation(&Source(&["ab", "cd"]), &rotation, &[], knowledge).unwrap();
+        let mut rng = StdRng::seed_from_u64(19);
+        for _ in 0..100 {
+            let result = generate_rotating_with_rng(
+                &Source(&["ab", "cd"]),
+                &rotation,
+                &[],
+                knowledge,
+                &mut rng,
+            )
+            .unwrap();
+            assert_eq!(result.password.entropy_bits, expected.entropy_bits);
+            assert_eq!(result.rotation_bonus_bits, expected.rotation_bonus_bits);
+        }
+    }
+}
+
+#[test]
 fn unequal_strengths_never_credit_bonus_to_the_selected_stronger_profile() {
     let rotation = ProfileRotation::new(vec![profile(1, "-"), profile(8, "-")]).unwrap();
     let result = entropy(&rotation, &[]);
@@ -558,8 +593,11 @@ fn exhaust_mixture(source: &dyn WordSource, profiles: Vec<CustomProfile>, expect
                 if rules.insert_digit {
                     events.push((rules.word_count, Some(digit_word)));
                 }
+                let mut separator_events = Vec::new();
                 for (word_index, &choice) in words.iter().enumerate() {
                     if word_index > 0 {
+                        separator_events
+                            .extend(events.len()..events.len() + rules.separators_per_gap);
                         events.extend(std::iter::repeat_n(
                             (pool.len(), None),
                             rules.separators_per_gap,
@@ -584,6 +622,16 @@ fn exhaust_mixture(source: &dyn WordSource, profiles: Vec<CustomProfile>, expect
                     }
                 }
                 enumerate_events(&events, &mut Vec::new(), 1.0, &mut |script, probability| {
+                    let probability = if pool.len() >= 2 && separator_events.len() >= 2 {
+                        let first = script[separator_events[0]];
+                        if separator_events.iter().all(|&i| script[i] == first) {
+                            return;
+                        }
+                        let tuples = (pool.len() as f64).powi(separator_events.len() as i32);
+                        probability * tuples / (tuples - pool.len() as f64)
+                    } else {
+                        probability
+                    };
                     let mut rng = ChoiceScript(script.iter().copied().collect());
                     let result = generate_rotating_with_rng(
                         source,
@@ -626,6 +674,21 @@ fn exhaust_mixture(source: &dyn WordSource, profiles: Vec<CustomProfile>, expect
 #[test]
 fn exhausts_actual_mixture_probabilities_and_disjointness() {
     let make = |w, s: &str, k, d, c| CustomProfile::new(w, s, k, d, c).unwrap();
+    exhaust_mixture(
+        &Source(&["ab", "cd"]),
+        vec![profile(3, "-+"), profile(3, ".!")],
+        true,
+    );
+    exhaust_mixture(
+        &Source(&["ab", "cd"]),
+        vec![profile(3, "-+"), profile(4, ".")],
+        true,
+    );
+    exhaust_mixture(
+        &Source(&["ab", "cde"]),
+        vec![profile(4, "-+"), profile(4, "+.")],
+        true,
+    );
     exhaust_mixture(
         &Source(&["ab", "cd"]),
         vec![
