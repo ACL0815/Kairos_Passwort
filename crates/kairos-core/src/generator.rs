@@ -154,8 +154,14 @@ pub(crate) fn entropy_bound(
     uppercase_choices: usize,
 ) -> f64 {
     let words = rules.word_count as f64;
-    let mut bits = words * (source_len as f64).log2()
-        + ((rules.word_count - 1) * rules.separators_per_gap) as f64 * (pool_len as f64).log2();
+    let separator_count = (rules.word_count - 1) * rules.separators_per_gap;
+    let mut separator_bits = separator_count as f64 * (pool_len as f64).log2();
+    if pool_len >= 2 && separator_count >= 2 {
+        // log2(n^k - n), without overflowing for large custom profiles.
+        separator_bits += (-(pool_len as f64).powf(1.0 - separator_count as f64)).ln_1p()
+            / std::f64::consts::LN_2;
+    }
+    let mut bits = words * (source_len as f64).log2() + separator_bits;
     if rules.insert_digit {
         bits += (10.0 * words * min_inner as f64).log2();
     }
@@ -258,6 +264,29 @@ fn generate_prepared<R: TryRngCore + ?Sized>(
                 append(&mut secret, &mut segments, u, SegmentKind::Uppercase);
             } else {
                 append(&mut secret, &mut segments, c, SegmentKind::Word);
+            }
+        }
+    }
+    if pool.len() >= 2 && gaps >= 2 {
+        loop {
+            let mut bytes = segments
+                .iter()
+                .filter(|s| s.kind == SegmentKind::Separator)
+                .flat_map(|s| s.range.clone())
+                .map(|i| secret.as_bytes()[i]);
+            let first = bytes.next();
+            if bytes.any(|b| Some(b) != first) {
+                break;
+            }
+            // Reject the whole tuple to keep all n^k - n allowed tuples uniform.
+            // ASCII replacements preserve byte ranges and buffer capacity.
+            for index in segments
+                .iter()
+                .filter(|s| s.kind == SegmentKind::Separator)
+                .flat_map(|s| s.range.clone())
+            {
+                let c = pool[draw(rng, pool.len())?];
+                secret.replace_range(index..index + 1, c.encode_utf8(&mut [0; 4]));
             }
         }
     }

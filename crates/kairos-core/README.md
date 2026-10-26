@@ -184,8 +184,21 @@ teilen sie Quellenprüfung, Regeldaten und Geheimniskonstruktion.
 
 ## Profile und Ausschlüsse
 
-Die Regeln sind kumulativ. Profil 1 ändert nur die Listenempfehlung. Alle
-Trenner und Groß-/Kleinschreibentscheidungen werden unabhängig gezogen.
+Die Regeln sind kumulativ. Profil 1 ändert nur die Listenempfehlung.
+Groß-/Kleinschreibentscheidungen werden unabhängig gezogen.
+
+Zufällige Trenner (Profile 2–12 und eigene Profile) werden zunächst unabhängig
+gezogen. Sind alle Trenner des Passworts identisch, werden **alle gemeinsam**
+neu gezogen, bis mindestens zwei unterschiedliche vorkommen (Rejection Sampling).
+Bei Profil 12 zählen sämtliche zehn Positionen zusammen; gleiche Zeichenpaare
+in einzelnen Lücken bleiben erlaubt. Die Regel gilt nur bei mindestens zwei
+verbleibenden Poolzeichen und zwei Trennerpositionen. Bei einem Poolzeichen
+entfällt sie, damit die Generierung möglich bleibt; feste Trenner in Profil 0/1
+bleiben unverändert. Auch eigene Profile mit null oder einer Trennerposition
+bleiben unverändert. Jeder Versuch gelingt mit Wahrscheinlichkeit mindestens
+1/2; es gibt keine Versuchsschranke oder Ersatz-Zufallsquelle. OS-Fehler brechen
+weiterhin regulär ab. Nur ASCII-Trenner werden im bestehenden Geheimnispuffer
+ersetzt; Wortwahl, UTF-8-Bytebereiche und Hervorhebung bleiben erhalten.
 
 | Profil | Wörter | Trennerpool | Ziffer | Großschreibung | Trenner je Lücke |
 |---|---:|---|---|---|---:|
@@ -250,7 +263,10 @@ I als minimaler Zahl innerer Grenzen und C als minimaler Zahl von
 Großschreibpositionen gilt die konservative Schranke:
 
 ```text
-H >= W * log2(N) + (W - 1) * K * log2(S)
+T = (W - 1) * K
+H_Trenner = log2(S^T - S)            [S >= 2 und T >= 2]
+          = T * log2(S)              [sonst; bei S = 1 also 0]
+H >= W * log2(N) + H_Trenner
      + log2(10 * W * I)              [falls eine Ziffer eingefügt wird]
      + W                            [zufälliger Anfang, alle umwandelbar]
      + W * log2(C)                  [genau ein Großbuchstabe je Wort]
@@ -263,6 +279,15 @@ Es handelt sich um eine untere Schranke der Ausgabe-Min-Entropie
 gemischten Längenverteilung. Für gleich lange, vollständig umwandelbare Wörter
 ist der Wert exakt. Die einfache API nimmt sechs Buchstaben, I = 5 und C = 6 an.
 
+Das gemeinsame Neuziehen erhält die Gleichverteilung über die `S^T - S`
+erlaubten Trennerkombinationen. Nur ein Zeichen neu zu ziehen würde diese
+Gleichverteilung verletzen. Die Berechnung verwendet die überlaufsichere Form
+`T * log2(S) + ln(1 - S^(1-T)) / ln(2)` (mit `ln_1p`), auch für große eigene
+Profile. Konzeptmodell, quellabhängige Entropie, eigene Profile und die
+Stärkenvergleiche der Rotation teilen dieselbe Berechnung. Die vorhandenen
+Disjunktheitsbeweise bleiben für die verkleinerten Ausgabemengen gültig;
+unbewiesene Disjunktheit erhält weiterhin keinen Bonus.
+
 Jede gültige Ausgabe lässt sich eindeutig in Trenner, eingefügte Ziffer und
 kleingeschriebene Quellwörter zurückführen. Wiederholte Buchstaben verursachen
 keine Positionskollision, weil der Großbuchstabe beziehungsweise die Ziffer
@@ -271,12 +296,20 @@ Quellwörter und mehrdeutige Wortgrenzen. Bei nicht umwandelbaren Anfängen kön
 beide Zufallsentscheidungen dieselbe Ausgabe liefern; der konservative Wert
 berücksichtigt das. Die API für ein festes Profil rechnet keinen Profilbonus an.
 
-Die Tests reproduzieren die Konzepttabelle mit 7.000 beziehungsweise 21.000
-verschiedenen Sechs-Buchstaben-Wörtern auf ±0,1 Bit. Statistische Tests prüfen
+Die angepassten Konzeptwerte verwenden 7.000 beziehungsweise 21.000
+verschiedene Sechs-Buchstaben-Wörter. Beispielsweise sinkt Profil 2 von
+64,398191 auf 64,339297 Bit: sein Trenneranteil ändert sich von
+`3 * log2(5) = 6,965784` auf `log2(125 - 5) = 6,906891` Bit.
+Die Tests prüfen alle 13 Modellwerte auf ±0,000001 Bit. Statistische Tests prüfen
 Wortwahl, Trenner, Ziffern, Wort-/Innenpositionen, Anfangspaare, doppelte Trenner
 und Großschreibpositionen mit festen `StdRng`-Seeds. Der Produktionspfad bietet
 keine öffentliche RNG-Injektion und verwendet ausschließlich `OsRng`.
-Zusätzlich werden 128 Ausgaben mit variablen Wortlängen/Trennern und sämtliche
+Für zwei Poolzeichen und drei Positionen werden die sechs erlaubten Tupel mit
+24.000 deterministisch gesäten Ziehungen per Chi-Quadrat geprüft; die beiden
+identischen Tupel kommen nie vor. Erzwungene wiederholte Zurückweisung prüft
+unveränderte Unicode-Segmente und Fehlerweitergabe. Profil 12 prüft erschöpfend
+alle 1.022 erlaubten binären Zehnertupel einschließlich gleicher Zeichenpaare.
+Zusätzlich werden 96 Ausgaben mit variablen Wortlängen/Trennern und sämtliche
 3.840 Ausgaben von Profil 12 für die Quelle `ab` bei festem `-` erschöpfend
 geprüft. Eindeutigkeit und berechnete Min-Entropie stimmen überein.
 
@@ -285,7 +318,8 @@ geprüft. Eindeutigkeit und berechnete Min-Entropie stimmen überein.
 `rand` 0.9.5 verwendet `OsRng` aus `rand_core` und `getrandom` 0.3.4. Unter
 Windows 10+ ruft dessen Backend `ProcessPrng` auf. V1 und V2 des Konzepts fallen
 damit zusammen. Für jede Auswahl kommt ein vorbereiteter `Uniform<usize>` zum
-Einsatz; eigener Modulo- oder Rejection-Sampling-Code entfällt.
+Einsatz; die Bereichsabbildung übernimmt rand. Die zusätzliche Zurückweisung
+vollständig identischer Trennertupel verwendet dieselben rand-/OS-Ziehungen.
 
 Da rand einen unfehlbaren `RngCore` für `Uniform::sample` erwartet, überbrückt
 ein privater Adapter die fallible OS-API. Nach einem Fehler liefert er nur zum
