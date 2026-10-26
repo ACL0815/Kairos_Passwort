@@ -1,0 +1,154 @@
+{
+  "measuredUtc": "2026-10-25T23:30:20.4300429Z",
+  "selection": "OS RNG, without replacement; DE 7 / EN 7 / LA 6, length >= 7",
+  "beforeSha256": "f65c76db9367bfdc8b3ffd6863cc2a6db879c64646301e53e57955569958d1f3",
+  "afterSha256": "3148bb7dd73d0b9f567e84388bd40ce95db2620c70f196f93599da472f3ef97e",
+  "beforeBytes": 296448,
+  "afterBytes": 473600,
+  "beforeAsciiHits": 20,
+  "afterAsciiHits": 0,
+  "afterUtf16LEHits": 0,
+  "afterIntegrityLabelHits": 0,
+  "samples": [
+    {
+      "language": "de",
+      "word": "anfeuern",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "de",
+      "word": "obrigkeit",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "de",
+      "word": "reinigen",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "de",
+      "word": "oberhalb",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "de",
+      "word": "ereifern",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "de",
+      "word": "senfglas",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "de",
+      "word": "subkultur",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "en",
+      "word": "wrought",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "en",
+      "word": "landing",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "en",
+      "word": "giggling",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "en",
+      "word": "deskbound",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "en",
+      "word": "partition",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "en",
+      "word": "hamburger",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "en",
+      "word": "dutiful",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "la",
+      "word": "internus",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "la",
+      "word": "obtueeor",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "la",
+      "word": "laqueatus",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "la",
+      "word": "ruricola",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "la",
+      "word": "secessus",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    },
+    {
+      "language": "la",
+      "word": "celeriter",
+      "beforeAscii": true,
+      "afterAscii": false,
+      "afterUtf16LE": false
+    }
+  ]
+}

@@ -9,6 +9,12 @@
 //! Modelled after: passalong-core <https://docs.rs/passalong-core/0.3.0/src/passalong_core/crypto/words.rs.html>.
 //! Only the separation of embedded data from password generation is modelled;
 //! no implementation code was copied. See the crate README for data licenses.
+//!
+//! Build-time masking only obstructs static strings searches. The dictionary is
+//! public and remains readable in process memory after its first access.
+//! Modelled after: CasualX/obfstr <https://github.com/CasualX/obfstr/blob/9e56c1938dfd3bd65fe305fbafcb57394c701356/src/bytes.rs>.
+
+mod embedded;
 
 use std::sync::OnceLock;
 
@@ -42,6 +48,11 @@ impl WordSource for EmbeddedWordList {
 /// Use [`WordSource::len`] for the actual vocabulary size when calculating
 /// entropy. Editorial A/B exclusions are applied before embedding the data.
 ///
+/// # Panics
+///
+/// Panics if the decoded plaintext differs from its embedded SHA-256 or is
+/// invalid UTF-8. The check detects damaged data, not a patched verifier.
+///
 /// Modelled after: pwgen-go <https://github.com/gabe565/pwgen-go/tree/5a53dce1f9cbde823855ee6facf6889eb5275fde/internal/wordlist>.
 /// Modelled after: passalong-core <https://docs.rs/passalong-core/0.3.0/src/passalong_core/crypto/words.rs.html>.
 ///
@@ -54,7 +65,7 @@ impl WordSource for EmbeddedWordList {
 pub fn german() -> &'static EmbeddedWordList {
     static GERMAN: OnceLock<EmbeddedWordList> = OnceLock::new();
     GERMAN.get_or_init(|| EmbeddedWordList {
-        words: index(include_str!("../data/german.txt"), Language::German),
+        words: index(embedded::german(), Language::German),
     })
 }
 
@@ -66,13 +77,14 @@ fn index(text: &'static str, language: Language) -> Vec<(&'static str, Language)
 ///
 /// Modelled after: EFF <https://www.eff.org/dice> (curated passphrase vocabulary).
 /// Data attribution, modifications, and source checksums are in the crate README.
+///
+/// # Panics
+///
+/// Panics on embedded-data integrity failure, as described in [`german`].
 pub fn english() -> &'static EmbeddedWordList {
     static ENGLISH: OnceLock<EmbeddedWordList> = OnceLock::new();
     ENGLISH.get_or_init(|| EmbeddedWordList {
-        words: index(
-            include_str!("../data/languages/english.txt"),
-            Language::English,
-        ),
+        words: index(embedded::english(), Language::English),
     })
 }
 
@@ -80,10 +92,14 @@ pub fn english() -> &'static EmbeddedWordList {
 ///
 /// Modelled after: Whitaker's WORDS <https://github.com/mk270/whitakers-words/tree/1f2f0fb0867a896d7b9284a03d615ed635d6f992>.
 /// See the crate README for the pinned data source and editorial selection.
+///
+/// # Panics
+///
+/// Panics on embedded-data integrity failure, as described in [`german`].
 pub fn latin() -> &'static EmbeddedWordList {
     static LATIN: OnceLock<EmbeddedWordList> = OnceLock::new();
     LATIN.get_or_init(|| EmbeddedWordList {
-        words: index(include_str!("../data/languages/latin.txt"), Language::Latin),
+        words: index(embedded::latin(), Language::Latin),
     })
 }
 
@@ -100,6 +116,10 @@ pub fn latin() -> &'static EmbeddedWordList {
 ///
 /// Modelled after: xkcdpass <https://github.com/redacted/XKCD-password-generator/blob/b981361292ae7328313e116178acacc90680df5e/xkcdpass/xkcd_password.py>.
 /// Only union-before-sampling is modelled; no implementation code was copied.
+///
+/// # Panics
+///
+/// Panics if any language fails its embedded-data integrity check.
 ///
 /// ```
 /// use kairos_core::WordSource;
