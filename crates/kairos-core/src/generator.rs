@@ -418,6 +418,49 @@ fn generate_rotating_with_rng<R: TryRngCore + ?Sized>(
     })
 }
 
+/// Uniform rotation with one source per profile, in the same order.
+///
+/// Validates every profile/source pair before drawing. Reports the minimum of
+/// their source-dependent bounds, with zero bonus even for disjoint outputs.
+/// This remains conservative for overlapping dictionaries and different sizes.
+/// A missing/extra source returns `InvalidConfig`; no entries are skipped.
+///
+/// Modelled after: KeePassXC's source-before-sampling separation and rand Uniform.
+/// <https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/core/PassphraseGenerator.cpp>.
+pub fn generate_rotating_from_sources(
+    sources: &[&dyn WordSource],
+    rotation: &ProfileRotation,
+    excluded_chars: &[char],
+) -> Result<RotatedPassword, GenerateError> {
+    if sources.len() != rotation.profiles().len() {
+        return Err(GenerateError::InvalidConfig);
+    }
+    let prepared = sources
+        .iter()
+        .zip(rotation.profiles())
+        .map(|(source, profile)| {
+            let rules = profile.rules();
+            let pool = separators_for(rules, excluded_chars)?;
+            let source = PreparedSource::new(*source, rules)?;
+            Ok((source, pool))
+        })
+        .collect::<Result<Vec<_>, GenerateError>>()?;
+    let minimum = prepared
+        .iter()
+        .zip(rotation.profiles())
+        .map(|((source, pool), profile)| source.entropy(profile.rules(), pool.len()))
+        .fold(f64::INFINITY, f64::min);
+    let index = draw(&mut OsRng, prepared.len())?;
+    let (source, pool) = &prepared[index];
+    let mut password =
+        generate_prepared(source, rotation.profiles()[index].rules(), pool, &mut OsRng)?;
+    password.entropy_bits = minimum;
+    Ok(RotatedPassword {
+        password,
+        rotation_bonus_bits: 0.0,
+    })
+}
+
 fn append(secret: &mut String, segments: &mut Vec<Segment>, c: char, kind: SegmentKind) {
     let start = secret.len();
     secret.push(c);

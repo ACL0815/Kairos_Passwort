@@ -1,14 +1,11 @@
 # kairos
 
-Native Windows-App mit eframe/egui 0.37.0. Der normale Einstieg generiert aus
-`kairos_wordlists::german()`, derzeit 7.130 eingebettete ASCII-Wörter mit
-CC0-Datenlizenz. Profil 0 liefert vier Wörter und rund 51,2 Bit. Profil 1
-verwendet dieselbe Quelle; die Empfehlung von 21.000 Wörtern erzeugt keine
-zusätzlichen Auswahlbits. `german_source()` leiht die Liste ohne Wortkopien.
-`KairosApp::new` akzeptiert weiter `Box<dyn WordSource>` für spätere kombinierte
-Quellen oder Store-Snapshots. PR #7 und eine Store-Importoberfläche sind nicht
-Bestandteil dieser Integration. Core-, Plattform- und Quellenverträge bleiben
-getrennt; die KeePassXC-Crate ist noch ein Scaffold.
+Native Windows-App mit eframe/egui 0.37.0. Profil 0 nutzt `german()` mit 6.907,
+Profil 1–12 `combined()` mit 20.697 unterschiedlichen DE/EN/LA-Wörtern. Sprache
+je Wort unabhängig, Deutsch-Override mit Hinweis auf fehlende Profil-1-Bits.
+Die Sperrliste verkleinert die tatsächliche Quelle vor Auswahl und Bitrechnung.
+Core-, Plattform- und Quellenverträge bleiben getrennt. Die App ist mit
+KeePassXC, Browser-Brücke und Prozesshärtung verdrahtet; Store-Import bleibt API.
 
 ## Start und Bedienung
 
@@ -17,10 +14,11 @@ In PowerShell zuerst die bereitgestellte Build-Umgebung laden:
 ```powershell
 # Den vom Projekt bereitgestellten Enter-KairosBuildEnv.ps1-Helfer laden.
 # Beispiel: . '<Hauptcheckout>\target\Enter-KairosBuildEnv.ps1'
-cargo run -p kairos
-cargo run -p kairos -- --popup
-cargo run -p kairos -- --allow-screencapture
-cargo run -p kairos -- --popup --allow-screencapture
+$kairosTargetDir = '<Buildverzeichnis>'
+cargo run --target-dir $kairosTargetDir -p kairos
+cargo run --target-dir $kairosTargetDir -p kairos -- --popup
+cargo run --target-dir $kairosTargetDir -p kairos -- --allow-screencapture
+cargo run --target-dir $kairosTargetDir -p kairos -- --popup --allow-screencapture
 ```
 
 Profile 0–12 und 20 Trennerausschlüsse werden an Core übergeben. Strg+R oder
@@ -31,8 +29,9 @@ Core-Metadaten. Nach Änderungen steht „bearbeitet – nicht mehr bewertbar“
 
 „Profil bei jeder Generierung wechseln“ zieht bei jeder Generierung erneut
 gleichverteilt aus Profil 0–12. Wiederholungen sind möglich. Die feste Profilwahl
-ist währenddessen deaktiviert. Der Core liefert die konservative Stärke der
-gesamten Rotation und `rotation_bonus_bits`. Hier sind es **+0,0 Bit** wegen
+ist währenddessen deaktiviert. Der Core prüft jede Profilquelle und liefert die
+konservative Stärke der gesamten Rotation und `rotation_bonus_bits`.
+Hier sind es **+0,0 Bit** wegen
 überlappender Ausgaben und ungleicher Profilstärken. Die Anzeige nennt die
 schwächste Stärke; eine Rotation kann gegenüber einem starken festen Profil
 schwächer sein. Ausschlüsse müssen für alle Profile gelten, deshalb ist ein
@@ -121,7 +120,7 @@ können weitere Kopien halten. Der Adapter erzeugt für egui ein normales
 `Event::Paste(String)`; der darunterliegende Leser kann eigene Zwischenpuffer
 anlegen. Kein vollständiger Lösch- oder RAM-Härtungsnachweis. Schutzformate
 wirken nur bei beachtender Software. Ein Absturz oder dauerhaft belegtes Clipboard
-kann die Löschung verhindern. Speicherhärtung folgt in PR-9a, Wortlistenschutz
+kann die Löschung verhindern. Prozesshärtung ist beim Start integriert, Wortlistenschutz
 in PR-9b. Der folgende Aufnahmeschutz begrenzt unterstützte Windows-Aufnahmewege.
 
 ## Bildschirmfreigabe und Aufnahmen
@@ -159,18 +158,19 @@ haben separate beigefügte Lizenztexte unter
 
 „Lizenzen und Wortherkunft“ zeigt neben den Schriftlizenzen die direkt aus
 kairos-wordlists eingebettete `data/PROVENANCE.md` und die vollständigen
-Original-Lizenzdateien von dys2p und enz/german-wordlist. Kairos wählt für die
-Wortdaten CC0-1.0; Auswahl, Zusammenführung und Filter sind dort dokumentiert.
+Original-Lizenzdateien von dys2p und enz/german-wordlist sowie EN/LA-Provenienz
+und NOTICE.txt. Kairos wählt für die DE-Wortdaten CC0-1.0. EN/LA-Bedingungen
+gelten gemäß NOTICE.txt; Auswahl, Zusammenführung und Filter sind dokumentiert.
 
 ## Tests und öffentliche Demo
 
 ```powershell
 cargo fmt --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo build --release -p kairos
-cargo test -p kairos-platform --test isolated_clipboard -- --ignored
-cargo test -p kairos-platform --test windows_interaction -- --ignored --test-threads=1
+cargo clippy --workspace --all-targets --target-dir $kairosTargetDir -- -D warnings
+cargo test --target-dir $kairosTargetDir --workspace
+cargo build --release -p kairos --target-dir $kairosTargetDir
+cargo test --target-dir $kairosTargetDir -p kairos-platform --test isolated_clipboard -- --ignored
+cargo test --target-dir $kairosTargetDir -p kairos-platform --test windows_interaction -- --ignored --test-threads=1
 ```
 
 Die letzten zwei Befehle laufen nur ausdrücklich. Der isolierte Test nutzt eine
@@ -188,13 +188,13 @@ globale Hotkeys sind darin deaktiviert.
 
 ```powershell
 $env:EFRAME_SCREENSHOT_TO = Join-Path (Get-Location) 'target\gui-evidence\gui-demo.png'
-cargo run -p kairos --features demo
+cargo run --target-dir $kairosTargetDir -p kairos --features demo
 Remove-Item Env:EFRAME_SCREENSHOT_TO
 ```
 
 Der gezeigte Befehl rendert die native Demo, speichert nach dem zweiten Frame
 und beendet sie. Für eine ausdrücklich lokale Aufnahme mit echter Wortquelle
-lässt sich stattdessen `cargo run --release -p kairos --features eframe/__screenshot`
+lässt sich stattdessen `cargo run --release -p kairos --target-dir $kairosTargetDir --features eframe/__screenshot`
 verwenden. Dieses bestehende eframe-Feature aktiviert den Renderer-Bildexport,
 ohne Kairos' Demo einzuschalten. Der normale Release-Build aktiviert es nicht.
 Screenshots bleiben lokal unter `target/`; verwendete Passwörter gehören nicht
@@ -230,3 +230,29 @@ mit separatem Blob/Marker. Anleitung und Grenzen:
 Kein fremder Anwendungscode wurde kopiert. Versionierte Quellen, Lizenzbelege,
 Bewertungen und verworfene Ansätze stehen in [gui.md](../../docs/sources/gui.md)
 und [platform.md](../../docs/sources/platform.md).
+
+
+## Abschlussintegration (26.10.2026)
+
+`main` ruft `harden_process()` vor eframe auf. Sicherheitsreport und Warnstatus
+stehen auch im kompakten/F11-Fluss bereit; fehlgeschlagene Maßnahmen bleiben
+nicht fatal. Bestehende Handles, privilegierte Leser und manche Dumps bleiben
+außerhalb des Schutzes. Der editierbare Zeroizing-String bleibt erhalten.
+LockedSecret braucht einen eigenen UTF-8-TextBuffer-Adapter und direkte Erzeugung,
+sonst würde lediglich eine weitere Passwortkopie entstehen. Diese Integration
+bleibt Folgearbeit, einschließlich Lock-/Close-Fehleranzeige und Speichermessung.
+
+„Sperrliste verwalten“ persistiert nur explizit gewählte Einzelwörter in
+`%APPDATA%\Kairos\blocked-words.txt`. Testpfad über `KAIROS_BLOCKED_WORDS_FILE`.
+ASCII-Kleinschreibung, 3–9 Buchstaben a–z, keine Transliteration. Großschreibung
+und innere Ziffern werden bei Wortschaltflächen rückgängig gemacht; diese gibt
+es nur für unbearbeitete Ergebnisse. Datei unverschlüsselt mit geerbten Rechten,
+kann Vorlieben verraten. Schreibfehler erhalten bisherigen Filter; ungültige/
+unlesbare Dateien sperren Generierung bis Korrektur/Neuladen. Eine Instanz je Datei.
+Details und Gesamtprüfung im [Haupt-README](../../README.md) und
+[MANUAL-TEST.md](../../docs/MANUAL-TEST.md).
+
+Modelled after: xkcdpass für Filter vor Sampling/Entropie und KeePassXC Bootstrap
+für frühe Prozesshärtung. Kein Vorbildcode kopiert. Permalinks/Lizenzen stehen in
+[profiles.md](../../docs/sources/profiles.md), [gui.md](../../docs/sources/gui.md)
+und [protection.md](../../docs/sources/protection.md).

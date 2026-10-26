@@ -1,147 +1,130 @@
 # Architektur und API-Vertrag
 
-## Abhängigkeitsrichtung
+Stand 26.10.2026, Basis `main` bei `e072f35d0323457bad8608cb2f5796645351ebbc`
+mit dem Abschluss-PR. Bestehende Core-Signaturen, Feldtypen und Semantik bleiben
+kompatibel; Erweiterungen sind additiv.
 
-`kairos-wordlists` → `kairos-core` und `kairos-store` → `kairos-core`.
-Core hat keine Abhängigkeit zu seinen Wortquellen. `kairos-platform` und
-`kairos-keepassxc` bleiben unabhängig von Core und voneinander.
-`apps/kairos` verdrahtet derzeit Core, deutsche Wortquelle und Plattform.
-Die ungenutzten Scaffold-Abhängigkeiten zu Store und KeePassXC sind entfernt;
-beide bleiben eigene Workspace-Mitglieder. Der Store ist ohne UI nutzbar, die
-KeePassXC-Crate enthält noch keine Protokollkommunikation. Plattformaufrufe
-erhalten ihre Daten von der Anwendung, nicht durch einen eigenen Generator.
+## Crate-Graph
 
-## Gemeinsamer Vertrag
+| Verbraucher | Direkte Kairos-Abhängigkeiten | Aufgabe |
+|---|---|---|
+| `kairos-core` | keine | WordSource, Profile 0–12, eigene Regeln, Rotation, CSPRNG, Entropie, Segmente |
+| `kairos-wordlists` | core | Eingebettete DE/EN/LA-Quellen und disjunkte Vereinigung |
+| `kairos-store` | core | SQLCipher/DPAPI, Import, Snapshots und Integritätsmanifest |
+| `kairos-platform` | keine | Clipboard, Fokus/Autotype, globale Hotkeys, CaptureProtection |
+| `kairos-keepassxc` | keine | Named-Pipe-/NaCl-Client und DPAPI-Zuordnung |
+| `kairos-bridge` | keepassxc | Loopback-Kontextdienst und separate DPAPI-Ablage |
+| `kairos-hardening` | keine | Prozessmaßnahmen, Report und LockedSecret |
+| `apps/kairos` | core, wordlists, platform, keepassxc, bridge, hardening | egui/eframe, Quellenwahl, Sperrliste, Desktop-/KeePassXC-Aktionen |
 
-Der maßgebliche Rust-Vertrag steht in
-[`crates/kairos-core/src/lib.rs`](../crates/kairos-core/src/lib.rs).
-Während der parallelen PRs gilt: **Vertrag nur additiv ändern**. Bestehende Namen,
-Signaturen, Feldtypen und Semantik bleiben kompatibel. Neue Pflichtfelder in
-öffentlich konstruierbaren Strukturen wären ebenfalls eine brechende Änderung.
-Erweiterungen müssen bestehende Verbraucher weiter kompilieren lassen.
+`browser/` enthält Violentmonkey-Script und Node-Tests. Die App öffnet keinen
+Store und importiert keine externen Listen. Eigene Profile sind Core-API,
+noch kein GUI-Editor. Store speichert Wörter, keine Passwörter.
 
-| Element | Festlegung |
-|---|---|
-| `WordSource` | Objektsicher; `len() -> usize`, `word(index) -> &str`, `language(index) -> Language`; zusätzlich `is_empty()` mit Standardimplementierung |
-| Wortquellen | Während einer Generierung stabil; nichtleere, eindeutige Wörter; gültige Indizes `0..len()` |
-| `Language` | `#[non_exhaustive]`, `German`, `English`, `Latin`, `Other(String)`; Sprache je Wort |
-| `ProfileId` | Privates `u8`, gültig nur 0–12; `new(u8) -> Result<_, InvalidProfileId>`, `TryFrom<u8>`, `get() -> u8`, Default 0 |
-| `GeneratorConfig` | Öffentliche Felder `profile: ProfileId`, `excluded_chars: Vec<char>`; Default Profil 0, keine Ausschlüsse |
-| Ausschlüsse | Betreffen Trenner; doppelte Einträge ändern die effektive Auswahl nicht; leerer effektiver Pool ergibt `InvalidConfig` |
-| `SegmentKind` | `Word`, `Separator`, `Digit`, `Uppercase` |
-| `Segment` | Öffentliche Felder `kind` und `range: Range<usize>`; UTF-8-Bytebereiche, gültige Zeichengrenzen, sortiert und überlappungsfrei |
-| Hervorhebung | Großbuchstaben und eingefügte Ziffern teilen Wortsegmente; GUI darf Byteindizes nicht als Zeichenindizes interpretieren |
-| `GeneratedPassword` | Öffentliche Felder `secret: zeroize::Zeroizing<String>`, `segments: Vec<Segment>`, `entropy_bits: f64`; kein `Debug`/`Clone` für Geheimnisse |
-| `generate` | `(&dyn WordSource, &GeneratorConfig) -> Result<GeneratedPassword, GenerateError>` |
-| `GenerateError` | Nicht erschöpfend: `NotImplemented` (reserviert), `EmptySource`, `InvalidConfig`, `InvalidSource`, `RandomSourceUnavailable`; Fehler enthalten kein Passwort |
-| `entropy_bits` | `(source_len: usize, &GeneratorConfig) -> f64`; Sechs-Buchstaben-Modell, keine geeignete GUI-Stärkeanzeige |
-| `entropy_bits_for` | `(&dyn WordSource, &GeneratorConfig) -> Result<f64, GenerateError>`; konservative Min-Entropie aus der tatsächlichen Quelle; auch Grundlage von `GeneratedPassword.entropy_bits` |
-| `profile_rules`, `profile_warnings` | Datengetriebene Profile und separate Listenempfehlungen; eine kleinere Liste bleibt nutzbar und erhält keine fiktiven Auswahlbits |
-| `CustomProfile`, `ProfileRotation` | Validierte eigene Regeln, versioniertes Serde-Format und 1–16 gleichgewichtete Rotationseinträge; additive API aus PR-8 |
-| `generate_custom`, `generate_rotating` | Feste eigene Regeln oder frische Zufallswahl; `RotatedPassword` enthält Passwort und `rotation_bonus_bits`, keine gezogene Profil-ID |
-| `entropy_bits_for_custom`, `entropy_bits_for_rotation` | Quellenabhängige Schranken; Rotation verwendet die schwächste Profilstärke und nur bei bewiesener Disjunktheit/gleicher Stärke/unbekannter Wahl einen Bonus |
+## Core, Quellen und Entropie
 
-Der Generator ist implementiert. Die GUI zeigt ausschließlich die Metadaten
-des aktuellen Core-Ergebnisses. Die quellenabhängige Berechnung prüft unter
-anderem eindeutige alphabetische Wörter, umkehrbare Großschreibpositionen und
-innere Ziffernpositionen. Die genaue konservative Schranke steht im
-[Core-README](../crates/kairos-core/README.md). Nach manueller Nacharbeit
-entfallen Entropie und Rotationsbonus; es gibt keinen Passwortstärke-Schätzer
-für menschliche Änderungen.
+`WordSource` ist ein objektsicherer stabiler Index mit `len`, `word`, `language`
+und `is_empty`. Nach Kleinschreibung eindeutige, nichtleere alphabetische Wörter
+sind Pflicht. Core prüft Quelle und Regeln vor der Auswahl. `ProfileId` validiert
+0–12, `GeneratorConfig` enthält Profil und Trennerausschlüsse. `GeneratedPassword`
+enthält `Zeroizing<String>`, UTF-8-Bytebereiche und Ausgabe-Min-Entropie, kein
+Debug/Clone. Auch Segmente verraten Muster und gehören nicht ins Log.
 
-## Komponenten im integrierten Stand
+`generate` und `generate_custom` verwenden OsRng/rand-Uniform mit Zurücklegen
+und unabhängigen Entscheidungen. Zufallsfehler brechen ab. `entropy_bits_for`
+und Ergebnis-Metadaten verwenden reale Listengröße, effektiven Trennerpool und
+die kleinste innere Einfüge-/Großschreibauswahl. `entropy_bits(source_len, ...)`
+bleibt ein Sechs-Buchstaben-Modell, keine GUI-Stärkeanzeige. Nach Bearbeitung
+entfallen Entropie und Bonus. Fehler enthalten keine Geheimtexte.
 
-| Komponente | Implementierung / Grenze |
-|---|---|
-| `kairos-wordlists::german()` | Einmal indexierte, eingebettete Quelle mit 7.130 unterschiedlichen ASCII-Wörtern, Sprache je Wort; Daten CC0-1.0. Kein Download zur Laufzeit. `combined()` aus dem offenen GitHub-PR #7 ist hier nicht verfügbar. |
-| `kairos-store` | SQLCipher, CurrentUser-DPAPI, validierter Import, Sprach-/Listenfilter, stabile deduplizierte WordSource-Snapshots und Herkunftsmetadaten. Keine App-Importoberfläche in PR-W. |
-| `kairos-platform` | Unabhängige Windows-Dienste. `GlobalHotkeys::with_wakeup`, `FocusTarget`, `copy_secret` und `ClipboardReceipt` verbinden OS und App. Andere Betriebssysteme liefern explizite Fehler. |
-| `kairos-keepassxc` | Noch Scaffold. F11 zeigt einen sichtbaren PR-6-Hinweis und schreibt weder ins Feld noch in einen Tresor. |
-| `apps/kairos` | eframe/egui 0.37, editierbares farbiges Passwort, JetBrains Mono NL, Profile/Ausschlüsse, optionale Rotation, geschützte Kopieraktionen und Hotkey-Editor. Keine Passwortpersistenz. |
+Profil 0 nutzt `german()` mit 6.907, Profil 1–12 `combined()` mit 20.697 Wörtern
+(DE 6.907, EN/LA je 6.895). Disjunkte Vereinigung und uniforme Wortindizes ergeben
+unabhängige Sprache je Wort. Kein separater Sprachbonus. „Nur deutsche Wörter“
+überschreibt alle Profile und warnt vor fehlenden Profil-1-Auswahlbits.
+7.000/21.000 bleiben Konzeptziele.
 
-## App-Ablauf und Plattformgrenzen
+`FilteredSource` hält die behaltenen Indizes, leiht Wörter/Sprachflags und
+verwendet die gefilterte Größe für Auswahl und Entropie. Leer ergibt
+`EmptySource`, keine Ersatzquelle. `ProfileRotation` enthält 1–16 gleichgewichtete
+validierte Regeln. Bestehende APIs mit einer Quelle bleiben unverändert.
+`generate_rotating_from_sources` erhält additiv genau eine Quelle je Profil in
+passender Reihenfolge, prüft alle Paare und zieht erst danach. Ergebnis ist das
+Minimum aller quellenabhängigen Grenzen mit null Bonus, auch bei Disjunktheit.
+Die App rotiert über 0–12 mit Deutsch für 0 und DE+EN+LA für 1–12; beim Override
+überall Deutsch. Wiederholungen erlaubt. Die Schranke gilt auch bei Überlappung.
+Gewählte Profil-ID und Einzelstärke werden nicht zusätzlich ausgegeben.
 
-Der Einstieg erfasst das Vordergrundziel vor `run_native` und reicht
-`german_source()` als `Box<dyn WordSource>` hinein. Der Adapter leiht die
-eingebettete Liste ohne Wortkopien. Derselbe Konstruktor akzeptiert später
-eine kombinierte Quelle oder einen eigenen Store-Snapshot. Ein Quellenwechsel
-braucht keine Änderung im Core; Store- und Sprachauswahl-UI gehören zu Folge-PRs.
-Die App modelliert das Ziel als `Unavailable`, `ReturnOnly` oder `Editor`.
-Ein Startziel ist ausschließlich `ReturnOnly`, auch mit `--popup`. Es darf
-nur den Fokus zurückgeben, niemals eine Texteingabe freigeben. Erst F9 im
-gewünschten Zielfeld erzeugt `Editor`. So kann ein normaler Start aus Terminal
-oder Explorer kein Passwort dorthin tippen. Die Schaltflächen spiegeln diese
-Berechtigung und das Vorhandensein eines Rücksprungziels wider.
+## Startup, Sperrliste und Puffer
 
-Die App hält genau einen Hotkey-Dienst. Dessen Callback fordert nur ein Repaint
-an; `App::logic` verarbeitet Ereignisse auch bei verborgenem Fenster. Das Ziel
-wird bereits im Hotkey-Thread erfasst. F9 merkt es, generiert und zeigt den
-kompakten Root-Editor. F10 generiert, tippt über das erfasste Ziel und kopiert
-erst nach angenommener Eingabe, ohne einen Fokusbefehl an Kairos zu senden.
-Fehler erscheinen beim Öffnen im App-Hinweis, Eingabe-/Kopierfehler zusätzlich
-als Titel-/Taskleistenhinweis. Registrierungsfehler bleiben sichtbar und sind
-mit einem erneuten Registrierungsversuch behebbar. F11 öffnet den sichtbaren
-KeePassXC-Hinweis und bewahrt das aktuelle Passwort samt Nacharbeit, gibt aber
-kein neues Einfügeziel frei. Eigene Prozessziele werden in der App abgewiesen.
-Nach einem verarbeiteten Hotkey fordert die App ein weiteres Repaint an, damit
-ein während der Verarbeitung eingetroffenes Ereignis nicht liegen bleibt.
+`main` ruft zuerst `harden_process()` auf, vor Fokusaufnahme, Argumenten,
+CaptureProtection und eframe. Report an die App; jede Maßnahme ist im
+Sicherheitsdialog sichtbar. Fehlende, nicht unterstützte oder fehlgeschlagene
+Maßnahmen erzeugen einen sichtbaren Status, bleiben nicht fatal. Keine globalen
+Registry-/Systemänderungen.
 
-`FocusTarget::restore()` aktiviert vor dem Minimieren das gemerkte Fenster.
-Bei Fehler bleibt die App offen. Einfügen aus dem Editor nutzt additiv
-`restore_and_type_text()`: Ein ausdrücklicher neuer Klick bestätigt die
-ursprüngliche Fenster-/Prozess-/Thread-/Control-Identität und startet nach
-geprüfter Rückgabe eine frische Eingabefrist. Es wird kein neues Ziel erfasst.
-Der Editor verbraucht den Auftrag auch bei Fehler; kein doppeltes Senden und
-kein automatischer Clipboard-Fallback. Das Passwort bleibt zur manuellen Kopie
-erhalten; Hinweise erklären, dass ein neues F9 auch neu generiert. Direkte Hotkey-Eingaben behalten die
-Fünf-Sekunden-Frist. Integritäts-, Modifier- und Unicode-Prüfungen gelten für
-beide Pfade. `is_current_process()` liefert ausschließlich Zielmetadaten.
+Startup lädt `%APPDATA%\Kairos\blocked-words.txt`, überschreibbar durch
+`KAIROS_BLOCKED_WORDS_FILE`. Ein Wort je Zeile, 3–9 ASCII-Buchstaben;
+Rand-Leerraum/ASCII-Kleinschreibung und Deduplizierung, keine Transliteration.
+UTF-8-BOM und leere Zeilen sind erlaubt. Ungültige/unlesbare Dateien sperren Generierung bis
+Korrektur/Neuladen, fehlende Datei ist leer. Wortschaltflächen gibt es nur bei
+unbearbeiteten Generatorergebnissen. Großschreibung/Ziffern werden rückgängig
+gemacht. Nur das ausdrücklich ausgewählte Wort wird gespeichert, nie das ganze
+Passwort; manuelle Eingabe akzeptiert ebenfalls nur ein Wort.
 
-Windows kann Fokusaktivierung verweigern. `SendInput` bindet die Zustellung
-nicht atomar an ein Fenster, native HWNDs unterscheiden keine Browser-DOM-Felder.
-Teileingaben werden weder gelöscht noch erneut gesendet. Angenommene Ereignisse
-sind keine bestätigte Zustellung. Diese Grenzen sind auch im Editor erklärt.
+Gültige Sperrlistenänderungen bewahren manuelle Nacharbeit; Ausschlüsse gelten dann
+beim nächsten Generieren. Lesefehler leeren auch Nacharbeit und sperren weiter.
 
-`ClipboardAccess` ist die mockbare App-Grenze. Schreiben verwendet ausschließlich
-`copy_secret(secret, Some(DEFAULT_CLEAR_AFTER))`. Alle drei Schutzformate und
-der Text entstehen in derselben OS-Transaktion. Ein Receipt enthält nur
-Metadaten; der Plattform-Timer läuft unabhängig von der GUI. Beim normalen
-App-Ende wird nur die letzte noch eigene Kopie zu leeren versucht. Strg+V
-liest über clipboard-win, nicht über den normalen eframe-Export. Der frühere
-arboard-Schreibadapter und seine Übergangstests sind ersetzt; die nativen
-Plattformtests bleiben maßgeblich.
+Wortkandidaten werden je Generatorergebnis in Zeroizing-Strings gehalten und
+bei Bearbeitung/Ersetzen gelöscht. egui-Button-/Galley-Kopien bleiben eine Grenze.
+Quellgrößen werden bei Änderungen/Generierung aktualisiert, nicht pro Frame.
 
-Rotation ist standardmäßig aus. Der Haken zieht aus Profil 0–12 neu,
-Wiederholungen sind erlaubt. Diese Profile überlappen und sind unterschiedlich
-stark, deshalb beträgt `rotation_bonus_bits` hier 0. Die Anzeige nennt die
-schwächste Profilstärke, keine durchschnittliche oder gezogene Profilstärke.
-Das ist besonders beim Wechsel von Profil 12 auf Rotation zu beachten.
+BTreeSet liefert sortierte Zeilen. Schreiben synchronisiert eine NamedTempFile
+im selben Verzeichnis und ersetzt das Ziel mit `persist`. Fehler behalten den
+bisherigen Filter. Klartextdatei mit geerbten Elternrechten, keine
+Manipulationsauthentisierung; Vorlieben können sichtbar werden. Eine Instanz je
+Datei, externe Änderungen neu laden, keine konkurrierende Zusammenführung.
+Wörter bereits verwendeter Passwörter nicht sperren: Die Klartextdatei kann
+solche Passwortbestandteile verraten.
 
-## Ausbauregeln
+Der Editor behält vorab reserviertes `Zeroizing<String>` (16 KiB/4096 Unicode-
+Zeichen), gelöscht vor Ersetzen und bei Drop. LockedSecret ist noch nicht
+integriert. Dessen feste Bytekapazität braucht einen UTF-8-Bearbeitungsadapter
+und separate Lock-/Close-Fehlerpfade. Eine zusätzliche gesperrte Spiegelkopie
+würde den String nicht beseitigen. Direkte Core-Erzeugung und geprüfter
+TextBuffer-Adapter bleiben Folgearbeit. egui erzeugt weiter String-/Galley-/
+Renderkopien. Undo wird je Frame geleert, Persistenz und normale eframe-Clipboard-
+Shortcuts sind aus. Kein vollständiger Lösch-/Dump-Schutz.
 
-Profile 0–12 sind datengetrieben nach der Konzepttabelle umgesetzt.
-Zahlen aus dem Konzept sind Modellwerte; die Anzeige verwendet die reale
-Listengröße und die tatsächlich erlaubten Zufallsentscheidungen. Für eine
-Sprachmischung sind Überschneidungen vor der Auswahl zu entfernen.
-Ein Profilbonus bis 4 Bit darf nur unter den im Konzept genannten und im
-Core geprüften Voraussetzungen angezeigt werden. Die feste App-Rotation
-über alle eingebauten Profile erfüllt diese nicht.
+## Desktop, Browser und Schutzgrenzen
 
-CSPRNG und gleichverteilte Auswahl kommen über `rand` mit `OsRng`/`getrandom`.
-Windows-Systemzufall und die frühere zweite Zufallsphase fallen damit zusammen.
-Fehler führen zum Abbruch; es gibt keinen schwächeren Ersatzgenerator.
+Ziele sind `Unavailable`, `ReturnOnly`, `Editor`. Start erlaubt nur Rücksprung;
+erst Strg+Umschalt+F9 gibt einen Editorauftrag frei. Hotkey-Thread erfasst das
+Ziel vor Wakeup, App::logic verarbeitet auch verborgen. F10 generiert/tippt
+ohne Kairos-Fokus und kopiert nach Windows-Annahme. Aufträge werden einmalig
+verbraucht. Fokus/Modifier/Integrität werden geprüft; DOM-Felder mit gleichem
+HWND bleiben ununterscheidbar. Keine automatische Wiederholung bei Teileingabe.
 
-Geheimnisse dürfen nicht in Logs, Debug-Ausgaben oder einem ungefragten Verlauf
-landen. Die GUI muss zusätzliche Kopien, Bearbeitungspuffer und Undo-Daten
-gesondert berücksichtigen. Die Windows-Zwischenablage erhält Verlauf-/Cloud-
-Ausschluss und Timeout. Speicherhärtung und Dump-Tests folgen in PR-9a,
-obfstr/Wortlistenschutz nach PR-7 in PR-9b. Bildschirmfreigabeschutz folgt
-separat in PR-11; er ist hier noch nicht implementiert.
+Clipboard nutzt `copy_secret` mit drei Ausschlussformaten in derselben
+Transaktion. Timer/normaler App-Ende-Pfad leeren nur eine noch eigene Kopie;
+fremde neue Inhalte bleiben. Andere Leser, Absturz oder dauerhafte Sperren
+begrenzen die Wirkung.
 
-Automatisierte Zustands-/Core-/Plattformtests und die Desktop-Checkliste aus
-[MANUAL-TEST.md](MANUAL-TEST.md) ergänzen sich. Ignorierte interaktive Tests
-gelten ohne separaten Lauf nicht als Abnahmebeleg.
+F11 erzeugt frisch und öffnet den Bestätigungsfluss. Brückenvorschläge bleiben
+bis zur Übernahme unverbindlich. Loopback bindet nur 127.0.0.1:19471 und prüft
+Host/Origin/HMAC/Zeit/Nonce. Bewusstes Pairing mit zweiminütigem Code, keine
+generierten Passwörter im Kontextdienst. KeePassXC verwendet getrennte DPAPI-
+Zuordnung und Worker. Erst nach Annahme erlaubt ein neuer Klick einmalige
+Eingabe ins Originalziel. Annahme beweist keine bestimmte Zieldatenbank/Gruppe;
+nach Timeout kann ein Eintrag existieren. Kein Retry.
+[Browser-Anleitung](../browser/README.md).
 
-Bereichsquellen besitzen eindeutige Verantwortliche in [SOURCES.md](SOURCES.md).
-Gemeinsame Integrationsdateien wie App-Manifest und `Cargo.lock` werden beim
-Rebase abgestimmt; die Arbeitsaufteilung steht in [ROADMAP.md](ROADMAP.md).
+CaptureProtection schützt Root und spätere Top-Level-Fenster desselben GUI-
+Threads. Ab Windows 10 2004 WDA_EXCLUDEFROMCAPTURE, älterer Fallback WDA_MONITOR.
+`--allow-screencapture` gilt für einen Start mit Dauerbanner. DWM und beachtender
+Capture-Pfad nötig; Kameras, privilegierte Tools und manche Fernwartung bleiben
+ausgenommen. Prozesshärtung schützt nicht gegen vorhandene Handles, aktive
+Debugprivilegien oder alle Dumps; DACL kann Diagnose/Beenden erschweren.
+
+Tests und [Desktop-Checkliste](MANUAL-TEST.md) ergänzen sich. Ignorierte Tests
+und nicht ausgeführte Desktop-Schritte sind keine bestandene Abnahme.
+[Open-Source-Vorbilder](SOURCES.md).

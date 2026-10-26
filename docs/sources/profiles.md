@@ -134,3 +134,22 @@ Die Pflichtprüfungen sind `cargo fmt --check`,
 auf `claudeAgent/claude-opus-5-5`, `effort=medium`, `fastMode=false` werden in
 der PR-Beschreibung dokumentiert. Gemeinsame Index-/Architektur-/Roadmapdateien
 und fremde Bereichsdateien bleiben unverändert.
+
+## Abschluss: Profilquellen und Nutzer-Sperrliste
+
+Abrufdatum 26.10.2026. Eigene Rust-Umsetzung, kein fremder Anwendungscode kopiert.
+
+| Projekt | Permalink | Lizenz | Datei | Prinzip | Passung | Abrufdatum |
+|---|---|---|---|---|---|---|
+| xkcdpass | [b981361](https://github.com/redacted/XKCD-password-generator/blob/b981361292ae7328313e116178acacc90680df5e/xkcdpass/xkcd_password.py) | BSD-3-Clause; Daten separat | generate_wordlist, verbose_reports | Filter/Deduplizierung vor Auswahl und Quellgrößenrechnung | 5/5 | 2026-10-26 |
+
+Die Nutzer-Sperrliste ist eine eigene Produktentscheidung, keine behauptete
+KeePassXC-/Bitwarden-Sperrlistenfunktion. Ein WordSource-Index leiht die behaltenen
+Wörter und Sprachflags. N zählt nach Filterung. Profil 0 nutzt Deutsch, ab 1 die
+disjunkte Vereinigung; Sprache je Wort unabhängig. Deutsch-Override senkt N.
+Kein separater Sprachbonus. `generate_rotating_from_sources` prüft alle Paare
+und gibt das Minimum mit null Bonus aus. Der vorherige Abschnitt zu vollständiger
+Überlappung von Profil 0/1 beschreibt die bestehende Core-API mit **derselben**
+Quelle; die App verwendet nun unterschiedliche Quellen, deren Mengen überlappen.
+Manuelle Nacharbeit bleibt unbewertet. Sperrdatei ist eine Klartextpräferenz,
+kein Passwortspeicher und keine zusätzliche Sicherheitsgrenze.

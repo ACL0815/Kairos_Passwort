@@ -12,6 +12,27 @@ Codeübernahme freigegebene Ausnahme bleibt `rand`; hier war keine erforderlich.
 Dateilizenzen gehen pauschalen Repository-Angaben vor. API-Dokumentation ist
 keine Codequelle; dort existiert häufig kein Commit-Permalink.
 
+## Abschluss: Startup und sichtbarer Report
+
+| Projekt | Permalink | Lizenz | Datei | Prinzip | Passung | Abrufdatum |
+|---|---|---|---|---|---|---|
+| KeePassXC | [2.8.0 Bootstrap.cpp](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/core/Bootstrap.cpp) | GPL-2.0 OR GPL-3.0, Dateiheader | Bootstrap.cpp | Prozess lokal vor sensibler Verarbeitung härten, Fehler auswerten | 5/5 | 2026-10-26 |
+
+`main` ruft die vorhandene Rust-Härtung jetzt als erste Aktion auf und reicht den
+vollständigen Report an die UI. Jede Maßnahme mit Applied/Unsupported/typisiertem
+OS-Code bleibt sichtbar. Kein fataler Abbruch bei Teilfehlern, keine System-
+oder Registryänderung. Keine Übernahme fremden Codes. Die DACL kann Diagnose/
+Beenden erschweren; bestehende Handles, Debugprivileg und manche Dumps bleiben
+Grenzen. Hotkeys, Eingabemethoden und native Bibliotheken brauchen reale Abnahme.
+
+LockedSecret ist im editierbaren Hauptpuffer noch nicht eingesetzt. Der bestehende
+vorab reservierte Zeroizing-String und Core-/egui-Schnittstellen erfordern einen
+UTF-8-Bearbeitungsadapter und direkte Erzeugung, sonst entsteht nur eine weitere
+Spiegelkopie. Diese Folgearbeit einschließlich Lock-/Close-Fehlern ist explizit
+in Roadmap/Architektur beschrieben. Nutzer-Sperrdatei ist Klartext mit geerbten
+Rechten und enthält ausschließlich explizite Wörter, keine Passwörter. Kein
+HMAC-/Manipulationsschutz oder Entropiebonus für diese Präferenzdatei behauptet.
+
 ## Bewertete Vorbilder
 
 | Projekt | Permalink (Commit/Tag/Version) | Lizenz | Datei/Modul | Übertragbares Prinzip | Passung 1–5 und Bewertung | Abrufdatum |

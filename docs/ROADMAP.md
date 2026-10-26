@@ -1,43 +1,49 @@
-# Priorisierte Roadmap
+# Roadmap und Integrationsstand
 
-Stand 25.10.2026. `main` bei `fa35aded13b50a67a817db79258b1ba1c95a9d46`
-enthält Generator, deutsche Wortliste, GUI, Plattformdienste, Rotation und Store.
-Die fachlichen PR-Kürzel unterscheiden sich von den GitHub-Nummern.
-[ARCHITECTURE.md](ARCHITECTURE.md) beschreibt die implementierten Verträge.
+Stand 26.10.2026 (Europe/Berlin). Abschluss-Basis `main` bei
+`e072f35d0323457bad8608cb2f5796645351ebbc`. Plan-Kürzel und GitHub-Nummern
+sind verschieden. Status gegen die GitHub-PRs geprüft.
 
-## Umgesetzt und Integration
+| GitHub | Plan | Status | Ergebnis |
+|---|---|---|---|
+| [#1](https://github.com/ACL0815/Kairos_Passwort/pull/1) | PR-1 Core | Gemergt | Profile 0–12, OsRng/Uniform, Entropie, Segmente, Ausschlüsse. |
+| [#2](https://github.com/ACL0815/Kairos_Passwort/pull/2) | PR-2 DE | Gemergt | Deutsche Wortliste; aktueller Bestand 6.907. |
+| [#3](https://github.com/ACL0815/Kairos_Passwort/pull/3) | PR-4 Plattform | Gemergt | Hotkeys, Clipboard, Fokus, Autotype. Desktop-Abnahme separat. |
+| [#4](https://github.com/ACL0815/Kairos_Passwort/pull/4) | PR-3 GUI | Gemergt | egui-Editor, Hervorhebung, Passwortschrift. |
+| [#5](https://github.com/ACL0815/Kairos_Passwort/pull/5) | PR-8 Profile | Gemergt | Eigene Regeln als Core-API, Serde und Rotation. |
+| [#6](https://github.com/ACL0815/Kairos_Passwort/pull/6) | PR-5 Store | Gemergt | SQLCipher, DPAPI, Import, Snapshots. Noch keine Import-UI. |
+| [#7](https://github.com/ACL0815/Kairos_Passwort/pull/7) | PR-7 EN/LA | Gemergt | EN/LA je 6.895, combined() disjunkt 20.697; redaktionelle Grenzen in Wortlistenberichten. |
+| [#8](https://github.com/ACL0815/Kairos_Passwort/pull/8) | PR-W Verdrahtung | Gemergt | Echte Wortquelle, Plattformdienste, Hotkey-Editor, Rotation. |
+| [#9](https://github.com/ACL0815/Kairos_Passwort/pull/9) | PR-6 KeePassXC | Gemergt | Named-Pipe-/NaCl-Client, DPAPI-Zuordnung, Eintragsanfrage. |
+| [#10](https://github.com/ACL0815/Kairos_Passwort/pull/10) | PR-9a Härtung | Gemergt | Prozessmaßnahmen, LockedSecret, Store-Manifest und isolierte Tests. |
+| [#11](https://github.com/ACL0815/Kairos_Passwort/pull/11) | PR-6b / PR-10 | Gemergt | F11-Fluss, Kontextbrücke, Violentmonkey-Pairing. |
+| [#12](https://github.com/ACL0815/Kairos_Passwort/pull/12) | PR-11 Bildschirmschutz | Gemergt | Geschützte Fenster, --allow-screencapture, Statusbanner. |
+| [#13](https://github.com/ACL0815/Kairos_Passwort/pull/13) | PR-9b obfstr | Gemergt nach dieser Branch-Basis | Verschleierung, API unverändert, kein Entropiebonus. Hier keine Wortlisten-Dateien geändert. |
+| [#14](https://github.com/ACL0815/Kairos_Passwort/pull/14) (`feat/finalize`) | Abschluss | Offen; Review/CI gemäß PR-Belegen | Profilquelle, Deutsch-Override, Nutzer-Sperrliste, früher Härtungsaufruf, Report, Doku. |
 
-| Prio | Plan-PR | GitHub | Branch | Status und Umfang |
-|---|---|---|---|---|
-| 1 | PR-1 | [#1](https://github.com/ACL0815/Kairos_Passwort/pull/1) | `feat/core-generator` | Gemergt. Profile 0–12, rand/OsRng, konservative quellenabhängige Entropie, Segmente, Ausschlüsse. |
-| 1 | PR-2 | [#2](https://github.com/ACL0815/Kairos_Passwort/pull/2) | `feat/wordlist-de` | Gemergt. 7.130 kuratierte deutsche ASCII-Wörter, Sprachflag, reproduzierbare Pipeline, CC0-Daten. |
-| 2 | PR-4 | [#3](https://github.com/ACL0815/Kairos_Passwort/pull/3) | `feat/platform-hotkeys` | Gemergt mit Desktop-Prüfauflagen. Globale Hotkeys, geschützte Clipboard-Transaktion, Timeout, Unicode-Autotype und Fokusidentität. |
-| 2 | PR-3 | [#4](https://github.com/ACL0815/Kairos_Passwort/pull/4) | `feat/gui` | Gemergt. egui-Oberfläche, Profilwahl, Bearbeitung und Hervorhebung. Der Übergangsadapter wird in PR-W ersetzt. |
-| 4 | PR-8 | [#5](https://github.com/ACL0815/Kairos_Passwort/pull/5) | `feat/profile-rotation` | Gemergt. Eigene Profile und optionale gleichverteilte Rotation, ehrlicher Bonus und konservative Mischungsentropie. |
-| 3 | PR-5 | [#6](https://github.com/ACL0815/Kairos_Passwort/pull/6) | `feat/encrypted-store` | Gemergt. Import, SQLCipher, DPAPI, stabile WordSource-Snapshots. Noch keine Store-Oberfläche. |
-| 2 | PR-W | [#8](https://github.com/ACL0815/Kairos_Passwort/pull/8) | `feat/app-wiring` | Implementiert, Review-Nachbesserung. Echte deutsche Quelle, Plattform-Clipboard, Fokus-Rücksprung, F9/F10/F11 im eframe-Loop, Rotationshaken, Herkunftsdialog und manuelle Desktop-Checkliste. |
-| 4 | PR-7 | [#7](https://github.com/ACL0815/Kairos_Passwort/pull/7) | `feat/languages-en-la` | Offen, in Nachbesserung. Englisch/Latein und `combined()` sind nicht auf der hier verwendeten main-Basis. |
+## Restgrenzen und Folgearbeiten
 
-## Nächste PRs
+1. Echte Desktop-Abnahme mit Build-SHA und Versionsangaben gemäß
+   [MANUAL-TEST.md](MANUAL-TEST.md). Fokus, deutsches Layout, Win+V,
+   Teams/Snipping Tool und echte KeePassXC-Einträge sind durch Unit-Tests oder
+   Renderer-Screenshots nicht vollständig belegt.
+2. Store-Import-UI mit ausdrücklicher Manifestmigration, Warnungen und optionaler
+   Originalquellenprüfung. App öffnet Store bisher nicht; Bibliotheks-APIs bestehen.
+3. Eigene Profile in der GUI bearbeiten/verwalten. Core unterstützt sie bereits.
+4. LockedSecret für den editierbaren Puffer und direkte Erzeugung integrieren.
+   UTF-8-TextBuffer-Adapter, sichtbare Lock-/Close-Fehler und reale Speicherprüfung
+   nötig. Eine zusätzliche Spiegelkopie ersetzt den heutigen String nicht.
+5. CI-Release-Probe, Verteilpaket, Daten-/Font-Hinweise und Signierung prüfen.
+   Aktuelle Windows-CI prüft fmt/clippy/Tests, keinen installierten Release-Ablauf.
+6. PR #13 wurde nach der Branch-Basis gemergt. Den kombinierten Stand vor der
+   Desktop-Auslieferung separat prüfen. Verschleierung erschwert einfache Analyse,
+   schützt keine Geheimnisse vor entschlossenen lokalen Lesern und erhöht keine Bits.
 
-| Prio | Plan-PR | Bereich / geplanter Branch | Abhängigkeiten | Status und Umfang |
-|---|---|---|---|---|
-| 3 | PR-6 | `kairos-keepassxc` / `feat/keepassxc-browser` | PR-4 und PR-W | Geplant. Kopplung und Eintrag über KeePassXC-Browser-Protokoll. F11 zeigt bis dahin ausdrücklich „KeePassXC-Anbindung folgt (PR-6)“. |
-| 5 | PR-9a | `feat/protection-hardening` | PR-1, PR-5, PR-W | Geplant. Manipulationserkennung externer Listen mit Quellhash-Vergleich, Speicherhärtung (VirtualLock, Dump-Beschränkung), Speicher-Dump-Tests mit Positivkontrolle. |
-| 5 | PR-9b | `feat/wordlist-protection` | PR-7 | Geplant. obfstr und Wortlistenschutz nach Abschluss der mehrsprachigen Datenbasis. Keine zusätzlichen Entropiebits durch Verschleierung behaupten. |
-| 6 | PR-10 | `browser/` / `feat/browser-violentmonkey` | PR-6 | Geplant. Violentmonkey-Userscript und lokale Brücke nach 2FAS-/KeePassXC-Browser-Prinzipien. |
-| 7 | PR-11 | `feat/screencapture-protection` | Nach PR-W | Geplant. „Unsichtbar bei Bildschirmfreigabe“ mit `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`, Vorbild KeePassXC. Expliziter Startparameter `--allow-screencapture`. Windows-Grenzen, nicht unterstützte Capture-Pfade und Fehlermeldung prüfen. PR-W enthält diesen Schutz noch nicht. |
-
-## Integrationsregeln und Abnahme
-
-Merge-Reihenfolge folgt Priorität und Abhängigkeiten. Neue Folgebranches starten
-vom integrierten `main`; alte gestapelte Branches werden vor dem Merge abgeglichen.
-`Cargo.lock` wird mit Cargo aufgelöst. Der Core-Vertrag bleibt additiv.
-Die App akzeptiert `Box<dyn WordSource>` für einen späteren Wechsel auf
-`combined()` oder Store-Snapshots. Beides braucht einen eigenen Integrationsauftrag.
-
-Bestandene Unit-Tests ersetzen keine Desktop-Abnahme. Die echte Zustellung,
-Fokus-Rückgabe, das deutsche Layout und Win+V sind mit
-[MANUAL-TEST.md](MANUAL-TEST.md) zu prüfen. Bereits vorhandene offene
-Desktop-Befunde werden durch diesen PR nicht pauschal als erledigt gewertet.
-Bereichsquellen bleiben in den zugewiesenen Dateien aus [SOURCES.md](SOURCES.md).
+Rotation nutzt je Profil die gefilterte Quelle und zeigt das Minimum ohne Bonus.
+7.000/21.000 sind Konzeptziele; real zählen 6.907/20.697 minus Ausschlüsse.
+Nachbearbeitung und wiederholte Auswahl nach Vorlieben können die ursprüngliche
+Zufallsverteilung ändern. Die Sperrliste ist Klartext mit gewählten Wörtern,
+kein Passwortverlauf und keine authentisierte Datei. Eine Instanz je Datei,
+externe Änderungen neu laden. Prozess-/Capture-Härtung begrenzt nur unterstützte
+Wege. Ältere Crate-READMEs beschreiben teilweise ihren damaligen Integrationsstand;
+[ARCHITECTURE.md](ARCHITECTURE.md) beschreibt den App-Endstand.
