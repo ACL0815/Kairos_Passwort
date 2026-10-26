@@ -55,8 +55,11 @@ fn assert_error(source: &dyn WordSource, cfg: &GeneratorConfig, expected: Genera
 
 #[test]
 fn concept_table_matches_model_and_real_six_letter_sources() {
+    // The original concept allowed all-identical tuples: profile 2's separator
+    // term changes from 3*log2(5) = 6.965784 to log2(125 - 5) = 6.906891.
     let expected = [
-        51.1, 57.4, 64.4, 72.0, 74.1, 75.8, 77.1, 78.0, 82.0, 102.0, 122.0, 131.5, 153.1,
+        51.092557, 57.432407, 64.339297, 71.983154, 74.053543, 75.821097, 77.070616, 78.038436,
+        82.038436, 102.043825, 121.987060, 131.496835, 153.106485,
     ];
     for (profile, expected) in expected.into_iter().enumerate() {
         let len = if profile == 0 { 7_000 } else { 21_000 };
@@ -64,7 +67,10 @@ fn concept_table_matches_model_and_real_six_letter_sources() {
         let cfg = config(profile as u8);
         let model = entropy_bits(len, &cfg);
         let actual = entropy_bits_for(&source, &cfg).unwrap();
-        assert!((model - expected).abs() < 0.1, "profile {profile}: {model}");
+        assert!(
+            (model - expected).abs() < 1e-6,
+            "profile {profile}: {model}"
+        );
         assert!((model - actual).abs() < 1e-10);
         assert!((seeded(&source, &cfg, 17).entropy_bits - actual).abs() < 1e-10);
     }
@@ -156,7 +162,8 @@ fn excludes_separators_and_recalculates_entropy() {
     let mut cfg = config(12);
     cfg.excluded_chars = vec!['-', '+'];
     let difference = entropy_bits(21_000, &config(12)) - entropy_bits(21_000, &cfg);
-    assert!((difference - 10.0 * (20.0_f64 / 18.0).log2()).abs() < 1e-10);
+    let expected = (20.0_f64.powi(10) - 20.0).log2() - (18.0_f64.powi(10) - 18.0).log2();
+    assert!((difference - expected).abs() < 1e-10);
 }
 
 #[test]
@@ -212,7 +219,7 @@ fn variable_lengths_report_conservative_entropy() {
     let source = TestSource::new(&["ab", "abcdef"]);
     let cfg = config(11);
     let bits = entropy_bits_for(&source, &cfg).unwrap();
-    let expected = 6.0 + 5.0 * 20.0_f64.log2() + 60.0_f64.log2() + 6.0;
+    let expected = 6.0 + (20.0_f64.powi(5) - 20.0).log2() + 60.0_f64.log2() + 6.0;
     assert!((bits - expected).abs() < 1e-10);
     assert!(bits < entropy_bits(2, &cfg));
     for seed in 0..50 {
@@ -478,7 +485,7 @@ fn seeded_chi_square_checks_words_separators_digit_positions_and_initials() {
 }
 
 #[test]
-fn doubled_separators_are_independently_drawn() {
+fn doubled_separators_allow_equal_pairs_with_a_globally_distinct_tuple() {
     let source = TestSource::new(&["ab"]);
     let mut cfg = config(12);
     cfg.excluded_chars = profile_rules(cfg.profile)
@@ -490,6 +497,12 @@ fn doubled_separators_are_independently_drawn() {
     let mut pairs = [0; 4];
     for _ in 0..4_000 {
         let result = generate_with_rng(&source, &cfg, &mut rng).unwrap();
+        let tuple: Vec<_> = result
+            .secret
+            .chars()
+            .filter(|c| !c.is_alphanumeric())
+            .collect();
+        assert!(tuple.iter().any(|&c| c != tuple[0]));
         for segment in result
             .segments
             .iter()
@@ -501,7 +514,19 @@ fn doubled_separators_are_independently_drawn() {
                 + usize::from(pair.as_bytes()[1] == b'+')] += 1;
         }
     }
-    assert!(chi_square(&pairs) < 30.0);
+    // Conditioning the ten-position tuple slightly reduces equal-pair counts:
+    // 255 completions for --/++, 256 for -+/+-, out of 1022 allowed tuples.
+    let total = pairs.iter().sum::<usize>() as f64;
+    let statistic: f64 = pairs
+        .iter()
+        .enumerate()
+        .map(|(i, &count)| {
+            let completions = if i == 0 || i == 3 { 255.0 } else { 256.0 };
+            let expected = total * completions / 1022.0;
+            (count as f64 - expected).powi(2) / expected
+        })
+        .sum();
+    assert!(statistic < 30.0);
 }
 
 #[test]
@@ -625,7 +650,7 @@ fn exhausts_variable_length_word_sequences_and_separator_choices() {
     cfg.excluded_chars = vec!['.', ',', '#'];
     let mut outputs = Vec::new();
     for word_mask in 0..16 {
-        for separator_mask in 0..8 {
+        for separator_mask in 1..7 {
             let mut script = std::collections::VecDeque::new();
             for index in 0..4 {
                 if index > 0 {
@@ -638,7 +663,139 @@ fn exhausts_variable_length_word_sequences_and_separator_choices() {
             assert!(rng.0.is_empty());
         }
     }
-    assert_unique_with_entropy(outputs, 128);
+    assert_unique_with_entropy(outputs, 96);
+}
+
+#[test]
+fn allowed_separator_tuples_are_uniform_with_two_choices_and_three_positions() {
+    let source = TestSource::new(&["ab"]);
+    let mut cfg = config(2);
+    cfg.excluded_chars = vec!['.', ',', '#'];
+    let mut rng = StdRng::seed_from_u64(0x5345_5053);
+    let mut counts = [0; 8];
+    for _ in 0..24_000 {
+        let result = generate_with_rng(&source, &cfg, &mut rng).unwrap();
+        let code = result
+            .secret
+            .chars()
+            .filter(|c| !c.is_alphanumeric())
+            .fold(0, |code, c| code * 2 + usize::from(c == '+'));
+        counts[code] += 1;
+        assert!((result.entropy_bits - 6.0_f64.log2()).abs() < 1e-10);
+    }
+    assert_eq!(counts[0], 0);
+    assert_eq!(counts[7], 0);
+    assert!(counts[1..7].iter().all(|&n| n > 0));
+    assert!(chi_square(&counts[1..7]) < 20.52); // df=5, p=0.001, fixed seed.
+}
+
+#[test]
+fn repeated_tuple_rejection_preserves_utf8_words_and_segments_and_propagates_errors() {
+    let source = TestSource::new(&["äöü"]);
+    let mut cfg = config(2);
+    cfg.excluded_chars = vec!['.', ',', '#'];
+    let initial = std::collections::VecDeque::from([
+        midpoint(1, 0),
+        midpoint(2, 0),
+        midpoint(1, 0),
+        midpoint(2, 0),
+        midpoint(1, 0),
+        midpoint(2, 0),
+        midpoint(1, 0),
+    ]);
+    let mut retry = initial.clone();
+    retry.extend([midpoint(2, 1); 3]); // Reject +++ as well as the initial ---.
+    retry.extend([midpoint(2, 0), midpoint(2, 1), midpoint(2, 0)]);
+    let mut rng = ScriptedRng(retry);
+    let result = generate_with_rng(&source, &cfg, &mut rng).unwrap();
+    assert!(rng.0.is_empty());
+    assert_eq!(result.secret.as_str(), "äöü-äöü+äöü-äöü");
+    let fixed = seeded(&source, &config(0), 0);
+    assert_eq!(result.segments, fixed.segments);
+    assert_segments(&result);
+    for supplied_retry_draws in 0..6 {
+        let mut script = initial.clone();
+        script.extend(std::iter::repeat_n(midpoint(2, 1), supplied_retry_draws));
+        assert!(matches!(
+            generate_with_rng(&source, &cfg, &mut ScriptedRng(script)),
+            Err(GenerateError::RandomSourceUnavailable)
+        ));
+    }
+}
+
+#[test]
+fn custom_entropy_handles_zero_one_two_and_many_separator_positions() {
+    let source = TestSource::new(&["ab"]);
+    for (words, width, pool, expected) in [
+        (1, 1, "-+", 0.0),
+        (2, 1, "-+", 1.0),
+        (3, 1, "-+", 1.0),
+        (4, 1, "-+", 6.0_f64.log2()),
+        (4, 1, "-", 0.0),
+        (2, 2, "-+", 1.0),
+        (64, 8, "-+", 504.0),
+        (64, 8, "-+.,#*!?_:;/()\"'$%&=", 504.0 * 20.0_f64.log2()),
+    ] {
+        let custom = CustomProfile::new(words, pool, width, false, CaseRule::Lowercase).unwrap();
+        let bits = entropy_bits_for_custom(&source, &custom, &[]).unwrap();
+        assert!((bits - expected).abs() < 1e-10);
+        let result = generate_custom(&source, &custom, &[]).unwrap();
+        assert_eq!(result.entropy_bits, bits);
+        assert_segments(&result);
+    }
+    let custom = CustomProfile::new(4, "-+", 1, false, CaseRule::Lowercase).unwrap();
+    let result = generate_custom(&source, &custom, &['+']).unwrap();
+    assert_eq!(result.entropy_bits, 0.0);
+    assert_eq!(result.secret.as_str(), "ab-ab-ab-ab");
+}
+
+#[test]
+fn profile_twelve_accepts_all_1022_nonconstant_separator_tuples() {
+    let source = TestSource::new(&["ab"]);
+    let mut cfg = config(12);
+    cfg.excluded_chars = profile_rules(cfg.profile)
+        .separator_pool
+        .chars()
+        .filter(|&c| c != '-' && c != '+')
+        .collect();
+    let expected = 1022.0_f64.log2() + 60.0_f64.log2() + 6.0;
+    let mut seen = HashSet::new();
+    // Every pair may be equal (e.g. --, ++, --, --, --); only the entire
+    // ten-position tuple must differ. Include both rejected initial tuples.
+    for mask in 0..1024 {
+        let mut script = std::collections::VecDeque::from([midpoint(6, 0)]);
+        for word in 0..6 {
+            if word > 0 {
+                for offset in 0..2 {
+                    script.push_back(midpoint(2, (mask >> (2 * (word - 1) + offset)) & 1));
+                }
+            }
+            script.push_back(midpoint(1, 0));
+            if word == 0 {
+                script.push_back(midpoint(1, 0));
+            }
+            script.push_back(midpoint(2, 0));
+            if word == 0 {
+                script.push_back(midpoint(10, 0));
+            }
+        }
+        if mask == 0 || mask == 1023 {
+            script.extend((0..10).map(|i| midpoint(2, usize::from(i == 0))));
+        }
+        let mut rng = ScriptedRng(script);
+        let result = generate_with_rng(&source, &cfg, &mut rng).unwrap();
+        assert!(rng.0.is_empty());
+        assert_segments(&result);
+        assert!((result.entropy_bits - expected).abs() < 1e-10);
+        let tuple: String = result
+            .secret
+            .chars()
+            .filter(|c| !c.is_alphanumeric())
+            .collect();
+        assert!(tuple.contains('-') && tuple.contains('+'));
+        seen.insert(tuple);
+    }
+    assert_eq!(seen.len(), 1022);
 }
 
 #[test]

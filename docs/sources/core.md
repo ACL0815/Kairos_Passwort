@@ -103,6 +103,43 @@ Profil 1 sagt, wenn 21.000 Wörter unterschritten sind; er erhöht die Bits nich
 
 ## Prüfung und Rechercheprotokoll
 
+### Ergänzung: unterschiedliche zufällige Trenner (26.10.2026)
+
+Sind alle zufällig gezogenen Trenner eines Passworts gleich, zieht der Core
+das gesamte Trennertupel erneut. Das gilt für Profile 2–12 und eigene Profile,
+bei Profil 12 über alle zehn Positionen gemeinsam. Gleiche Paare sind erlaubt.
+Mit effektivem Poolumfang `n >= 2` und Positionszahl `k >= 2` bleiben genau
+`n^k - n` gleichwahrscheinliche Tupel; der Entropieanteil ist daher
+`log2(n^k - n)` statt `k * log2(n)`. Gemeinsames Rejection Sampling erhält die
+Gleichverteilung; nur eine Position neu zu ziehen täte dies nicht.
+Der Code berechnet die Formel ohne Potenzüberlauf mit `ln_1p`.
+Bei `n = 1` sowie `k < 2` entfällt die Regel; feste Profile 0/1 bleiben gleich.
+Jeder Versuch gelingt mit Wahrscheinlichkeit mindestens 1/2. Zufall kommt
+weiterhin ausschließlich aus rand/OsRng; Fehler werden zurückgegeben.
+
+Alle Entropie-APIs einschließlich Rotation und Profilbonus verwenden die
+gemeinsame korrigierte Schranke. Die bisherigen Disjunktheitsbeweise gelten
+weiter für Teilmengen der bisherigen Ausgaben. Die GUI übernimmt bereits
+`GeneratedPassword.entropy_bits` für Bitwert und Stärkering. In-place-Ersetzung
+von ASCII-Trennern erhält Segmentbereiche und UTF-8-Hervorhebung ohne App-Diff.
+Die Konzeptwerte sind angepasst (Profil 2: 64,398191 → 64,339297 Bit;
+Trenneranteil 6,965784 → 6,906891 Bit). Die Regression prüft alle 13 Werte auf
+±0,000001 Bit, sechs binäre Dreiertupel per Chi-Quadrat mit festem Seed,
+96 eindeutige Wort-/Trennerausgaben, alle 1.022 erlaubten binären Zehnertupel
+von Profil 12, Einzeichenpools, wiederholte Zurückweisung, OS-Fehler und
+unveränderte Unicode-Segmente. Erschöpfende Rotationsprüfungen berücksichtigen
+die bedingten Wahrscheinlichkeiten und prüfen Bonusentscheidungen nach der
+Korrektur. Die 3.840 Ausgaben mit festem Trenner bleiben unverändert.
+
+Integrationshinweise aus dem kritischen Review (Opus 5.5, medium): Das ältere
+[Grundkonzept](../Grundkonzept.md) nennt noch 64,4 Bit für Profil 2 und
+unabhängige Trenner. Für den aktuellen Generator gelten die korrigierten Werte
+und die gemeinsame Zurückweisung oben; der Abgleich des Konzeptdokuments
+liegt außerhalb der Schreibpfade dieser PR. Die nur im Debug-Screenshot-Feature
+verwendete App-Fixture zeigt weiterhin gleiche Trenner und einen Beispielwert.
+Ihre optionale Anpassung bleibt beim parallelen App-PR; der Produktivpfad
+verwendet ausschließlich die tatsächlichen Core-Ergebnisse.
+
 Die drei angeforderten Recherchen liefen auf `codex/gpt-6-luna`, jeweils
 `reasoningEffort=xhigh`, `serviceTier=priority`, nur lesend ohne Weiterdelegation.
 A prüfte Passphrasen und Kollisionen, B Zufall und Gleichverteilung,
@@ -114,11 +151,11 @@ zusätzlich direkt gelesen. Das Review korrigierte eine zwischenzeitlich auf
 bestätigte vollständige ID `89534ea7b2c2d090e76307d55497a27ff90cc3d9`.
 
 Die Tests erzeugen künstliche Quellen mit 7.000 beziehungsweise 21.000
-eindeutigen Sechs-Buchstaben-Wörtern und reproduzieren alle Konzeptwerte auf
-±0,1 Bit. Sie prüfen außerdem Quellenfehler, Ausschlüsse, Unicode-Bytebereiche,
+eindeutigen Sechs-Buchstaben-Wörtern und prüfen die angepassten Konzeptwerte
+wie oben beschrieben. Sie prüfen außerdem Quellenfehler, Ausschlüsse, Unicode-Bytebereiche,
 konservative Werte, Speichergröße, Fehler der Zufallsquelle auch nach
 teilweiser Ausgabe sowie statistische Verteilungen mit festen Seeds.
-Nach dem Review kamen erschöpfende Prüfungen von 128 Wort-/Trennerausgaben
+Nach dem ursprünglichen Review kamen erschöpfende Prüfungen von Wort-/Trennerausgaben
 und allen 3.840 Ausgaben von Profil 12 für `ab` mit festem Trenner hinzu.
 Sie prüfen Eindeutigkeit und die angegebene Ausgabe-Min-Entropie am Generator.
 Die Pflichtprüfungen sind `cargo fmt --check`,
