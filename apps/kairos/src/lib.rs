@@ -447,6 +447,8 @@ impl KairosApp {
     }
 
     pub fn draw(&mut self, ui: &mut egui::Ui) {
+        ui.painter()
+            .rect_filled(ui.max_rect(), 0, theme::BACKGROUND);
         capture::banner(
             ui,
             self.capture_protection.as_ref().map_or(
@@ -467,28 +469,34 @@ impl KairosApp {
                 self.register_hotkeys(ui.ctx());
             }
         }
-        ui.horizontal_wrapped(|ui| {
-            let status = security::summary(self.hardening.as_ref());
-            if self
-                .hardening
-                .as_ref()
-                .is_some_and(|report| report.all_applied())
-            {
-                ui.label(status);
-            } else {
-                ui.colored_label(Color32::from_rgb(251, 191, 36), status);
-            }
-            if ui.small_button("Sicherheitsreport").clicked() {
-                self.show_security = true;
-            }
-            help::info(ui, "Härtungsreport", help::HARDENING);
-            ui.label(
-                RichText::new("Bildschirmschutz")
-                    .size(12.0)
-                    .color(theme::MUTED),
-            );
-            help::info(ui, "Bildschirmaufnahmeschutz", help::CAPTURE);
-        });
+        theme::panel()
+            .corner_radius(10)
+            .inner_margin(egui::Margin::symmetric(14, 8))
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                ui.horizontal_wrapped(|ui| {
+                    let status = security::summary(self.hardening.as_ref());
+                    if self
+                        .hardening
+                        .as_ref()
+                        .is_some_and(|report| report.all_applied())
+                    {
+                        ui.label(status);
+                    } else {
+                        ui.colored_label(Color32::from_rgb(251, 191, 36), status);
+                    }
+                    if ui.small_button("Sicherheitsreport").clicked() {
+                        self.show_security = true;
+                    }
+                    help::info(ui, "Härtungsreport", help::HARDENING);
+                    ui.label(
+                        RichText::new("Bildschirmschutz")
+                            .size(14.0)
+                            .color(theme::MUTED),
+                    );
+                    help::info(ui, "Bildschirmaufnahmeschutz", help::CAPTURE);
+                });
+            });
         egui::Window::new("Sicherheitsreport")
             .open(&mut self.show_security)
             .vscroll(true)

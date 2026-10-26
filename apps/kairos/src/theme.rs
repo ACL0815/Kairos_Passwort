@@ -41,9 +41,13 @@ pub fn install(ctx: &egui::Context) {
     style.visuals.selection.bg_fill = Color32::from_rgb(34, 75, 119);
     style.visuals.selection.stroke = Stroke::new(1.5, CYAN);
     style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(26, 42, 76);
+    style.visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(26, 42, 76);
     style.visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(70, 100, 145));
     style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(35, 61, 100);
+    style.visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(35, 61, 100);
     style.visuals.widgets.hovered.bg_stroke = Stroke::new(1.5, CYAN);
+    style.visuals.widgets.active.bg_fill = Color32::from_rgb(34, 75, 119);
+    style.visuals.widgets.active.weak_bg_fill = Color32::from_rgb(34, 75, 119);
     style.visuals.widgets.active.bg_stroke = Stroke::new(2.0, CYAN);
     style.spacing.item_spacing = Vec2::new(10.0, 12.0);
     style.spacing.button_padding = Vec2::new(16.0, 10.0);
