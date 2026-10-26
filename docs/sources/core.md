@@ -131,6 +131,15 @@ unveränderte Unicode-Segmente. Erschöpfende Rotationsprüfungen berücksichtig
 die bedingten Wahrscheinlichkeiten und prüfen Bonusentscheidungen nach der
 Korrektur. Die 3.840 Ausgaben mit festem Trenner bleiben unverändert.
 
+Integrationshinweise aus dem kritischen Review (Opus 5.5, medium): Das ältere
+[Grundkonzept](../Grundkonzept.md) nennt noch 64,4 Bit für Profil 2 und
+unabhängige Trenner. Für den aktuellen Generator gelten die korrigierten Werte
+und die gemeinsame Zurückweisung oben; der Abgleich des Konzeptdokuments
+liegt außerhalb der Schreibpfade dieser PR. Die nur im Debug-Screenshot-Feature
+verwendete App-Fixture zeigt weiterhin gleiche Trenner und einen Beispielwert.
+Ihre optionale Anpassung bleibt beim parallelen App-PR; der Produktivpfad
+verwendet ausschließlich die tatsächlichen Core-Ergebnisse.
+
 Die drei angeforderten Recherchen liefen auf `codex/gpt-6-luna`, jeweils
 `reasoningEffort=xhigh`, `serviceTier=priority`, nur lesend ohne Weiterdelegation.
 A prüfte Passphrasen und Kollisionen, B Zufall und Gleichverteilung,
