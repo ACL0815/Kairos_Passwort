@@ -141,3 +141,29 @@ Der Sicherheitsstatus bleibt auch oberhalb des F11-Inhalts sichtbar; der Report
 führt jede Maßnahme auf. EN/LA-Provenienz und Datenhinweise sind im Lizenzdialog
 enthalten. Kein Code kopiert. Die bestehenden egui-Kopien bleiben; LockedSecret-
 TextBuffer und direkte Erzeugung sind Folgearbeit, keine erledigte RAM-Härtung.
+
+## Profilhilfe und Stärke (26.10.2026)
+
+Die drei Angaben bleiben getrennt: Konzeptreferenz, konservative Core-Min-
+Entropie und ein ausdrücklich definiertes Zufallszeichen-/G50-Modell.
+Heuristische Bewertungen eines menschlichen Passwortstrings werden nicht als
+Generatorentropie übernommen. Kein Anwendungscode kopiert.
+
+| Projekt | Permalink | Lizenz | Datei | Prinzip | Passung | Abrufdatum |
+|---|---|---|---|---|---|---|
+| KeePassXC 2.8.0 | [Generatoranzeige](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/gui/PasswordGeneratorWidget.cpp), [Bewertung](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/core/PasswordHealth.cpp) | GPL-2.0 OR GPL-3.0 laut beiden Dateiheadern | `PasswordGeneratorWidget::updatePasswordStrength`, `PasswordHealth` | Zahl und visuelle Stärke gemeinsam zeigen; Rechenmodell ausdrücklich benennen: Zeichenbewertung über ZxcvbnMatch und Diceware über estimateEntropy sind unterschiedliche Pfade | 5/5 Anzeigeprinzip; keine Übernahme der Heuristik | 2026-10-26 |
+| Bitwarden browser-v2026.10.0 | [Stärkekomponente](https://github.com/bitwarden/clients/blob/browser-v2026.10.0/libs/angular/src/tools/password-strength/password-strength-v2.component.ts), [Lizenz](https://github.com/bitwarden/clients/blob/browser-v2026.10.0/LICENSE.txt) | GPL-3.0 laut Repository-Standard, außerhalb `bitwarden_license` | `PasswordStrengthV2Component` | Kurzes Label und Farbe ergänzen die Zahl. Kontextabhängiger Score 0–4 bleibt von einer Generatorberechnung getrennt | 4/5 Darstellung; kein Score für Kairos-Nacharbeit | 2026-10-26 |
+| egui 0.37.0 | [Response](https://github.com/emilk/egui/blob/0.37.0/crates/egui/src/response.rs), [Popup](https://github.com/emilk/egui/blob/0.37.0/crates/egui/src/containers/popup.rs), [Manifest](https://github.com/emilk/egui/blob/0.37.0/Cargo.toml) | MIT OR Apache-2.0, Workspace-Lizenz | `on_hover_text`, `Popup::menu`, `WidgetInfo` | Kleine kontextuelle Hilfen mit Hover und anklickbarem Popover; beschriftete Info-Buttons und zugängliche Hilfe-Seite | 5/5 verwendete UI-Bibliothek | 2026-10-26 |
+
+Recherche: codex/gpt-6-luna, reasoningEffort=xhigh, serviceTier=priority,
+nur lesend, keine Weiterdelegation. Dateien und Lizenzbezeichner wurden
+am gepinnten Rohtext geprüft. Implementiert werden eigene Rust-Texte/-Widgets; weder Qt- noch
+Angular-Komponenten oder fremde Qualitätsgrenzen werden kopiert.
+
+Konzept-Bitwerte sind feste Referenzen aus beiden Tabellen in Grundkonzept.md.
+Die ASCII-Alternative zählt nur Folgen, die alle vier Zeichenarten enthalten
+(Inklusion/Exklusion über 26/26/10/32 Zeichen). G50 = 2^H / 2 gilt exakt für das
+Gleichverteilungsmodell; bei konservativer Min-Entropie wird es als Vergleich /
+Untergrenze erklärt. Keine ungeprüfte Zeitprognose. Alle Lehrbeispiele sind
+öffentlich und ausdrücklich nicht zur Verwendung bestimmt. Nach einer
+Handänderung werden weder der ursprüngliche Vergleich noch der Bonus angezeigt.

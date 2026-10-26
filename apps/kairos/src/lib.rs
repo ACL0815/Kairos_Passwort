@@ -10,10 +10,14 @@ mod blocked;
 mod capture;
 mod clipboard;
 mod desktop;
+mod help;
 mod keepass;
 mod model;
+mod profile_view;
+mod rotation;
 mod security;
 mod source;
+mod strength;
 mod theme;
 
 pub use source::german_source;
@@ -24,9 +28,10 @@ mod demo;
 use clipboard::{ClipboardAccess, ProtectedClipboard};
 use desktop::{boxed_target, input_error, Destination};
 use eframe::egui::{self, Color32, Key, Modifiers, RichText};
-#[cfg(not(all(feature = "demo", debug_assertions)))]
 use kairos_core::generate;
-use kairos_core::{GeneratorConfig, ProfileId, WordSource};
+#[cfg(test)]
+use kairos_core::ProfileId;
+use kairos_core::{GeneratorConfig, WordSource};
 use kairos_platform::{Action, FocusTarget, GlobalHotkeys, HotkeyBinding, PlatformError};
 use model::{
     apply_exclusions, password_layout, Assessment, PasswordState, MAX_SECRET_CHARS, SEPARATORS,
@@ -54,7 +59,12 @@ pub struct KairosApp {
     hotkeys: Option<GlobalHotkeys>,
     hotkey_error: Option<&'static str>,
     rotate_profiles: bool,
+    rotation_selection: rotation::Selection,
+    rotation_settings: rotation::SettingsFile,
     rotation_bonus: Option<f64>,
+    profile_bits: [Option<f64>; 13],
+    show_profiles: bool,
+    help_profile: u8,
     copy_on_insert: bool,
     capture_protection: Option<kairos_platform::CaptureProtection>,
     keepass: keepass::Integration,
@@ -98,15 +108,21 @@ impl KairosApp {
             hotkeys: None,
             hotkey_error: None,
             rotate_profiles: false,
+            rotation_selection: rotation::Selection::default(),
+            rotation_settings: rotation::SettingsFile::default(),
             rotation_bonus: None,
+            profile_bits: [None; 13],
+            show_profiles: false,
+            help_profile: 0,
             copy_on_insert: true,
             capture_protection: None,
             keepass: keepass::Integration::default(),
         };
         #[cfg(all(feature = "demo", debug_assertions))]
         {
-            app.config.profile = ProfileId::new(8).expect("demo profile");
+            demo::configure(&mut app);
         }
+        app.refresh_profile_bits();
         app.regenerate(ctx);
         app
     }
@@ -123,6 +139,8 @@ impl KairosApp {
         report: kairos_hardening::HardeningReport,
     ) {
         self.hardening = Some(report);
+        self.rotation_settings = rotation::SettingsFile::configured();
+        (self.rotate_profiles, self.rotation_selection) = self.rotation_settings.load();
         self.blocked = blocked::BlockedWords::configured();
         self.blocked_settings_changed(ctx);
     }
@@ -146,7 +164,6 @@ impl KairosApp {
 
     fn register_hotkeys(&mut self, ctx: &egui::Context) {
         if cfg!(feature = "demo") {
-            self.hotkey_error = Some("In der öffentlichen Demo sind globale Hotkeys deaktiviert.");
             return;
         }
         let wakeup = ctx.clone();
@@ -289,31 +306,12 @@ impl KairosApp {
             } else {
                 &expanded
             };
-        #[cfg(all(feature = "demo", debug_assertions))]
-        let result = demo::generate(selected, &self.config);
-        #[cfg(not(all(feature = "demo", debug_assertions)))]
         let result = if self.rotate_profiles {
-            let rotation = kairos_core::ProfileRotation::new(
-                (0..=12)
-                    .map(|id| ProfileId::new(id).expect("built-in profile").into())
-                    .collect(),
-            )
-            .expect("thirteen built-in profiles");
-            let sources: Vec<&dyn WordSource> = (0..=12)
-                .map(|id| {
-                    if source::uses_german(
-                        ProfileId::new(id).expect("built-in profile"),
-                        self.german_only,
-                    ) {
-                        &german as &dyn WordSource
-                    } else {
-                        &expanded as &dyn WordSource
-                    }
-                })
-                .collect();
-            kairos_core::generate_rotating_from_sources(
-                &sources,
-                &rotation,
+            rotation::generate(
+                &self.rotation_selection,
+                &german,
+                &expanded,
+                self.german_only,
                 &self.config.excluded_chars,
             )
             .map(|result| {
@@ -323,6 +321,15 @@ impl KairosApp {
         } else {
             generate(selected, &self.config)
         };
+        #[cfg(all(feature = "demo", debug_assertions))]
+        let result = result.map(|result| {
+            let profile = if self.rotate_profiles {
+                self.rotation_selection.ids()[0]
+            } else {
+                self.config.profile.get()
+            };
+            demo::public_example(result, profile)
+        });
         self.password.set_result(result);
         self.notice = "";
         ctx.data_mut(|data| {
@@ -387,7 +394,7 @@ impl KairosApp {
             .layouter(&mut layouter)
             .font(egui::FontId::monospace(size))
             .desired_width(f32::INFINITY)
-            .desired_rows(if self.compact { 2 } else { 3 })
+            .desired_rows(1)
             .hint_text("Hier erscheint dein Wortpasswort")
             .char_limit(MAX_SECRET_CHARS)
             .show(ui);
@@ -401,100 +408,12 @@ impl KairosApp {
         output.response.changed()
     }
 
-    fn controls(&mut self, ui: &mut egui::Ui) {
-        let previous = self.config.profile;
-        ui.horizontal_wrapped(|ui| {
-            ui.label("Profil");
-            ui.add_enabled_ui(!self.rotate_profiles, |ui| {
-                egui::ComboBox::from_id_salt("profile")
-                    .selected_text(if self.rotate_profiles {
-                        "Zufall aus Profil 0–12".into()
-                    } else {
-                        format!(
-                            "{} · {}",
-                            self.config.profile.get(),
-                            profile_name(self.config.profile.get())
-                        )
-                    })
-                    .width(if self.compact { 240.0 } else { 300.0 })
-                    .show_ui(ui, |ui| {
-                        for value in 0..=12 {
-                            let profile = ProfileId::new(value).expect("built-in profile");
-                            ui.selectable_value(
-                                &mut self.config.profile,
-                                profile,
-                                format!("{value} · {}", profile_name(value)),
-                            );
-                        }
-                    });
-            });
-            if ui
-                .button(if self.compact {
-                    "Vollansicht"
-                } else {
-                    "Kompakt"
-                })
-                .clicked()
-            {
-                self.compact = !self.compact;
-                ui.ctx()
-                    .send_viewport_cmd(egui::ViewportCommand::InnerSize(if self.compact {
-                        egui::vec2(720.0, 640.0)
-                    } else {
-                        egui::vec2(860.0, 820.0)
-                    }));
-            }
-        });
-        if previous != self.config.profile {
-            self.settings_changed(ui.ctx());
-        }
-        if ui
-            .checkbox(
-                &mut self.rotate_profiles,
-                "Profil bei jeder Generierung wechseln",
-            )
-            .changed()
-        {
-            self.settings_changed(ui.ctx());
-        }
-        if self.rotate_profiles {
-            ui.label("Zufall aus Profil 0–12; Wiederholungen sind möglich. Stärke richtet sich nach dem schwächsten Profil.");
-            if let Some(bonus) = self
-                .rotation_bonus
-                .filter(|_| matches!(self.password.assessment, Assessment::Generated(_)))
-            {
-                ui.label(format!("Profilbonus: +{bonus:.1} Bit. Bei 0 Bit: Profile überlappen oder sind unterschiedlich stark."));
-            }
-        }
-        if ui
-            .checkbox(&mut self.german_only, "Nur deutsche Wörter")
-            .changed()
-        {
-            self.settings_changed(ui.ctx());
-        }
-        if self.german_only {
-            ui.label("Deutsch-Override: Die zusätzlichen Wortauswahl-Bits von Profil 1 werden nicht erreicht.");
-        }
-        if self.rotate_profiles && !self.german_only {
-            ui.label(format!("Wortquelle: Profil 0 Deutsch ({}); Profil 1–12 DE+EN+LA ({}). Sprache je Wort unabhängig.", self.source_counts[0], self.source_counts[1]));
-        } else if source::uses_german(self.config.profile, self.german_only) {
-            ui.label(format!(
-                "Wortquelle: Deutsch · {} Wörter nach Sperrliste",
-                self.source_counts[0]
-            ));
-        } else {
-            ui.label(format!(
-                "Wortquelle: DE+EN+LA · {} Wörter nach Sperrliste · Sprache je Wort unabhängig",
-                self.source_counts[1]
-            ));
-        }
-    }
-
     fn exclusions(&mut self, ui: &mut egui::Ui) {
         let mut changed = false;
         egui::CollapsingHeader::new("Sonderzeichen ausschließen")
             .default_open(false)
             .show(ui, |ui| {
+                help::info(ui, "Sonderzeichen ausschließen", help::EXCLUSIONS);
                 ui.label(
                     RichText::new(
                         "Markierte Zeichen werden bei der nächsten Generierung ausgelassen.",
@@ -558,6 +477,13 @@ impl KairosApp {
             if ui.small_button("Sicherheitsreport").clicked() {
                 self.show_security = true;
             }
+            help::info(ui, "Härtungsreport", help::HARDENING);
+            ui.label(
+                RichText::new("Bildschirmschutz")
+                    .size(12.0)
+                    .color(theme::MUTED),
+            );
+            help::info(ui, "Bildschirmaufnahmeschutz", help::CAPTURE);
         });
         egui::Window::new("Sicherheitsreport")
             .open(&mut self.show_security)
@@ -615,6 +541,7 @@ impl KairosApp {
                 ui.colored_label(Color32::from_rgb(251, 191, 36), "DEMO · Öffentliche Beispieldaten, kein sicheres Passwort");
                 ui.add_space(10.0);
                 theme::panel().show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = 7.0;
                     self.controls(ui);
                     ui.add_space(8.0);
                     self.editor(ui);
@@ -623,6 +550,7 @@ impl KairosApp {
                             ui.label(RichText::new(label).color(model::segment_color(kind)).monospace().size(13.0));
                         }
                         ui.label(RichText::new("· direkt bearbeitbar · ohne Undo-Verlauf").color(theme::MUTED).size(12.0));
+                        help::info(ui, "Editor und Generierung", help::EDITOR);
                     });
                     ui.label(RichText::new(self.password.message).color(theme::MUTED).size(14.0));
                 });
@@ -639,33 +567,22 @@ impl KairosApp {
                     if ui.add_enabled(available, egui::Button::new("Kopieren")).on_hover_text("Strg+C kopiert das ganze Passwort").clicked() { self.copy(&ctx, false); }
                     if ui.add_enabled(available && self.target.can_restore(), egui::Button::new("Kopieren und zurückspringen")).on_disabled_hover_text("Für einen Rücksprung muss zuerst ein externes Fenster gemerkt sein.").clicked() { self.copy(&ctx, true); }
                     if ui.add_enabled(available && self.target.can_insert(), egui::Button::new("Einfügen")).on_disabled_hover_text("F9 im gewünschten Zielfeld auslösen. Beim App-Start wird kein Einfügeziel freigegeben.").clicked() { self.insert(&ctx); }
+                    help::info(ui, "Kopieren und Zurückspringen", help::CLIPBOARD);
                 });
                 if !self.notice.is_empty() { ui.label(RichText::new(self.notice).color(theme::CYAN).size(14.0)); }
-                let bits = match self.password.assessment { Assessment::Generated(bits) => Some(bits), _ => None };
-                let assessment = match self.password.assessment {
-                    Assessment::Generated(bits) => format!("{bits:.1} Bit berechnete Entropie"),
-                    Assessment::Edited => "bearbeitet – nicht mehr bewertbar".into(),
-                    Assessment::Unavailable => "Stärke noch nicht verfügbar".into(),
-                };
-                if !self.compact {
-                    theme::panel().show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            theme::strength_ring(ui, bits);
-                            ui.vertical(|ui| {
-                                ui.label(RichText::new(&assessment).size(20.0).strong());
-                                ui.label(RichText::new("Aus dem Generator und seiner tatsächlichen Wortauswahl.").color(theme::MUTED));
-                                ui.add(egui::ProgressBar::new(bits.map_or(0.0, |bits| (bits / 160.0).clamp(0.0, 1.0) as f32)).fill(theme::CYAN).desired_width(280.0));
-                            });
-                        });
-                    });
-                } else { ui.label(assessment); }
+                self.strength_card(ui);
                 self.exclusions(ui);
                 ui.horizontal_wrapped(|ui| {
                     if ui.button(format!("Sperrliste verwalten ({})", self.blocked.words.len())).clicked() { self.show_blocked = true; }
+                    help::info(ui, "Sperrliste", help::BLOCKLIST);
                     if self.blocked.error.is_some() { ui.colored_label(Color32::from_rgb(251, 191, 36), "Sperrliste prüfen"); }
                 });
                 self.bridge_controls(ui);
-                ui.label(RichText::new("Strg+Umschalt+F9: Editor · F10: Tippen + Kopieren · F11: KeePassXC-Eintrag").color(theme::MUTED).size(12.0));
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new("Strg+Umschalt+F9: Editor · F10: Tippen + Kopieren · F11: KeePassXC-Eintrag").color(theme::MUTED).size(12.0));
+                    help::info(ui, "Hotkeys F9/F10/F11", help::HOTKEYS);
+                    help::info(ui, "KeePassXC", help::KEEPASS);
+                });
                 if !self.compact {
                     ui.horizontal_wrapped(|ui| {
                         ui.label(RichText::new("Kein Passwortverlauf · Kein Cloud-Sync · Zwischenablage 30 s").color(theme::MUTED).size(12.0));
@@ -728,6 +645,9 @@ impl KairosApp {
                 }
             });
         self.blocked_dialog(&ctx);
+        self.profiles_dialog(&ctx);
+        #[cfg(all(feature = "demo", debug_assertions))]
+        demo::capture(&ctx);
     }
 
     fn blocked_dialog(&mut self, ctx: &egui::Context) {
@@ -797,6 +717,7 @@ impl KairosApp {
             source::FilteredSource::new(self.expanded_source.as_ref(), &self.blocked.words).len(),
         ];
         if self.blocked.error.is_some() {
+            self.refresh_profile_bits();
             self.regenerate(ctx);
         } else {
             self.settings_changed(ctx);
@@ -804,6 +725,7 @@ impl KairosApp {
     }
 
     fn settings_changed(&mut self, ctx: &egui::Context) {
+        self.refresh_profile_bits();
         if self.password.assessment == Assessment::Edited {
             self.notice = "Deine Nacharbeit bleibt erhalten. Neue Einstellungen gelten beim nächsten Neu generieren.";
         } else {
@@ -824,25 +746,6 @@ impl eframe::App for KairosApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.draw(ui);
-    }
-}
-
-fn profile_name(profile: u8) -> &'static str {
-    match profile {
-        0 => "Vier Wörter · feste Minuszeichen",
-        1 => "Vier Wörter · größere Wortauswahl",
-        2 => "Fünf mögliche Trenner",
-        3 => "Zusätzliche Zufallsziffer",
-        4 => "Acht mögliche Trenner",
-        5 => "Zwölf mögliche Trenner",
-        6 => "16 mögliche Trenner",
-        7 => "20 mögliche Trenner",
-        8 => "Zufällige Wortanfänge",
-        9 => "Fünf Wörter",
-        10 => "Sechs Wörter",
-        11 => "Zufälliger Großbuchstabe je Wort",
-        12 => "Zwei Trenner je Wortpaar",
-        _ => unreachable!("validated ProfileId"),
     }
 }
 
@@ -1165,7 +1068,11 @@ mod tests {
     #[test]
     fn every_valid_profile_is_named() {
         for value in 0..=12 {
-            assert!(!profile_name(ProfileId::new(value).unwrap().get()).is_empty());
+            assert!(
+                !help::PROFILES[ProfileId::new(value).unwrap().get() as usize]
+                    .name
+                    .is_empty()
+            );
         }
     }
 

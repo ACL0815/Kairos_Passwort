@@ -65,6 +65,32 @@ Alle F-Tasten unten mit **Strg+Umschalt** drücken.
     Schriftlizenzen. Nur eigene Test-DPAPI-Dateien/Ports für Korruption/Portbelegung
     verwenden. Kein Klartext-Fallback/automatischer Ersatz bestehender Zuordnung.
     Ignorierte echte Tests nur isoliert gemäß Crate-/Browser-README ausführen.
+13. **Profilhilfe und Stärke.** Profil 0, 2 und 12 normal sowie kompakt wählen.
+    Theoretisch (Konzept) 51,1 / 64,4 / 153,1 Bit; tatsächlicher Wert aus der
+    realen Quelle separat. Vergleich und G50 mit Dezimalkomma / Zehnerpotenz
+    sichtbar. ⓘ per Hover und Klick sowie per Tastatur öffnen/schließen.
+    „Profile erklärt“: alle 13 Profile, neue Regel, Konzeptgewinn, tatsächlicher
+    Unterschied, öffentliches Beispiel und Grundsatz zu bekannten Zusätzen
+    prüfen. Tabelle und Bedienungshilfen aufklappen, schmale Fenster scrollen;
+    Passwort darf nicht durch Hilfen unlesbar werden. „Nur Deutsch“, Sperrliste
+    und Trennerausschluss ändern Core-Werte, Konzeptwerte bleiben fest.
+    Nach Bearbeitung kein G50-/Zeichenvergleich und kein Bonus; Nacharbeit bei
+    Einstellungswechsel erhalten. ⓘ für alle im README genannten Funktionen
+    auffindbar, auch Bildschirmschutz/--allow-screencapture und KeePassXC-Dialog.
+14. **Freie Rotationsauswahl und Persistenz.** Eigenen `KAIROS_SETTINGS_FILE`-
+    Testpfad verwenden. Rotation aktivieren, genau 2/4/8/12 wählen, mehrfach
+    generieren; nur passende Muster, keine behauptete aktuelle Profilnummer.
+    Konzeptminimum 64,4 Bit, tatsächliche konservative Rotationsgrenze und
+    Profilbonus aus dem Core (aktuell +0,0 Bit). Bonus-ⓘ erklärt Ungleichheit,
+    Überlappung, Mehrquellen-Grenze und bedingte +4 Bit aus dem Konzept.
+    Auf zwei reduzieren: letzten beiden Haken nicht entfernbar. Wieder auf vier
+    erweitern. Neustart: Aktivierung und genau diese vier Profile bleiben.
+    Datei enthält ausschließlich Version, Aktivierung und Profilnummern.
+    Mit 9/12 Minus ausschließen: gültig; zusätzlich 0 aktivieren: sichtbarer
+    Generierungsfehler, keine stille Ersatzwahl. Deutsch-Override für alle.
+    Fehlende, ungültige, zu große und unlesbare Testdatei sowie Schreibfehler
+    testen; Hinweis und dokumentierter Fallback, kein automatisches
+    Überschreiben ungültiger Daten. Aktivierung aus/an erhält die Auswahl.
 
 SendInput bestätigt Windows-Annahme, keine Feldzustellung. Clipboard-/Capture-
 Schutz hängt von beachtender Software ab. Kameras, privilegierte Tools, bestehende

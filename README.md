@@ -11,7 +11,7 @@ Das [Grundkonzept](docs/Grundkonzept.md) bleibt die unveränderte Konzeptquelle.
 - Profile 0–12 mit kumulativen Regeln, unabhängigen Zufallsentscheidungen und Windows-Systemzufall über rand/OsRng.
 - Profil 0 verwendet 6.907 deutsche Wörter. Ab Profil 1 stehen 20.697 unterschiedliche DE/EN/LA-Wörter bereit. Die Sprache wird je Wort unabhängig gewählt. „Nur deutsche Wörter“ überschreibt dies mit sichtbarem Hinweis auf die geringere Stärke.
 - Entropie aus der tatsächlichen, nach Sperrliste verbleibenden Quelle. Die Konzeptziele 7.000/21.000 sind keine behaupteten Listengrößen. Vier Wörter mit festen Minuszeichen ergeben ohne Ausschlüsse etwa 51,0 bzw. 57,3 Bit.
-- Optionale Rotation über 0–12 mit der jeweiligen Quelle, konservativem Minimum und **+0,0 Bit Profilbonus**. Manuelle Nacharbeit entwertet die Bewertung.
+- Optionale Rotation aus mindestens zwei frei gewählten Profilen 0–12, mit der jeweiligen Quelle und konservativer Core-Bewertung. Auswahl und Aktivierung bleiben lokal gespeichert. Manuelle Nacharbeit entwertet die Bewertung.
 - Farbiger, bearbeitbarer Editor, geschütztes Kopieren mit 30-Sekunden-Frist, Fokus-Rücksprung und Unicode-Autotype ohne Enter/Submit.
 - Eigene Sperrliste mit Wortschaltflächen und Verwaltung. Nur ausdrücklich gewählte Wörter werden gespeichert, keine Passwörter.
 - KeePassXC-Eintrag nach Bestätigung und optionale Violentmonkey-Kontextvorschläge mit bewusster Kopplung.
@@ -21,6 +21,60 @@ Eigene Profile, externe Listen in SQLCipher/DPAPI und Integritätsmanifeste sind
 als Bibliotheks-APIs vorhanden. Eine GUI zum Bearbeiten eigener Profile oder zum
 Store-Import fehlt noch. [Roadmap](docs/ROADMAP.md) und
 [Architektur](docs/ARCHITECTURE.md) beschreiben den Stand.
+
+## Profile und Stärke
+
+„Profile erklärt“ und die kleinen **ⓘ**-Elemente erläutern jede Profilregel,
+den Gewinn gegenüber dem Vorgänger und ein öffentliches Lehrbeispiel.
+Diese Beispiele niemals als Passwort verwenden. Die Hilfen erklären auch
+Trennerausschlüsse, Wortquellen, Sperrliste, Hotkeys, Zwischenablage,
+Bildschirmschutz, Sicherheitsreport und KeePassXC-/Violentmonkey-Anbindung.
+
+Die App trennt drei Angaben:
+
+- **Theoretisch (Konzept):** feste Referenz aus beiden Tabellen des
+  [Grundkonzepts](docs/Grundkonzept.md), von 51,1 bis 153,1 Bit. Dieses Modell
+  verwendet 7.000 bzw. 21.000 Wörter mit sechs Buchstaben je Wort.
+- **Tatsächlich:** konservative Min-Entropie aus dem Core für die reale,
+  ggf. gefilterte Wortquelle und die effektiven Trennerregeln. Reale
+  Listengröße, kürzere Wörter, „Nur Deutsch“, Sperrliste und Ausschlüsse
+  erklären Abweichungen. Künftige Core-Trenneränderungen fließen automatisch ein.
+- **Vergleich:** die kürzeste mindestens gleich starke Alternative aus
+  gleichverteilt gezogenen Zeichen (94 druckbare ASCII-Zeichen ohne Leerzeichen,
+  alle vier Zeichenarten enthalten). Inklusions-/Exklusionsrechnung zählt
+  gültige Zeichenfolgen. **G50-Modell = 2^H / 2** Rateversuche, aus dem tatsächlichen
+  Core-Wert berechnet und wissenschaftlich mit Dezimalkomma dargestellt.
+  Für konservative Min-Entropie ist dies Vergleich/Untergrenze, keine gemessene
+  mittlere Knackdauer und keine Prognose für menschliche Passwörter.
+
+Mehr Länge durch bekannte Zusätze, feste Anhänge oder Wiederholungen bringt
+keine zusätzlichen Bits. Nur unabhängige Zufallsentscheidungen vergrößern die
+Auswahl. Nach manueller Bearbeitung erscheinen weder Stärkevergleich noch Bonus.
+
+Unter „Profil bei jeder Generierung wechseln“ die gewünschten Profile anhaken,
+etwa **2, 4, 8 und 12**. Mindestens zwei bleiben ausgewählt. Der Core zieht
+bei jeder Generierung gleichverteilt; Wiederholungen sind möglich. Profil 0
+verwendet Deutsch, ab Profil 1 die kombinierte Quelle, sofern „Nur deutsche
+Wörter“ dies nicht überschreibt. Jedes ausgewählte Profil muss mit den
+Ausschlüssen gültig bleiben. Ohne Profil 0/1 darf etwa Minus ausgeschlossen sein.
+
+Die Anzeige bewertet die **gesamte Rotation**, nicht das gerade gezogene Profil.
+Die Konzeptreferenz ist dabei das Minimum der Auswahl. Der Profilbonus wird
+unverändert aus `rotation_bonus_bits` übernommen: höchstens `log2(Anzahl)`,
+im aktuellen Mehrquellen-Core-Pfad **+0,0 Bit**. Ungleich starke oder überlappende
+Ausgaben erhalten ebenfalls keinen Bonus. Keine vorhandene Auswahl garantiert
+einen Bonus. Dafür wären gleich starke, nachweisbar überschneidungsfreie
+Profile mit unbekannter aktueller Wahl nötig. Die optionalen **bis 157,1 Bit**
+im Konzept setzen 16 solche Profile voraus (+4 Bit); die 13 vorhandenen
+erlauben allein nach ihrer Anzahl höchstens +3,7 Bit.
+
+Aktivierung und Profilnummern stehen in `%APPDATA%\Kairos\settings.json`
+(Schema-Version 1), ohne Passwörter. `KAIROS_SETTINGS_FILE` legt für Tests einen
+anderen Dateipfad fest. Fehlende Datei: Rotation aus, alle Profile vorausgewählt.
+Ungültige/unlesbare Datei: Rotation aus und sichtbarer Hinweis, kein stilles
+Überschreiben; erst eine bewusste Änderung speichert neu. Schreibfehler sind
+sichtbar, die Auswahl gilt dann nur für den laufenden Start. Eine Instanz pro
+Einstellungsdatei verwenden.
 
 ## Installation und Build
 
