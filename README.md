@@ -32,14 +32,15 @@ Perl; Git-Perl genügt nicht. Kein Wortlisten-Download zur Laufzeit.
 Im betreuten Windows-Build die vorhandene Umgebung laden, nicht verändern:
 
 ```powershell
-. 'C:\Users\Axel_desktop\.t3\projects\kairos-password\target\Enter-KairosBuildEnv.ps1'
+. '<Hauptcheckout>\target\Enter-KairosBuildEnv.ps1'
+$kairosTargetDir = '<Buildverzeichnis>'
 cargo fmt --check
-cargo clippy --workspace --all-targets --target-dir F:\kairos-build\finalize -- -D warnings
-cargo test --workspace --target-dir F:\kairos-build\finalize
+cargo clippy --workspace --all-targets --target-dir $kairosTargetDir -- -D warnings
+cargo test --workspace --target-dir $kairosTargetDir
 node --check browser/kairos-bridge.user.js
 node browser/test-userscript.cjs
-cargo build --release -p kairos --target-dir F:\kairos-build\finalize
-& 'F:\kairos-build\finalize\release\kairos.exe'
+cargo build --release -p kairos --target-dir $kairosTargetDir
+& (Join-Path $kairosTargetDir 'release\kairos.exe')
 ```
 
 Auf anderen Rechnern den Target-Pfad anpassen und MSVC/Perl selbst bereitstellen.
@@ -73,14 +74,18 @@ Pairing, KeePassXC-Testdatenbank und Wiederherstellung. Vorschläge werden bewus
 
 „Sperrliste verwalten“ bietet Wörter des aktuellen **unbearbeiteten** Passworts
 zum Sperren an; Großschreibung und eingefügte Ziffern werden rückgängig gemacht.
-Alternativ ein Wort eingeben oder Einträge entfernen. Erfolgreiche Änderungen
-erzeugen neu. Standardpfad ist `%APPDATA%\Kairos\blocked-words.txt`.
+Alternativ ein Wort eingeben oder Einträge entfernen. Unbearbeitete Ergebnisse
+werden nach Änderungen neu erzeugt; manuelle Nacharbeit bleibt bis zum nächsten
+Generieren erhalten. Lesefehler leeren und sperren weiter.
+Standardpfad ist `%APPDATA%\Kairos\blocked-words.txt`.
 `KAIROS_BLOCKED_WORDS_FILE` kann für Tests einen eigenen Dateipfad vorgeben.
 
 Eine Zeile je Wort, 3–9 Buchstaben a–z. Rand-Leerraum und ASCII-Großschreibung
-werden normalisiert, Duplikate entfernt. Keine Transliteration; leere Zeilen
-sind erlaubt. Das Leselimit beträgt 1 MiB. Die Textdatei ist unverschlüsselt, erbt Verzeichnisrechte und kann
-Vorlieben verraten. Sie enthält keine automatisch protokollierten Passwörter.
+werden normalisiert, Duplikate entfernt. Keine Transliteration; UTF-8-BOM und
+leere Zeilen sind erlaubt. Das Leselimit beträgt 1 MiB. Die Textdatei ist
+unverschlüsselt, erbt Verzeichnisrechte und kann
+Vorlieben verraten. Wörter bereits verwendeter Passwörter nicht sperren: Die Datei
+verrät dann Passwortbestandteile. Sie enthält keine automatisch protokollierten Passwörter.
 Ungültige/unlesbare Dateien sperren Generierung bis zur Korrektur und „Datei neu
 laden“. Eine fehlende Datei ist leer. Eine App-Instanz je Datei zum Bearbeiten
 nutzen; externe Änderungen ausdrücklich neu laden.

@@ -21,6 +21,8 @@ Alle F-Tasten unten mit **Strg+Umschalt** drücken.
    eingabe ablehnen. Neustart, Entfernen, Neustart. Datei enthält nur gewählte
    Wörter, nie das Passwort. Ungültige/unlesbare Testdatei sperrt Generierung
    bis Korrektur/Neuladen. Schreibfehler erhält bisherigen Filter mit Hinweis.
+   Nacharbeit bei Sperren/Entfernen/gültigem Neuladen erhalten; ungültiges Neuladen
+   leert sie. UTF-8-BOM akzeptieren; Warnung zu Wörtern verwendeter Passwörter prüfen.
 4. **F9/Fokus.** Leeres Editor-Testfeld fokussieren, F9, länger als fünf Sekunden
    bearbeiten, Einfügen. Originalziel/identischer Text, kein Enter/Tab. Kopierhaken
    an/aus, zweiter Klick. Start ohne F9 erlaubt kein Einfügen. „Kopieren und

@@ -19,7 +19,7 @@ sind verschieden. Status gegen die GitHub-PRs geprüft.
 | [#11](https://github.com/ACL0815/Kairos_Passwort/pull/11) | PR-6b / PR-10 | Gemergt | F11-Fluss, Kontextbrücke, Violentmonkey-Pairing. |
 | [#12](https://github.com/ACL0815/Kairos_Passwort/pull/12) | PR-11 Bildschirmschutz | Gemergt | Geschützte Fenster, --allow-screencapture, Statusbanner. |
 | [#13](https://github.com/ACL0815/Kairos_Passwort/pull/13) | PR-9b obfstr | Offen, separat | Verschleierung, API unverändert, kein Entropiebonus. Hier keine Wortlisten-Dateien geändert. |
-| Dieser PR (`feat/finalize`) | Abschluss | Implementiert; Review/CI gemäß PR-Belegen | Profilquelle, Deutsch-Override, Nutzer-Sperrliste, früher Härtungsaufruf, Report, Doku. |
+| [#14](https://github.com/ACL0815/Kairos_Passwort/pull/14) (`feat/finalize`) | Abschluss | Offen; Review/CI gemäß PR-Belegen | Profilquelle, Deutsch-Override, Nutzer-Sperrliste, früher Härtungsaufruf, Report, Doku. |
 
 ## Restgrenzen und Folgearbeiten
 

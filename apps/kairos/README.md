@@ -14,10 +14,11 @@ In PowerShell zuerst die bereitgestellte Build-Umgebung laden:
 ```powershell
 # Den vom Projekt bereitgestellten Enter-KairosBuildEnv.ps1-Helfer laden.
 # Beispiel: . '<Hauptcheckout>\target\Enter-KairosBuildEnv.ps1'
-cargo run --target-dir F:\kairos-build\finalize -p kairos
-cargo run --target-dir F:\kairos-build\finalize -p kairos -- --popup
-cargo run --target-dir F:\kairos-build\finalize -p kairos -- --allow-screencapture
-cargo run --target-dir F:\kairos-build\finalize -p kairos -- --popup --allow-screencapture
+$kairosTargetDir = '<Buildverzeichnis>'
+cargo run --target-dir $kairosTargetDir -p kairos
+cargo run --target-dir $kairosTargetDir -p kairos -- --popup
+cargo run --target-dir $kairosTargetDir -p kairos -- --allow-screencapture
+cargo run --target-dir $kairosTargetDir -p kairos -- --popup --allow-screencapture
 ```
 
 Profile 0–12 und 20 Trennerausschlüsse werden an Core übergeben. Strg+R oder
@@ -165,11 +166,11 @@ gelten gemäß NOTICE.txt; Auswahl, Zusammenführung und Filter sind dokumentier
 
 ```powershell
 cargo fmt --check
-cargo clippy --workspace --all-targets --target-dir F:\kairos-build\finalize -- -D warnings
-cargo test --target-dir F:\kairos-build\finalize --workspace
-cargo build --release -p kairos --target-dir F:\kairos-build\finalize
-cargo test --target-dir F:\kairos-build\finalize -p kairos-platform --test isolated_clipboard -- --ignored
-cargo test --target-dir F:\kairos-build\finalize -p kairos-platform --test windows_interaction -- --ignored --test-threads=1
+cargo clippy --workspace --all-targets --target-dir $kairosTargetDir -- -D warnings
+cargo test --target-dir $kairosTargetDir --workspace
+cargo build --release -p kairos --target-dir $kairosTargetDir
+cargo test --target-dir $kairosTargetDir -p kairos-platform --test isolated_clipboard -- --ignored
+cargo test --target-dir $kairosTargetDir -p kairos-platform --test windows_interaction -- --ignored --test-threads=1
 ```
 
 Die letzten zwei Befehle laufen nur ausdrücklich. Der isolierte Test nutzt eine
@@ -187,13 +188,13 @@ globale Hotkeys sind darin deaktiviert.
 
 ```powershell
 $env:EFRAME_SCREENSHOT_TO = Join-Path (Get-Location) 'target\gui-evidence\gui-demo.png'
-cargo run --target-dir F:\kairos-build\finalize -p kairos --features demo
+cargo run --target-dir $kairosTargetDir -p kairos --features demo
 Remove-Item Env:EFRAME_SCREENSHOT_TO
 ```
 
 Der gezeigte Befehl rendert die native Demo, speichert nach dem zweiten Frame
 und beendet sie. Für eine ausdrücklich lokale Aufnahme mit echter Wortquelle
-lässt sich stattdessen `cargo run --release -p kairos --target-dir F:\kairos-build\finalize --features eframe/__screenshot`
+lässt sich stattdessen `cargo run --release -p kairos --target-dir $kairosTargetDir --features eframe/__screenshot`
 verwenden. Dieses bestehende eframe-Feature aktiviert den Renderer-Bildexport,
 ohne Kairos' Demo einzuschalten. Der normale Release-Build aktiviert es nicht.
 Screenshots bleiben lokal unter `target/`; verwendete Passwörter gehören nicht

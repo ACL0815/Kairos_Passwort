@@ -21,13 +21,10 @@ pub fn normalize(word: &str) -> Option<String> {
 
 impl BlockedWords {
     pub fn configured() -> Self {
-        let path = std::env::var_os("KAIROS_BLOCKED_WORDS_FILE")
-            .filter(|path| !path.is_empty())
-            .map(PathBuf::from)
-            .or_else(|| {
-                std::env::var_os("APPDATA")
-                    .map(|root| PathBuf::from(root).join("Kairos/blocked-words.txt"))
-            });
+        let path = configured_path(
+            std::env::var_os("KAIROS_BLOCKED_WORDS_FILE"),
+            std::env::var_os("APPDATA"),
+        );
         match path {
             Some(path) => Self::load(path),
             None => Self { error: Some("Kein Sperrlistenpfad verfügbar. APPDATA oder KAIROS_BLOCKED_WORDS_FILE setzen."), ..Self::default() },
@@ -52,6 +49,7 @@ impl BlockedWords {
         })();
         match read {
             Ok(text) => {
+                let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
                 for line in text.lines().filter(|line| !line.trim().is_empty()) {
                     if let Some(word) = normalize(line) {
                         result.words.insert(word);
@@ -98,9 +96,48 @@ impl BlockedWords {
     }
 }
 
+fn configured_path(
+    override_path: Option<std::ffi::OsString>,
+    appdata: Option<std::ffi::OsString>,
+) -> Option<PathBuf> {
+    override_path
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| {
+            appdata
+                .filter(|path| !path.is_empty())
+                .map(|root| PathBuf::from(root).join("Kairos/blocked-words.txt"))
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn configured_path_prioritizes_override_and_handles_missing_or_empty_values() {
+        let root = PathBuf::from("test-appdata");
+        assert_eq!(
+            configured_path(Some("override.txt".into()), Some(root.clone().into())),
+            Some("override.txt".into())
+        );
+        assert_eq!(
+            configured_path(Some("".into()), Some(root.clone().into())),
+            Some(root.join("Kairos/blocked-words.txt"))
+        );
+        assert_eq!(configured_path(None, None), None);
+        assert_eq!(configured_path(None, Some("".into())), None);
+    }
+
+    #[test]
+    fn utf8_bom_and_crlf_are_accepted() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("blocked.txt");
+        std::fs::write(&path, "\u{feff} AHORN \r\n\r\nwiese\r\nAHORN\r\n").unwrap();
+        let list = BlockedWords::load(path);
+        assert!(list.error.is_none());
+        assert_eq!(list.words, BTreeSet::from(["ahorn".into(), "wiese".into()]));
+    }
 
     #[test]
     fn normalized_words_persist_and_can_be_removed_without_passwords() {

@@ -35,6 +35,7 @@ use model::{
 pub struct KairosApp {
     source: Box<dyn WordSource>,
     expanded_source: Box<dyn WordSource>,
+    source_counts: [usize; 2],
     german_only: bool,
     blocked: blocked::BlockedWords,
     show_blocked: bool,
@@ -60,6 +61,8 @@ pub struct KairosApp {
 }
 
 impl KairosApp {
+    /// `source` is used for profile 0 and the German-only override.
+    /// Profiles 1–12 otherwise use the embedded combined DE/EN/LA source.
     pub fn new(ctx: &egui::Context, source: Box<dyn WordSource>, compact: bool) -> Self {
         Self::with_clipboard(ctx, source, compact, Box::<ProtectedClipboard>::default())
     }
@@ -71,9 +74,12 @@ impl KairosApp {
         clipboard: Box<dyn ClipboardAccess>,
     ) -> Self {
         theme::install(ctx);
+        let expanded_source = source::combined_source();
+        let source_counts = [source.len(), expanded_source.len()];
         let mut app = Self {
             source,
-            expanded_source: source::combined_source(),
+            expanded_source,
+            source_counts,
             german_only: false,
             blocked: blocked::BlockedWords::default(),
             show_blocked: false,
@@ -118,7 +124,7 @@ impl KairosApp {
     ) {
         self.hardening = Some(report);
         self.blocked = blocked::BlockedWords::configured();
-        self.regenerate(ctx);
+        self.blocked_settings_changed(ctx);
     }
 
     /// Connects OS services after the destination was captured before run_native.
@@ -276,6 +282,7 @@ impl KairosApp {
         let german = source::FilteredSource::new(self.source.as_ref(), &self.blocked.words);
         let expanded =
             source::FilteredSource::new(self.expanded_source.as_ref(), &self.blocked.words);
+        self.source_counts = [german.len(), expanded.len()];
         let selected: &dyn WordSource =
             if source::uses_german(self.config.profile, self.german_only) {
                 &german
@@ -468,20 +475,17 @@ impl KairosApp {
         if self.german_only {
             ui.label("Deutsch-Override: Die zusätzlichen Wortauswahl-Bits von Profil 1 werden nicht erreicht.");
         }
-        let german = source::FilteredSource::new(self.source.as_ref(), &self.blocked.words);
-        let expanded =
-            source::FilteredSource::new(self.expanded_source.as_ref(), &self.blocked.words);
         if self.rotate_profiles && !self.german_only {
-            ui.label(format!("Wortquelle: Profil 0 Deutsch ({}); Profil 1–12 DE+EN+LA ({}). Sprache je Wort unabhängig.", german.len(), expanded.len()));
+            ui.label(format!("Wortquelle: Profil 0 Deutsch ({}); Profil 1–12 DE+EN+LA ({}). Sprache je Wort unabhängig.", self.source_counts[0], self.source_counts[1]));
         } else if source::uses_german(self.config.profile, self.german_only) {
             ui.label(format!(
                 "Wortquelle: Deutsch · {} Wörter nach Sperrliste",
-                german.len()
+                self.source_counts[0]
             ));
         } else {
             ui.label(format!(
                 "Wortquelle: DE+EN+LA · {} Wörter nach Sperrliste · Sprache je Wort unabhängig",
-                expanded.len()
+                self.source_counts[1]
             ));
         }
     }
@@ -730,20 +734,18 @@ impl KairosApp {
         let mut open = self.show_blocked;
         egui::Window::new("Eigene Sperrliste").open(&mut open).vscroll(true).show(ctx, |ui| {
             ui.label("Gespeichert werden ausschließlich ausdrücklich gesperrte Wörter, keine Passwörter. Die Textdatei ist unverschlüsselt und kann persönliche Vorlieben verraten.");
+            ui.label("Wörter bereits verwendeter Passwörter nicht sperren: Die Datei verrät dann Passwortbestandteile.");
             if let Some(path) = &self.blocked.path { ui.label(path.display().to_string()); }
             if let Some(error) = self.blocked.error { ui.colored_label(Color32::from_rgb(251, 191, 36), error); }
             if ui.button("Datei neu laden").clicked() {
-                if let Some(path) = self.blocked.path.clone() {
-                    self.blocked = blocked::BlockedWords::load(path);
-                } else { self.blocked = blocked::BlockedWords::configured(); }
-                self.regenerate(ctx);
+                self.reload_blocked(ctx);
             }
             ui.label("Wort des aktuellen, unbearbeiteten Passworts sperren:");
             let mut change = None;
             ui.add_enabled_ui(self.blocked.error.is_none(), |ui| {
                 ui.horizontal_wrapped(|ui| {
                     for word in self.password.block_candidates() {
-                        if ui.button(format!("{word} sperren")).clicked() { change = Some((word, true)); }
+                        if ui.button(word.as_str()).on_hover_text("Wort sperren").clicked() { change = Some((word.to_string(), true)); }
                     }
                 });
                 ui.horizontal(|ui| {
@@ -759,18 +761,46 @@ impl KairosApp {
                 }
             });
             if let Some((word, blocked)) = change {
-                match self.blocked.change(&word, blocked) {
-                    Ok(()) => {
-                        self.blocked_input.clear();
-                        self.blocked_notice = "Sperrliste gespeichert. Neues Passwort aus der gefilterten Quelle erzeugt.";
-                        self.regenerate(ctx);
-                    }
-                    Err(_) => self.blocked_notice = "Speichern fehlgeschlagen oder ungültiges Wort. Bisherige Sperrliste bleibt aktiv; 3–9 Buchstaben a–z und Dateizugriff prüfen.",
-                }
+                self.change_blocked(ctx, &word, blocked);
             }
             ui.label(self.blocked_notice);
         });
         self.show_blocked = open;
+    }
+
+    fn reload_blocked(&mut self, ctx: &egui::Context) {
+        self.blocked = self.blocked.path.clone().map_or_else(
+            blocked::BlockedWords::configured,
+            blocked::BlockedWords::load,
+        );
+        self.blocked_settings_changed(ctx);
+    }
+
+    fn change_blocked(&mut self, ctx: &egui::Context, word: &str, blocked: bool) {
+        match self.blocked.change(word, blocked) {
+            Ok(()) => {
+                self.blocked_input.clear();
+                self.blocked_notice = if self.password.assessment == Assessment::Edited {
+                    "Sperrliste gespeichert. Nacharbeit bleibt erhalten; Ausschlüsse gelten beim nächsten Generieren."
+                } else {
+                    "Sperrliste gespeichert. Wortauswahl aktualisiert."
+                };
+                self.blocked_settings_changed(ctx);
+            }
+            Err(_) => self.blocked_notice = "Speichern fehlgeschlagen oder ungültiges Wort. Bisherige Sperrliste bleibt aktiv; 3–9 Buchstaben a–z und Dateizugriff prüfen.",
+        }
+    }
+
+    fn blocked_settings_changed(&mut self, ctx: &egui::Context) {
+        self.source_counts = [
+            source::FilteredSource::new(self.source.as_ref(), &self.blocked.words).len(),
+            source::FilteredSource::new(self.expanded_source.as_ref(), &self.blocked.words).len(),
+        ];
+        if self.blocked.error.is_some() {
+            self.regenerate(ctx);
+        } else {
+            self.settings_changed(ctx);
+        }
     }
 
     fn settings_changed(&mut self, ctx: &egui::Context) {
@@ -864,9 +894,68 @@ mod tests {
             segments: vec![],
             entropy_bits: 12.0,
         }));
-        assert_eq!(state.block_candidates(), ["ahorn", "wiese"]);
+        assert_eq!(
+            state
+                .block_candidates()
+                .iter()
+                .map(|word| word.as_str())
+                .collect::<Vec<_>>(),
+            ["ahorn", "wiese"]
+        );
         state.edited();
         assert!(state.block_candidates().is_empty());
+    }
+
+    #[cfg(not(feature = "demo"))]
+    #[test]
+    fn blocked_word_actions_persist_and_regenerate_unedited_results() {
+        let ctx = egui::Context::default();
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("blocked.txt");
+        let mut app = KairosApp::new(&ctx, german_source(), false);
+        app.blocked = blocked::BlockedWords::load(path.clone());
+        let word = app.password.block_candidates()[0].to_string();
+        app.change_blocked(&ctx, &word, true);
+        assert_eq!(std::fs::read_to_string(path).unwrap(), format!("{word}\n"));
+        assert!(app.password.secret.split('-').all(|part| part != word));
+        assert_eq!(app.source_counts, [6906, 20696]);
+        assert!(app.password.assessment == Assessment::Generated(4.0 * 6906_f64.log2()));
+        app.show_blocked = true;
+        let _ = frame(&ctx, &mut app, vec![]);
+        let output = frame(&ctx, &mut app, vec![]);
+        assert!(output
+            .shapes
+            .iter()
+            .any(|shape| has_text(&shape.shape, "Wörter bereits verwendeter Passwörter")));
+    }
+
+    #[test]
+    fn blocked_settings_preserve_edits_but_invalid_reload_clears_them() {
+        let ctx = egui::Context::default();
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("blocked.txt");
+        let mut app = KairosApp::new(&ctx, german_source(), false);
+        app.blocked = blocked::BlockedWords::load(path.clone());
+        app.password.secret.clear();
+        app.password.secret.push_str("PUBLIC MANUAL FIXTURE");
+        app.password.edited();
+        app.change_blocked(&ctx, "ahorn", true);
+        assert_eq!(&**app.password.secret, "PUBLIC MANUAL FIXTURE");
+        assert!(app.password.assessment == Assessment::Edited);
+        assert_eq!(app.source_counts, [6906, 20696]);
+        app.change_blocked(&ctx, "ahorn", false);
+        assert_eq!(&**app.password.secret, "PUBLIC MANUAL FIXTURE");
+        assert_eq!(app.source_counts, [6907, 20697]);
+        std::fs::write(&path, "wiese\n").unwrap();
+        app.reload_blocked(&ctx);
+        assert_eq!(&**app.password.secret, "PUBLIC MANUAL FIXTURE");
+        assert!(app.password.assessment == Assessment::Edited);
+        assert!(app.notice.contains("bleibt erhalten"));
+        std::fs::write(path, "invalid-word\n").unwrap();
+        app.reload_blocked(&ctx);
+        assert!(app.password.secret.is_empty());
+        assert!(app.password.assessment == Assessment::Unavailable);
+        assert!(app.blocked.error.is_some());
     }
 
     #[test]

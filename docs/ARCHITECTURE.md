@@ -65,17 +65,26 @@ Registry-/Systemänderungen.
 Startup lädt `%APPDATA%\Kairos\blocked-words.txt`, überschreibbar durch
 `KAIROS_BLOCKED_WORDS_FILE`. Ein Wort je Zeile, 3–9 ASCII-Buchstaben;
 Rand-Leerraum/ASCII-Kleinschreibung und Deduplizierung, keine Transliteration.
-Leere Zeilen sind erlaubt. Ungültige/unlesbare Dateien sperren Generierung bis
+UTF-8-BOM und leere Zeilen sind erlaubt. Ungültige/unlesbare Dateien sperren Generierung bis
 Korrektur/Neuladen, fehlende Datei ist leer. Wortschaltflächen gibt es nur bei
 unbearbeiteten Generatorergebnissen. Großschreibung/Ziffern werden rückgängig
 gemacht. Nur das ausdrücklich ausgewählte Wort wird gespeichert, nie das ganze
 Passwort; manuelle Eingabe akzeptiert ebenfalls nur ein Wort.
+
+Gültige Sperrlistenänderungen bewahren manuelle Nacharbeit; Ausschlüsse gelten dann
+beim nächsten Generieren. Lesefehler leeren auch Nacharbeit und sperren weiter.
+
+Wortkandidaten werden je Generatorergebnis in Zeroizing-Strings gehalten und
+bei Bearbeitung/Ersetzen gelöscht. egui-Button-/Galley-Kopien bleiben eine Grenze.
+Quellgrößen werden bei Änderungen/Generierung aktualisiert, nicht pro Frame.
 
 BTreeSet liefert sortierte Zeilen. Schreiben synchronisiert eine NamedTempFile
 im selben Verzeichnis und ersetzt das Ziel mit `persist`. Fehler behalten den
 bisherigen Filter. Klartextdatei mit geerbten Elternrechten, keine
 Manipulationsauthentisierung; Vorlieben können sichtbar werden. Eine Instanz je
 Datei, externe Änderungen neu laden, keine konkurrierende Zusammenführung.
+Wörter bereits verwendeter Passwörter nicht sperren: Die Klartextdatei kann
+solche Passwortbestandteile verraten.
 
 Der Editor behält vorab reserviertes `Zeroizing<String>` (16 KiB/4096 Unicode-
 Zeichen), gelöscht vor Ersetzen und bei Drop. LockedSecret ist noch nicht

@@ -27,6 +27,7 @@ pub struct PasswordState {
     pub segments: Vec<Segment>,
     pub assessment: Assessment,
     pub message: &'static str,
+    block_candidates: Vec<Zeroizing<String>>,
 }
 
 impl Default for PasswordState {
@@ -36,29 +37,15 @@ impl Default for PasswordState {
             segments: Vec::new(),
             assessment: Assessment::Unavailable,
             message: "Generator und deutsche Wortliste werden vorbereitet.",
+            block_candidates: Vec::new(),
         }
     }
 }
 
 impl PasswordState {
     /// Offers original dictionary spellings only for an unedited generation.
-    pub fn block_candidates(&self) -> Vec<String> {
-        if !matches!(self.assessment, Assessment::Generated(_)) {
-            return Vec::new();
-        }
-        self.secret
-            .split(|c: char| !c.is_alphanumeric())
-            .filter_map(|part| {
-                crate::blocked::normalize(
-                    &part
-                        .chars()
-                        .filter(|c| c.is_alphabetic())
-                        .collect::<String>(),
-                )
-            })
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
-            .collect()
+    pub fn block_candidates(&self) -> &[Zeroizing<String>] {
+        &self.block_candidates
     }
 
     pub fn set_result(&mut self, result: Result<GeneratedPassword, GenerateError>) {
@@ -80,6 +67,25 @@ impl PasswordState {
                     Assessment::Unavailable
                 };
                 self.message = "Zum Abschreiben farbig hervorgehoben. Direkt im Feld bearbeitbar.";
+                if matches!(self.assessment, Assessment::Generated(_)) {
+                    for part in self.secret.split(|c: char| !c.is_alphanumeric()) {
+                        let mut word = Zeroizing::new(
+                            part.chars()
+                                .filter(|c| c.is_alphabetic())
+                                .collect::<String>(),
+                        );
+                        word.make_ascii_lowercase();
+                        if (3..=9).contains(&word.len())
+                            && word.bytes().all(|byte| byte.is_ascii_lowercase())
+                        {
+                            self.block_candidates.push(word);
+                        }
+                    }
+                    self.block_candidates
+                        .sort_by(|a, b| a.as_str().cmp(b.as_str()));
+                    self.block_candidates
+                        .dedup_by(|a, b| a.as_str() == b.as_str());
+                }
             }
             Err(error) => {
                 self.message = match error {
@@ -94,12 +100,14 @@ impl PasswordState {
     }
 
     pub fn edited(&mut self) {
+        self.block_candidates.clear();
         self.segments.clear();
         self.assessment = Assessment::Edited;
         self.message = "bearbeitet – nicht mehr bewertbar";
     }
 
     pub fn clear(&mut self) {
+        self.block_candidates.clear();
         self.secret.zeroize();
         self.segments.clear();
         self.assessment = Assessment::Unavailable;
