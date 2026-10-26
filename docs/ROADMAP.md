@@ -18,7 +18,7 @@ sind verschieden. Status gegen die GitHub-PRs geprüft.
 | [#10](https://github.com/ACL0815/Kairos_Passwort/pull/10) | PR-9a Härtung | Gemergt | Prozessmaßnahmen, LockedSecret, Store-Manifest und isolierte Tests. |
 | [#11](https://github.com/ACL0815/Kairos_Passwort/pull/11) | PR-6b / PR-10 | Gemergt | F11-Fluss, Kontextbrücke, Violentmonkey-Pairing. |
 | [#12](https://github.com/ACL0815/Kairos_Passwort/pull/12) | PR-11 Bildschirmschutz | Gemergt | Geschützte Fenster, --allow-screencapture, Statusbanner. |
-| [#13](https://github.com/ACL0815/Kairos_Passwort/pull/13) | PR-9b obfstr | Offen, separat | Verschleierung, API unverändert, kein Entropiebonus. Hier keine Wortlisten-Dateien geändert. |
+| [#13](https://github.com/ACL0815/Kairos_Passwort/pull/13) | PR-9b obfstr | Gemergt nach dieser Branch-Basis | Verschleierung, API unverändert, kein Entropiebonus. Hier keine Wortlisten-Dateien geändert. |
 | [#14](https://github.com/ACL0815/Kairos_Passwort/pull/14) (`feat/finalize`) | Abschluss | Offen; Review/CI gemäß PR-Belegen | Profilquelle, Deutsch-Override, Nutzer-Sperrliste, früher Härtungsaufruf, Report, Doku. |
 
 ## Restgrenzen und Folgearbeiten
@@ -35,7 +35,8 @@ sind verschieden. Status gegen die GitHub-PRs geprüft.
    nötig. Eine zusätzliche Spiegelkopie ersetzt den heutigen String nicht.
 5. CI-Release-Probe, Verteilpaket, Daten-/Font-Hinweise und Signierung prüfen.
    Aktuelle Windows-CI prüft fmt/clippy/Tests, keinen installierten Release-Ablauf.
-6. PR #13 separat reviewen/integrieren. Verschleierung erschwert einfache Analyse,
+6. PR #13 wurde nach der Branch-Basis gemergt. Den kombinierten Stand vor der
+   Desktop-Auslieferung separat prüfen. Verschleierung erschwert einfache Analyse,
    schützt keine Geheimnisse vor entschlossenen lokalen Lesern und erhöht keine Bits.
 
 Rotation nutzt je Profil die gefilterte Quelle und zeigt das Minimum ohne Bonus.
