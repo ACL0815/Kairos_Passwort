@@ -163,6 +163,134 @@ Owner-Rechte verweigert werden. Elevation führt zu keinem pauschalen Test-Skip.
 
 Die App muss den Report und Integritätswarnungen sichtbar auswerten, Migration
 bewusst anbieten und LockedSecret-Lebensdauer samt UI-/Clipboardkopien prüfen.
-Das geschieht später. PR-9b übernimmt nach PR #7 die gesonderte Bewertung und
-Integration von obfstr/Wortlistenschutz. Hier bleiben `apps`, `kairos-core`,
-`kairos-platform`, `kairos-keepassxc` und `kairos-wordlists` unverändert.
+Das geschieht später. Die folgende Ergänzung PR-9b bewertet und integriert
+obfstr/Wortlistenschutz nach PR #7. `apps`, `kairos-core`, `kairos-platform`,
+`kairos-keepassxc` und `kairos-store` bleiben dabei unverändert.
+
+## Wortlistenverschleierung (PR-9b)
+
+Prio **5**, Branch `feat/wordlist-obfuscation`, Basis `main` bei
+`9b96353ce150a765643abf47daf7a5af5f4ce637`. Abruf/Bewertung am
+**26.10.2026, Europe/Berlin**. Diese Ergänzung ändert die PR-9a-Bewertung nicht.
+
+**Verschleierung ist kein kryptografischer Schutz.** Die Maske bzw. der Schlüssel
+liegt in der EXE. Die Wortliste gilt als öffentlich; Passwortsicherheit und
+Entropie hängen nicht von ihrer Geheimhaltung ab. Ziel ist, Listen und Kennungen
+nicht trivial per `strings` aus der EXE extrahierbar/änderbar zu machen und
+Signatur-/Grep-basierte Manipulation zu erschweren. Reverse Engineering,
+Debugger und Auslesen des Klartexts nach Initialisierung bleiben möglich.
+
+### Bewertete Vorbilder und Abhängigkeiten
+
+| Projekt | Permalink | Lizenz | Datei | Prinzip | Passung + Bewertung | Abrufdatum |
+|---|---|---|---|---|---|---|
+| CasualX/obfstr 0.4.6 | [9e56c193, bytes.rs](https://github.com/CasualX/obfstr/blob/9e56c1938dfd3bd65fe305fbafcb57394c701356/src/bytes.rs), [Lizenz](https://github.com/CasualX/obfstr/blob/9e56c1938dfd3bd65fe305fbafcb57394c701356/license.txt) | MIT, Manifest und license.txt geprüft; Registry `.cargo_vcs_info.json` bestätigt Commit | `src/bytes.rs`, `src/lib.rs` | Buildzeit-Darstellung von Laufzeit-Klartext trennen, Rückfaltung erschweren; ausdrückliche Warnung vor Geheimnissen im Client | **5 für kurze Kennungen**, **3 für Großdaten**. Gewünschte, exakt gepinnte Abhängigkeit für `obfstr!`; kein Code kopiert. `obfbytes!` arbeitet mit Const-Keystream und vollständigen Array-Rückgaben | 2026-10-26 |
+| CasualX/obfstr | [cfo.rs](https://github.com/CasualX/obfstr/blob/9e56c1938dfd3bd65fe305fbafcb57394c701356/src/cfo.rs) | MIT | `obfstmt!` | Beziehungen zwischen Anweisungen verschleiern | **1 für Wortlisten**. Kein Dateneinbettungsverfahren, zusätzliche Kontrollflusskomplexität ohne Nutzen für die Listen; nicht gewählt | 2026-10-26 |
+| litcrypt 0.4.0 | [2484e7c2, litcrypt.rs](https://github.com/anvie/litcrypt.rs/blob/2484e7c20c6acc16c27b4ac8c96c21c9ed37097b/src/litcrypt.rs), [xor.rs](https://github.com/anvie/litcrypt.rs/blob/2484e7c20c6acc16c27b4ac8c96c21c9ed37097b/src/xor.rs) | Apache-2.0 laut Manifest; `xor.rs` MIT-Dateiheader | `src/litcrypt.rs`, `src/xor.rs` | Prozedurales Makro schreibt maskierte Literale und Laufzeitdecoder | **2**. Literalparser statt Dateipipeline, generiert eigenen Decoder, keine Inhaltsintegrität. Nicht gewählt, kein Code übernommen | 2026-10-26 |
+| cryptify 3.2.1 | [7c8793de, lib.rs](https://github.com/dronavallipranav/rust-obfuscator/blob/7c8793de70daa048531837b06da896e6e9ab24f4/cryptify/src/lib.rs), [Manifest](https://github.com/dronavallipranav/rust-obfuscator/blob/7c8793de70daa048531837b06da896e6e9ab24f4/cryptify/Cargo.toml) | MIT laut Crate-Manifest | `cryptify/src/lib.rs` | Laufzeit-XOR mit Umgebungsvariable bzw. festem Ersatzwert | **1**. Laufzeitumgebung kann Decoder beeinflussen, keine Inhaltsintegrität; kein Vorteil gegenüber gewünschtem obfstr. Nicht gewählt, kein Code übernommen | 2026-10-26 |
+| RustCrypto sha2 0.10.9 | [versionierter Quellstand](https://docs.rs/crate/sha2/0.10.9/source/src/lib.rs) | MIT OR Apache-2.0 | `Digest`, `Sha256` | Standardhash über exakte Klartextbytes | **5**. Bereits Pipeline-Abhängigkeit; jetzt auch Build- und Laufzeitprüfung. Kein selbst gebauter Hash, kein MAC/Signaturnachweis | 2026-10-26 |
+| getrandom 0.3.4 | [versionierter Quellstand](https://docs.rs/crate/getrandom/0.3.4/source/src/lib.rs) | MIT OR Apache-2.0 | `fill` | OS-Zufall zum Erzeugen der Build-Maske, Fehler weiterreichen | **5**. Bereits transitiv vorhanden, Build-Abhängigkeit exakt gepinnt. Keine eigene Zufallsquelle, kein schwächerer Fallback | 2026-10-26 |
+
+Die benannte Alternative `const-xor` ließ sich unter diesem exakten Namen weder
+im crates.io-Register noch als eindeutig zuordenbares Quellprojekt bestätigen
+(Registerabfrage: „crate `const-xor` does not exist“). Deshalb keine erfundene
+Lizenz/Dateibewertung und keine Abhängigkeit. Das allgemeine Prinzip
+Const-XOR ist durch die tatsächlich gelesene obfstr-Implementierung abgedeckt.
+
+Alle Prinzipien wurden selbst implementiert. Nur `obfstr`, `sha2` und `getrandom`
+werden als Crates verwendet. Es wurde kein Implementierungscode aus Vorbildern
+übernommen. `obfstr` ist MIT-kompatibel; dessen Copyright-/Lizenztext muss wie
+die bestehenden Abhängigkeits- und Datenhinweise mit einem Release ausgeliefert
+werden. Die App-/Release-Verdrahtung liegt außerhalb der Schreibfreigabe.
+
+### Entscheidung, Prüfreihenfolge und Grenzen
+
+Die drei Listen umfassen **160.215 Klartextbytes** (DE 52.334, EN 52.808,
+LA 55.073), also weniger als die anfänglich geschätzten ~200 KB.
+`obfbytes!(include_bytes!(...))` wäre prinzipiell möglich; die gelesene Version
+bildet jedoch vollständige Keystream-/Datenarrays in Const-Auswertung und liefert
+vollständige temporäre Arrays zur Laufzeit. Für diese Datenmenge wird stattdessen
+ein kleines `build.rs` mit Heap-Puffern gewählt. Diese Bewertung stammt aus
+Quelllektüre, nicht aus einem behaupteten Compilezeit-Benchmark. Es gibt kein
+eigenes unsicheres Rust und keine Kontrollflussverschleierung.
+
+Der Build prüft die vorhandenen freigegebenen `.sha256`-Dateien über die exakten
+Klartextbytes. Er erzeugt je Listenbyte eine neue OS-zufällige Maskenbyteposition,
+legt Maske und XOR-Daten ausschließlich in `OUT_DIR` ab und bettet beide über
+`include_bytes!` ein. Die vollständige Maske kostet zusätzlich 160.215 Bytes
+vor Linker-/Ausrichtungseffekten, vermeidet aber eigene Keystream-Algorithmen.
+Cargo cacht diese Dateien bis zum nächsten Buildskript-Lauf. Neue Skriptläufe
+erzeugen andere Artefakte; byteidentische EXEs sind kein Versprechen. Die
+Offline-Pipeline und ihre Klartexthashes/`--check` bleiben deterministisch.
+
+Beim ersten Sprachzugriff werden Länge, danach SHA-256 des entschleierten
+Puffers und schließlich UTF-8 geprüft. Erst danach werden Wörter indexiert.
+Eine Abweichung löst eine Panic mit klarer Integritätsmeldung und Listenkennung
+aus. `OnceLock<String>` hält den Klartext danach dauerhaft; die öffentliche API,
+Wortreihenfolge und Sprachflags bleiben unverändert. Fehlermeldungen enthalten
+keine Passwörter oder Wörter aus einem beschädigten Puffer.
+
+Der Vergleich erkennt Manipulation der Daten-/Maskenbytes nur, solange erwarteter
+Hash und Prüfcode unverändert bleiben. Er ist **keine Authentisierung der EXE**:
+ein gezielter Angreifer kann Daten, Hash oder Prüfzweig gemeinsam patchen.
+Der öffentliche Klartext-Digest ist buildübergreifend gleich und kann selbst
+als Suchanker zum Lokalisieren von Daten und Maske dienen. Ein gemeinsamer
+Daten-/Digest-Patch kann die Prüfung ohne jede Codeänderung bestehen.
+Die Wortliste bleibt öffentlich. Codesignaturen bzw. ein externer Vertrauensanker
+wären gesonderte Maßnahmen. Die Maskierung schützt weder Klartext im Prozess
+noch öffentliche Quellen und verändert keine Entropieberechnung.
+
+`obfstr!` schützt die drei internen Kennungen `kairos.wordlists.{de,en,la}.sha256.v1`.
+Es gibt keine Pipe-/Bridge-Kennungen oder Store-Manifestlabels in den freigegebenen
+Crates. Für `kairos-bridge`, `kairos-keepassxc` und `kairos-store` wird die gezielte
+Verwendung von `obfstr!` für solche Kennungen empfohlen, ohne Protokolle oder
+gespeicherte Formate zu ändern. Deren Umsetzung ist ein separater Auftrag.
+
+### Prüfbelege
+
+Die Unit-Tests prüfen den Roundtrip aller drei echten Buildausgaben gegen die
+unveränderten Klartextdateien und freigegebenen Hashes, Bitänderungen in Daten
+und Masken am Anfang/in der Mitte/am Ende, falsche Hashes, Längenfehler, die klare
+Panic und gemeinsame Puffer bei Zugriff aus mehreren Threads. Bestehende
+Integrationstests vergleichen alle Wörter und Flags mit den Originalen und
+prüfen DE **6.907**, EN **6.895**, LA **6.895**, kombiniert **20.697**.
+Ein zusätzlicher Regressionstest fordert über 90 % veränderte Bytepositionen
+in jeder Buildausgabe und lehnt damit eine überwiegend wirkungslose Maske ab.
+Dies ist eine grobe Plausibilitätsprüfung, kein Test kryptografischer RNG-Güte.
+
+Eine zusätzliche manuelle Probe führt das echte Release-Buildskript mit einer
+separaten Kopie der sechs Daten-/Hashdateien aus: unveränderte Daten ergeben
+Exit 0, ein zweiter Lauf verändert alle drei Masken, und ein geändertes DE-Byte
+bei unverändertem Freigabehash ergibt Exit 1 mit „approved SHA-256 mismatch“.
+Die Originaldaten und Cargo-Buildausgaben werden dabei nicht verändert.
+Nach einem beabsichtigten Pipeline-Schreiblauf müssen geänderte Klartexte zuerst
+geprüft und ihre Freigabehashes bewusst von Hand gesetzt werden. Bis dahin
+blockiert das neue Build-Gate die Crate einschließlich weiterer Pipeline-
+Beispiele, Tests und `--check`-Läufe. Bei unbeabsichtigter Beschädigung ist die
+freigegebene Fassung wiederherzustellen; ein Hashfehler ist keine Freigabe.
+
+Die Release-Probe nutzt `examples/embedded-probe.rs` mit ausschließlich produktiver
+API. Das Vorher-Artefakt stammt aus derselben Beispielquelle mit der unveränderten
+Bibliothek bei `9b96353`; das Nachher-Artefakt verwendet die Maskierung.
+`tools/check-embedded.ps1` zieht extern 20 Wörter aus allen drei Listen
+(7/7/6, mindestens sieben Zeichen, OS-RNG ohne Wiederholung) und sucht sie als
+ASCII-Teilfolge und UTF-16LE im gesamten Binary. Die Einschränkung vermeidet
+zufällige Kurzworttreffer in Laufzeitmeldungen. Suchwörter werden nicht in die
+EXE kompiliert. Drei Integritätskennungen werden zusätzlich als ASCII geprüft.
+Ergebnis, Stichprobe und Artefakthashes stehen in
+[obfuscation-probe.json](../../crates/kairos-wordlists/obfuscation-probe.json).
+Die Stichprobe belegt nur das gemessene Release-Beispiel und die gesuchten
+Darstellungen; sie beweist weder vollständige Abwesenheit aller Wörter noch
+Schutz der endgültigen App-EXE bei anderen Linker-/Compileroptionen.
+Die Scanner-Gegenprobe mit dem Vorher-Binary als beiden Eingaben ergibt
+erwartungsgemäß Exit 1; ein versehentlich unverschleiertes Ziel wird abgewiesen.
+Eine separate Kopie des Nachher-Binary wurde an einem Byte der eingebetteten
+deutschen Maskierungsdaten verändert (ein Bit an EXE-Offset 248.417).
+Diese EXE beendet sich mit Exit **101** und der Meldung
+„Embedded word list integrity failure (kairos.wordlists.de.sha256.v1): SHA-256
+mismatch; embedded word list may have been modified“. Das unveränderte
+Nachher-Artefakt bleibt unangetastet. Dies prüft den realen Release-Panicpfad,
+weiterhin ohne eine Garantie gegen einen gemeinsam gepatchten Verifier.
+Die Artefaktprobe läuft bislang manuell. Ein eigener CI-Release-Job für den
+Scanner ist Folgearbeit außerhalb der Schreibfreigabe; reine Unit-Tests
+erkennen eine Rückfaltung durch neue Compiler-/Linkeroptionen nicht zuverlässig.

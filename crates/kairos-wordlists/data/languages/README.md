@@ -17,7 +17,9 @@ PR #2 ist gemergt; #7 basiert jetzt auf main und enthält die deutsche A-Triage.
 | LA | 6.895 | 6,987 | `762f102d623c66d3a898e85375b781ca3947cb0019f16b5448b9e8c3e08bc309` |
 
 Die Vereinigung hat **20.697** verschiedene Wörter mit korrekten Flags.
-Die API verwendet `&'static EmbeddedWordList`, `include_str!` und `OnceLock`.
+Die API verwendet `&'static EmbeddedWordList` und `OnceLock`. `build.rs` bettet
+maskierte Bytes ein; vor dem Indexieren wird der entschleierte Klartext gegen
+seinen eingebetteten SHA-256 geprüft. [Nutzen und Grenzen](../../README.md#verschleierung-und-grenzen-pr-9b-prio-5).
 Nur die Wortlisten werden eingebettet; Glossen und Kuration sind Entwicklungsdaten.
 
 ## Semantik vor Auswahl
@@ -97,6 +99,11 @@ node crates/kairos-wordlists/tools/prepare-english-senses.mjs --check
 
 Die Pipeline prüft Quellen, Lizenzen, alle Entscheidungen, Ausgabehashes,
 Filterbericht und LA-Glossen. Hashfreigaben werden bewusst separat gesetzt.
+Nach einem Schreiblauf müssen geänderte Klartexte geprüft und die zugehörigen
+`.sha256`-Freigaben von Hand aktualisiert werden. Bis dahin blockiert `build.rs`
+auch weitere Pipeline-Beispiele, Tests und `--check`-Builds. Bei ungewollter
+Beschädigung die freigegebenen Dateien wiederherstellen, statt neue Hashes blind
+zu akzeptieren. [Build-Gate und Reproduktion](../../README.md#reproduktion-und-datenlizenzen).
 Das Stichprobengate prüft aktuelle Listenhashes, Auswahl und sämtliche
 Quelltexte; unbewertete oder veraltete Proben scheitern. B wird protokolliert.
 Die historische Nulltoleranzprüfung erlaubte einen Ursachenfix und eine neue
