@@ -61,7 +61,7 @@ Ausschlüssen gültig bleiben. Ohne Profil 0/1 darf etwa Minus ausgeschlossen se
 Die Anzeige bewertet die **gesamte Rotation**, nicht das gerade gezogene Profil.
 Die Konzeptreferenz ist dabei das Minimum der Auswahl. Der Profilbonus wird
 unverändert aus `rotation_bonus_bits` übernommen: höchstens `log2(Anzahl)`,
-im aktuellen Mehrquellen-Core-Pfad **+0,0 Bit**. Ungleich starke oder überlappende
+im aktuellen Mehrquellen-Core-Pfad **+0,0 Bit**, auch mit „Nur deutsche Wörter“. Ungleich starke oder überlappende
 Ausgaben erhalten ebenfalls keinen Bonus. Keine vorhandene Auswahl garantiert
 einen Bonus. Dafür wären gleich starke, nachweisbar überschneidungsfreie
 Profile mit unbekannter aktueller Wahl nötig. Die optionalen **bis 157,1 Bit**

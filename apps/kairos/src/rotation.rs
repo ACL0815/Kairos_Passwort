@@ -283,6 +283,15 @@ mod tests {
     #[test]
     fn four_selected_profiles_draw_only_their_patterns_with_profile_specific_sources() {
         let selection = Selection::new(vec![0, 9, 10, 12]).unwrap();
+        assert_eq!(
+            selection.core_rotation().profiles(),
+            &[
+                ProfileId::new(0).unwrap().into(),
+                ProfileId::new(9).unwrap().into(),
+                ProfileId::new(10).unwrap().into(),
+                ProfileId::new(12).unwrap().into()
+            ]
+        );
         let german = OneWord("ahorn");
         let expanded = OneWord("cloud");
         for _ in 0..64 {
@@ -302,12 +311,33 @@ mod tests {
                         .to_lowercase()
                 })
                 .collect();
-            match words.len() {
-                4 => {
+            let separator_count = result
+                .password
+                .secret
+                .chars()
+                .filter(|c| !c.is_alphanumeric())
+                .count();
+            match (words.len(), separator_count) {
+                (4, 3) => {
                     assert_eq!(result.password.secret.as_str(), "ahorn-ahorn-ahorn-ahorn");
                     assert!(plain.iter().all(|word| word == "ahorn"));
                 }
-                5 | 6 => assert!(plain.iter().all(|word| word == "cloud")),
+                (5, 4) | (6, 5) => {
+                    assert!(plain.iter().all(|word| word == "cloud"));
+                    assert!(words.iter().all(|word| word
+                        .chars()
+                        .filter(|c| c.is_alphabetic())
+                        .skip(1)
+                        .all(char::is_lowercase)));
+                }
+                (6, 10) => {
+                    assert!(plain.iter().all(|word| word == "cloud"));
+                    assert!(words.iter().all(|word| word
+                        .chars()
+                        .filter(|c| c.is_uppercase())
+                        .count()
+                        == 1));
+                }
                 _ => panic!("pattern outside selection"),
             }
             assert_eq!(result.rotation_bonus_bits, 0.0);

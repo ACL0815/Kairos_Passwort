@@ -69,6 +69,9 @@ Alle F-Tasten unten mit **Strg+Umschalt** drücken.
     Theoretisch (Konzept) 51,1 / 64,4 / 153,1 Bit; tatsächlicher Wert aus der
     realen Quelle separat. Vergleich und G50 mit Dezimalkomma / Zehnerpotenz
     sichtbar. ⓘ per Hover und Klick sowie per Tastatur öffnen/schließen.
+    ⓘ innerhalb der Profil-Auswahlliste öffnet die passende Profilhilfe, ohne
+    das ausgewählte Generierungsprofil zu ändern. Hilfetitel und Grundsatz
+    im Dialog jeweils nur einmal, Info-Symbole ohne Überlappung.
     „Profile erklärt“: alle 13 Profile, neue Regel, Konzeptgewinn, tatsächlicher
     Unterschied, öffentliches Beispiel und Grundsatz zu bekannten Zusätzen
     prüfen. Tabelle und Bedienungshilfen aufklappen, schmale Fenster scrollen;

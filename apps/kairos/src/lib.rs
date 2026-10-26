@@ -139,10 +139,14 @@ impl KairosApp {
         report: kairos_hardening::HardeningReport,
     ) {
         self.hardening = Some(report);
-        self.rotation_settings = rotation::SettingsFile::configured();
-        (self.rotate_profiles, self.rotation_selection) = self.rotation_settings.load();
+        self.load_rotation_settings(rotation::SettingsFile::configured());
         self.blocked = blocked::BlockedWords::configured();
         self.blocked_settings_changed(ctx);
+    }
+
+    fn load_rotation_settings(&mut self, settings: rotation::SettingsFile) {
+        self.rotation_settings = settings;
+        (self.rotate_profiles, self.rotation_selection) = self.rotation_settings.load();
     }
 
     /// Connects OS services after the destination was captured before run_native.
@@ -534,17 +538,25 @@ impl KairosApp {
         }
         egui::CentralPanel::default().frame(egui::Frame::new().fill(theme::BACKGROUND).inner_margin(if self.compact { 18 } else { 28 })).show(ui, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.label(RichText::new("KAIROS").color(theme::CYAN).size(15.0).strong());
-                ui.heading("Dein nächstes Passwort.");
+                if self.compact {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(RichText::new("KAIROS").color(theme::CYAN).size(15.0).strong());
+                        ui.label(RichText::new("Dein nächstes Passwort.").size(22.0).strong());
+                    });
+                } else {
+                    ui.label(RichText::new("KAIROS").color(theme::CYAN).size(15.0).strong());
+                    ui.heading("Dein nächstes Passwort.");
+                }
                 if !self.compact { ui.label(RichText::new("Leicht abzuschreiben. Sicher per Zufall.").color(theme::MUTED)); }
                 #[cfg(all(feature = "demo", debug_assertions))]
                 ui.colored_label(Color32::from_rgb(251, 191, 36), "DEMO · Öffentliche Beispieldaten, kein sicheres Passwort");
                 ui.add_space(10.0);
-                theme::panel().show(ui, |ui| {
+                theme::panel().inner_margin(if self.compact { 14 } else { 22 }).show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 7.0;
                     self.controls(ui);
                     ui.add_space(8.0);
                     self.editor(ui);
+                    if self.compact { self.strength_card(ui); }
                     ui.horizontal_wrapped(|ui| {
                         for (label, kind) in [("Wort", kairos_core::SegmentKind::Word), ("123", kairos_core::SegmentKind::Digit), ("#+", kairos_core::SegmentKind::Separator), ("A", kairos_core::SegmentKind::Uppercase)] {
                             ui.label(RichText::new(label).color(model::segment_color(kind)).monospace().size(13.0));
@@ -552,7 +564,9 @@ impl KairosApp {
                         ui.label(RichText::new("· direkt bearbeitbar · ohne Undo-Verlauf").color(theme::MUTED).size(12.0));
                         help::info(ui, "Editor und Generierung", help::EDITOR);
                     });
-                    ui.label(RichText::new(self.password.message).color(theme::MUTED).size(14.0));
+                    if !self.compact || !matches!(self.password.assessment, Assessment::Generated(_)) {
+                        ui.label(RichText::new(self.password.message).color(theme::MUTED).size(14.0));
+                    }
                 });
                 ui.add_space(8.0);
                 if self.target.can_insert() {
@@ -570,7 +584,7 @@ impl KairosApp {
                     help::info(ui, "Kopieren und Zurückspringen", help::CLIPBOARD);
                 });
                 if !self.notice.is_empty() { ui.label(RichText::new(self.notice).color(theme::CYAN).size(14.0)); }
-                self.strength_card(ui);
+                if !self.compact { self.strength_card(ui); }
                 self.exclusions(ui);
                 ui.horizontal_wrapped(|ui| {
                     if ui.button(format!("Sperrliste verwalten ({})", self.blocked.words.len())).clicked() { self.show_blocked = true; }
@@ -581,7 +595,6 @@ impl KairosApp {
                 ui.horizontal_wrapped(|ui| {
                     ui.label(RichText::new("Strg+Umschalt+F9: Editor · F10: Tippen + Kopieren · F11: KeePassXC-Eintrag").color(theme::MUTED).size(12.0));
                     help::info(ui, "Hotkeys F9/F10/F11", help::HOTKEYS);
-                    help::info(ui, "KeePassXC", help::KEEPASS);
                 });
                 if !self.compact {
                     ui.horizontal_wrapped(|ui| {

@@ -34,13 +34,16 @@ Auswahl stehen ohne Passwörter in `%APPDATA%\Kairos\settings.json`, für Tests
 über `KAIROS_SETTINGS_FILE` überschreibbar. Wiederholungen sind möglich. Die feste Profilwahl
 ist währenddessen deaktiviert. Der Core prüft jede Profilquelle und liefert die
 konservative Stärke der gesamten Rotation und `rotation_bonus_bits`.
-Hier sind es **+0,0 Bit** wegen
-überlappender Ausgaben und ungleicher Profilstärken. Die Anzeige nennt die
+Die App nutzt derzeit immer den Mehrquellen-Pfad, auch mit „Nur deutsche Wörter“.
+Dieser vergibt aktuell für jede auswählbare Rotation **+0,0 Bit**. Ungleiche
+Stärken oder überlappende Ausgaben verhindern einen Bonus zusätzlich. Die Anzeige nennt die
 schwächste Stärke; eine Rotation kann gegenüber einem starken festen Profil
 schwächer sein. Ausschlüsse müssen für alle Profile gelten, deshalb ist ein
 ausgeschlossenes Minuszeichen bei ausgewähltem Profil 0 oder 1 ungültig.
 „Profile erklärt“ zeigt Regeln, Konzeptgewinn, öffentliche Beispiele und
 aktuelle Einzelwerte für alle 13 Profile. ⓘ bietet Hover- und Klick-Hilfe.
+Im Kompaktmodus liegen „Nur deutsche Wörter“ und die Quellgrößen unter
+„Wortquelle“; Profilwahl, Passwort und Stärke erhalten so mehr Platz.
 Die Rechenmodelle und Dateifehler sind im
 [Haupt-README](../../README.md#profile-und-stärke) beschrieben.
 
