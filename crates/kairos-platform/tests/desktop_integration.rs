@@ -44,7 +44,12 @@ fn shell_link_is_created_in_temp_only_and_foreign_files_survive() {
     let link = root.path().join("KairosTest.lnk");
     Shortcut::create(&link, &exe).unwrap();
     assert!(link.is_file());
-    assert_eq!(Shortcut::target(&link).unwrap(), exe);
+    // ShellLink expands an 8.3 TEMP alias (e.g. RUNNER~1 on GitHub runners).
+    // Compare the target's file identity, preserving Unicode/space coverage.
+    assert_eq!(
+        std::fs::canonicalize(Shortcut::target(&link).unwrap()).unwrap(),
+        std::fs::canonicalize(&exe).unwrap()
+    );
     assert!(Shortcut::create(&link, &exe).is_err());
     Shortcut::remove(&link).unwrap();
     assert!(!link.exists());
