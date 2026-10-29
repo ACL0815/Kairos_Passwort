@@ -1,5 +1,28 @@
 # GUI und Passwortdarstellung
 
+## Tray und verborgene Fenster (Abruf 29.10.2026)
+
+| Primärquelle | Lizenz | Modelliertes Prinzip und Entscheidung |
+|---|---|---|
+| [tray-icon 0.24.2](https://docs.rs/tray-icon/0.24.2/tray_icon/) / [muda 0.19.3](https://docs.rs/muda/0.19.3/muda/) | MIT OR Apache-2.0, veröffentlichte Cargo-Metadaten | Unter Windows auf dem Thread mit laufender Win32-Message-Loop erzeugen. Event-Handler statt alleiniger Receiver-Abfrage in der UI; Handler senden AppEvents und `request_repaint`. Icon und Menü bleiben bis zum Beenden auf dem GUI-Thread. Normale Crate-Abhängigkeiten, kein Beispielcode übernommen. |
+| [eframe 0.37.0 App-Vertrag](https://github.com/emilk/egui/blob/0.37.0/crates/eframe/src/epi.rs#L151-L172), [native Integration](https://github.com/emilk/egui/blob/0.37.0/crates/eframe/src/native/epi_integration.rs) | MIT OR Apache-2.0 | `App::ui` ist verborgen nicht garantiert. `App::logic` läuft nach Repaint-Anforderung ausdrücklich auch verborgen, über `Context::run_logic`. Lokal im exakt verwendeten Crate geprüft. Der vorhandene Hotkey-Thread speichert das Ziel vor dem Wakeup; sein Receiver bleibt exklusiv. |
+| [KeePassXC 2.8.0 MainWindow](https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/gui/MainWindow.cpp) | GPL-2.0 OR GPL-3.0 laut Dateiheader, nur Prinzip | Fenster schließen und Prozess beenden sind bei aktivem Tray getrennte Nutzeraktionen. Kairos ergänzt einen einmaligen Hinweis und einen sichtbaren Fallback bei Tray-Ausfall. |
+
+Entscheidung: `tray-icon` mit seinem `muda`-Reexport statt eigener
+`Shell_NotifyIconW`-/HMENU-Lebensdauerverwaltung. Thread-/Handler-Verträge passen
+zur bestehenden eframe-Loop. Kein zweiter GUI-Thread, keine vorübergehende Anzeige
+für F10 oder Tray-Kopieren. Erst F9/F11/Öffnen fordert Sichtbarkeit und Fokus an.
+`CopyNew` verwendet `regenerate` → `copy` → `ProtectedClipboard` → `copy_secret`
+einschließlich Ausschlussformaten und unabhängigem Timer. App-/Hotkey-/Tray-
+Integration bleibt eigener Code; keine lizenzabhängige Anwendungscodeübernahme.
+
+Das eigene Icon wurde geometrisch aus den Farben von UI-STYLE.md entworfen.
+`node tools/generate-icon.cjs` erzeugt deterministisch ICO-Größen 16/24/32/48/64/
+128/256, das 64px-RGBA für Fenster/Tray und das README-SVG, nur mit Node-Built-ins.
+Keine Schriftdatei und kein fremdes Markenlogo. Projektlizenzen gelten für das
+Artwork. `winresource` (MIT) bindet dieselbe ICO als PE-Ressource ein; die
+Startmenü-Verknüpfung verwendet Icon-Index 0 der EXE.
+
 Zuständig: PR-3 (`feat/gui`) und PR-W (`feat/app-wiring`). Visueller Rahmen:
 [UI-STYLE.md](../design/UI-STYLE.md). Recherche und Abruf **25.10.2026**.
 Passung 1–5 ist die Bewertung für diese GUI. Bewertet werden Prinzipien;

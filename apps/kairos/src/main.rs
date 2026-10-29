@@ -5,10 +5,36 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-fn main() -> eframe::Result {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let hardening = kairos_hardening::harden_process();
     let target = kairos_platform::FocusTarget::capture();
     let arguments = Arguments::parse(std::env::args_os().skip(1));
+    #[cfg(windows)]
+    if arguments.remove_integration {
+        use kairos_platform::integration::{remove_run, start_menu_path, Shortcut, RUN_VALUE};
+        // Attempt both removals even if one fails. Never touch StartupApproved.
+        let run = remove_run(RUN_VALUE);
+        let shortcut = std::env::var_os("APPDATA")
+            .ok_or_else(|| std::io::Error::other("APPDATA unavailable"))
+            .and_then(|p| start_menu_path(&std::path::PathBuf::from(p)))
+            .and_then(|p| Shortcut::remove(&p));
+        run?;
+        shortcut?;
+        return Ok(());
+    }
+    #[cfg(windows)]
+    let instance = {
+        use kairos_platform::instance::{session_name, InstanceRequest, SingleInstance};
+        let request = if arguments.compact {
+            InstanceRequest::Popup
+        } else {
+            InstanceRequest::Show
+        };
+        let Some(instance) = SingleInstance::acquire(&session_name()?, request)? else {
+            return Ok(());
+        };
+        instance
+    };
     let compact = arguments.compact;
     let capture = kairos_platform::CaptureProtection::new(arguments.capture_policy);
     let options = eframe::NativeOptions {
@@ -19,6 +45,8 @@ fn main() -> eframe::Result {
                 [860.0, 820.0]
             })
             .with_min_inner_size([550.0, 360.0])
+            .with_visible(!arguments.tray)
+            .with_icon(kairos::icon_data())
             .with_title("Kairos Passwort"),
         persist_window: false,
         clipboard_shortcuts: false,
@@ -45,15 +73,20 @@ fn main() -> eframe::Result {
             app.connect_startup(&creation.egui_ctx, hardening);
             app.connect_capture_protection(capture);
             app.connect_desktop(&creation.egui_ctx, target);
+            #[cfg(windows)]
+            app.connect_lifecycle(&creation.egui_ctx, instance, arguments.tray);
             Ok(Box::new(app))
         }),
-    )
+    )?;
+    Ok(())
 }
 
 /// Modelled after: KeePassXC <https://github.com/keepassxreboot/keepassxc/blob/2.8.0/src/main.cpp>.
 #[derive(Default, Debug, Eq, PartialEq)]
 struct Arguments {
     compact: bool,
+    tray: bool,
+    remove_integration: bool,
     capture_policy: kairos_platform::CapturePolicy,
 }
 
@@ -63,6 +96,10 @@ impl Arguments {
         for argument in arguments {
             if argument == "--popup" {
                 result.compact = true;
+            } else if argument == "--tray" {
+                result.tray = true;
+            } else if argument == "--remove-integration" {
+                result.remove_integration = true;
             } else if argument == "--allow-screencapture" {
                 result.capture_policy = kairos_platform::CapturePolicy::Allow;
             }
@@ -94,7 +131,8 @@ mod tests {
                 Arguments::parse(arguments.map(Into::into)),
                 Arguments {
                     compact: true,
-                    capture_policy: CapturePolicy::Allow
+                    capture_policy: CapturePolicy::Allow,
+                    ..Default::default()
                 }
             );
         }
@@ -115,6 +153,33 @@ mod tests {
                 Arguments::parse([argument.into()]).capture_policy,
                 CapturePolicy::Protect
             );
+        }
+    }
+
+    #[test]
+    fn tray_cleanup_popup_and_capture_flags_combine_in_any_order() {
+        let flags = [
+            "--tray",
+            "--remove-integration",
+            "--popup",
+            "--allow-screencapture",
+        ];
+        for mask in 0..16 {
+            let chosen: Vec<_> = flags
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| mask & (1 << i) != 0)
+                .map(|(_, flag)| std::ffi::OsString::from(flag))
+                .collect();
+            let parsed = Arguments::parse(chosen.clone());
+            assert_eq!(parsed.tray, mask & 1 != 0);
+            assert_eq!(parsed.remove_integration, mask & 2 != 0);
+            assert_eq!(parsed.compact, mask & 4 != 0);
+            assert_eq!(parsed.capture_policy == CapturePolicy::Allow, mask & 8 != 0);
+            assert_eq!(Arguments::parse(chosen.into_iter().rev()), parsed);
+        }
+        for flag in ["--tray=false", "--remove-integration=false", "--TRAY"] {
+            assert_eq!(Arguments::parse([flag.into()]), Arguments::default());
         }
     }
 }

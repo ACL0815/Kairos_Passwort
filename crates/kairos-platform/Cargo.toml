@@ -10,13 +10,17 @@ description = "Windows clipboard, hotkeys, autotype, and focus restoration"
 keyboard-types = { version = "0.8", default-features = false }
 raw-window-handle = "0.6"
 zeroize.workspace = true
+tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
 global-hotkey = "0.9"
+windows = { version = "0.61", features = ["Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_UI_Shell", "Win32_Storage_FileSystem"] }
 windows-sys = { version = "0.61", features = [
     "Wdk_System_SystemServices",
     "Win32_Foundation",
     "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_System_Registry",
     "Win32_System_DataExchange",
     "Win32_System_Memory",
     "Win32_System_Threading",

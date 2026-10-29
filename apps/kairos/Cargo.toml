@@ -26,4 +26,8 @@ zeroize.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 clipboard-win = "5.4.3"
+tray-icon = { version = "0.24", default-features = false }
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading"] }
+
+[build-dependencies]
+winresource = "0.1"

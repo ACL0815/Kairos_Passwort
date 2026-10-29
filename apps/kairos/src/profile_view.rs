@@ -540,6 +540,7 @@ mod tests {
         restarted.load_rotation_settings(crate::rotation::SettingsFile {
             path: Some(path),
             notice: None,
+            ..Default::default()
         });
         assert!(restarted.rotate_profiles);
         assert_eq!(restarted.rotation_selection.ids(), [2, 4, 12]);

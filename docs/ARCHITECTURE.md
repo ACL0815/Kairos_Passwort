@@ -97,6 +97,28 @@ Shortcuts sind aus. Kein vollständiger Lösch-/Dump-Schutz.
 
 ## Desktop, Browser und Schutzgrenzen
 
+Die Windows-Lebensdauer liegt in `apps/kairos/src/lifecycle.rs`: Tray und
+`muda`-Menü werden auf dem eframe-GUI-Thread erzeugt, native Handler stellen nur
+AppEvents zu und rufen `request_repaint`. `App::logic` verarbeitet diese sowie
+den bereits vorhandenen Hotkey-Dienst auch ohne `App::ui`; eframe 0.37.0 führt
+dafür ausdrücklich `Context::run_logic` aus. Kein Timer zum Hotkey-Polling,
+keine vorübergehende Fensteranzeige für F10/Kopieren. Der Clipboard-Timer ist
+bereits unabhängig von der UI. Fenster-X sendet CancelClose und Visible(false),
+außer die persistierte Einstellung ist aus oder das Tray fehlt. Explizites
+Beenden umgeht diesen Pfad nach Abschluss einer laufenden KeePassXC-Anfrage.
+
+`kairos-platform::{integration,instance}` kapseln HKCU Run, nur lesendes
+StartupApproved, IShellLinkW/IPersistFile sowie benannte Mutex-/Event-Handles.
+Die Einzelinstanz wird vor Hotkeys und eframe erworben; `Local\\` plus Token-SID
+trennt Sitzung und Konto. Show-/Popup-Events werden vor dem Mutex erzeugt und
+bleiben bis zum Start des blockierend wartenden Listeners gesetzt. Der zweite
+Prozess signalisiert und endet erfolgreich. Popup verändert nur Sichtbarkeit/
+Kompaktmodus, weder Passwort noch Eingabeauftrag. CaptureProtection bleibt bis
+zum App-Ende erhalten und schützt erneute native Show-Nachrichten wie bisher.
+Die CLI-Aufräumaktion läuft vor Einzelinstanz und GUI, versucht beide Entfernungen
+und meldet Fehler über den Prozess-Exitcode. Tests verwenden ausschließlich eigene
+Wert-/Objektnamen und temporäre Verknüpfungen.
+
 Ziele sind `Unavailable`, `ReturnOnly`, `Editor`. Start erlaubt nur Rücksprung;
 erst Strg+Umschalt+F9 gibt einen Editorauftrag frei. Hotkey-Thread erfasst das
 Ziel vor Wakeup, App::logic verarbeitet auch verborgen. F10 generiert/tippt

@@ -109,6 +109,28 @@ und SHA-256 `711BD9EC7076661678469E51BAE876DEBAC07A08C32F1B1C6B3B8FE5E761C13A`.
 
 ## Microsoft-Verträge und Belegprüfung
 
+### Desktop-Integration (Abruf 29.10.2026)
+
+| Primärquelle | Lizenz / Vertrag | Modelliertes Prinzip |
+|---|---|---|
+| [Run und RunOnce](https://learn.microsoft.com/en-us/windows/win32/setupapi/run-and-runonce-registry-keys) | Microsoft-Dokumentation, CC-BY-4.0 | Nur HKCU Run, exe separat quoten, feste Argumente; keine Administratorrechte und keine Registrierung ohne ausdrückliche Aktion. |
+| [auto-launch](https://docs.rs/auto-launch/latest/auto_launch/) | MIT, Crate-Dokumentation | Benutzerbezogene Windows-Registrierung ist optional. Nur Prinzip: eigene kleine API liest zusätzlich Original-Kommando und StartupApproved, damit ein Umzug oder eine Windows-Sperre sichtbar wird. Keine Abhängigkeit/Codeübernahme. |
+| [Shell Links](https://learn.microsoft.com/en-us/windows/win32/shell/links), [IShellLinkW](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ishelllinkw) | Microsoft-Dokumentation, CC-BY-4.0 | COM-Apartment je Aufruf, IShellLinkW-Ziel/Arbeitsverzeichnis/Beschreibung/Icon und IPersistFile-Speicherung. Nur festes persönliches Linkziel, keine Verzeichnisbereinigung; vorhandene fremde Dateien bleiben bestehen. |
+| [CreateMutexW](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw), [Kernel object namespaces](https://learn.microsoft.com/en-us/windows/win32/termserv/kernel-object-namespaces), [CreateEventW](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventw) | Microsoft-Dokumentation, CC-BY-4.0 | Benannter Mutex als Lebensdauerwächter, Session-Namespace plus Benutzer-SID; Auto-Reset-Events puffern Öffnen/Popup auch vor GUI-Start. Blockierender Listener wird beim Drop beendet und gejoint. Kein HWND-Suchen und keine sichtbaren IPC-Fenster. |
+
+`StartupApproved\\Run` ist kein hier belegter stabiler Microsoft-API-Vertrag.
+Kairos interpretiert ausschließlich bekannte 12-Byte-REG_BINARY-Marker (2/6
+aktiv, 3/7 deaktiviert), behandelt andere Werte als unbekannt und schreibt diesen
+Schlüssel **nie**. Die tatsächliche Task-Manager-Interaktion bleibt manuell offen.
+Der Run-Wert bleibt getrennt von der Windows-Freigabe sichtbar. Ein abweichender
+Pfad wird nicht beim Start oder Tray-Klick automatisch ersetzt.
+
+Alle drei zusätzlichen Bibliotheken `tray-icon`, dessen `muda` und `winresource`
+sind reguläre permissive Build-/Laufzeitabhängigkeiten; Windows-COM verwendet
+die offiziellen `windows`-Bindings. Die Tests verwenden ausschließlich eigene
+Registry-Wertnamen, Kernel-Namen und TempDir-Pfade und belegen ihre Entfernung.
+Kein fremder Anwendungscode wurde übernommen.
+
 | Vertrag | Fester Dokumentationsstand | Konsequenz |
 |---|---|---|
 | Clipboard-Schutzformate | [Commit `3aee48a`, Clipboard Formats](https://github.com/MicrosoftDocs/win32/blob/3aee48ac3f48e187d17bdfd56951741737331749/desktop-src/dataxchg/clipboard-formats.md), [offizielle Seite](https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard-formats#cloud-clipboard-and-clipboard-history-formats) | Ein registriertes Ausschlussformat mit beliebigen Daten sowie zwei serialisierte DWORD(0) verhindern vorgesehenen Verlauf/Sync |

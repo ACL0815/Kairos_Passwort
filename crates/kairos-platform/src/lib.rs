@@ -13,6 +13,9 @@ mod clipboard;
 mod focus;
 mod hotkeys;
 #[cfg(windows)]
+pub mod instance;
+pub mod integration;
+#[cfg(windows)]
 mod windows;
 
 pub use capture::{
