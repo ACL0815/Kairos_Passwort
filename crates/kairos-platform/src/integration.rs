@@ -43,12 +43,13 @@ pub fn run_command_matches(command: &str, exe: &Path) -> bool {
     run_path_matches(command, exe) && arguments.trim() == "--tray"
 }
 
-/// Only this single, fixed filename belongs to Kairos; never enumerate Programs.
-pub fn start_menu_path(appdata: &Path) -> io::Result<PathBuf> {
-    if appdata.as_os_str().is_empty() || !appdata.is_absolute() {
-        return Err(io::Error::other("APPDATA must be an absolute directory"));
+/// Append only Kairos's fixed filename to the resolved Programs directory.
+/// This pure function neither resolves Windows folders nor accesses the filesystem.
+pub fn start_menu_path(programs: &Path) -> io::Result<PathBuf> {
+    if programs.as_os_str().is_empty() || !programs.is_absolute() {
+        return Err(io::Error::other("Programs must be an absolute directory"));
     }
-    Ok(appdata.join("Microsoft/Windows/Start Menu/Programs/Kairos Passwort.lnk"))
+    Ok(programs.join("Kairos Passwort.lnk"))
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -85,7 +86,7 @@ pub struct RunState {
 #[path = "integration_windows.rs"]
 mod windows;
 #[cfg(windows)]
-pub use windows::{read_run, remove_run, set_run, Shortcut};
+pub use windows::{programs_dir, read_run, remove_run, set_run, Shortcut};
 
 #[cfg(test)]
 mod tests {
@@ -132,10 +133,10 @@ mod tests {
     }
     #[test]
     fn resolves_only_the_own_start_menu_link() {
-        let root = std::env::temp_dir().join("KairosTest-Ä");
+        let root = std::env::temp_dir().join("KairosTest-Ä/Redirected Programs");
         assert_eq!(
             start_menu_path(&root).unwrap(),
-            root.join("Microsoft/Windows/Start Menu/Programs/Kairos Passwort.lnk")
+            root.join("Kairos Passwort.lnk")
         );
         assert!(start_menu_path(Path::new("")).is_err());
         assert!(start_menu_path(Path::new("relative")).is_err());

@@ -116,6 +116,7 @@ und SHA-256 `711BD9EC7076661678469E51BAE876DEBAC07A08C32F1B1C6B3B8FE5E761C13A`.
 | [Run und RunOnce](https://learn.microsoft.com/en-us/windows/win32/setupapi/run-and-runonce-registry-keys) | Microsoft-Dokumentation, CC-BY-4.0 | Nur HKCU Run, exe separat quoten, feste Argumente; keine Administratorrechte und keine Registrierung ohne ausdrückliche Aktion. |
 | [auto-launch](https://docs.rs/auto-launch/latest/auto_launch/) | MIT, Crate-Dokumentation | Benutzerbezogene Windows-Registrierung ist optional. Nur Prinzip: eigene kleine API liest zusätzlich Original-Kommando und StartupApproved, damit ein Umzug oder eine Windows-Sperre sichtbar wird. Keine Abhängigkeit/Codeübernahme. |
 | [Shell Links](https://learn.microsoft.com/en-us/windows/win32/shell/links), [IShellLinkW](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ishelllinkw) | Microsoft-Dokumentation, CC-BY-4.0 | COM-Apartment je Aufruf, IShellLinkW-Ziel/Arbeitsverzeichnis/Beschreibung/Icon und IPersistFile-Speicherung. Nur festes persönliches Linkziel, keine Verzeichnisbereinigung; vorhandene fremde Dateien bleiben bestehen. |
+| [SHGetKnownFolderPath](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/nf-shlobj_core-shgetknownfolderpath) (Abruf 2026-10-29) | Microsoft-Dokumentation, CC-BY-4.0 | `FOLDERID_Programs`, `KF_FLAG_DEFAULT` und kein Benutzertoken liefern den konfigurierten persönlichen Programs-Ordner einschließlich Umleitungen, ohne ihn anzulegen. `CoTaskMemFree` gibt den Ausgabepointer auch im Fehlerpfad frei. |
 | [CreateMutexW](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw), [Kernel object namespaces](https://learn.microsoft.com/en-us/windows/win32/termserv/kernel-object-namespaces), [CreateEventW](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventw) | Microsoft-Dokumentation, CC-BY-4.0 | Benannter Mutex als Lebensdauerwächter, Session-Namespace plus Benutzer-SID; Auto-Reset-Events puffern Öffnen/Popup auch vor GUI-Start. Blockierender Listener wird beim Drop beendet und gejoint. Kein HWND-Suchen und keine sichtbaren IPC-Fenster. |
 
 `StartupApproved\\Run` ist kein hier belegter stabiler Microsoft-API-Vertrag.
@@ -124,6 +125,14 @@ aktiv, 3/7 deaktiviert), behandelt andere Werte als unbekannt und schreibt diese
 Schlüssel **nie**. Die tatsächliche Task-Manager-Interaktion bleibt manuell offen.
 Der Run-Wert bleibt getrennt von der Windows-Freigabe sichtbar. Ein abweichender
 Pfad wird nicht beim Start oder Tray-Klick automatisch ersetzt.
+
+Settings-/Lifecycle-Status und `--remove-integration` verwenden ausschließlich
+`kairos_platform::integration::programs_dir`. Nur wenn `SHGetKnownFolderPath`
+fehlschlägt, greift der dokumentierte Fallback auf
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs`; fehlt ein absolutes `APPDATA`,
+wird ein Fehler gemeldet. Die reine Pfadfunktion hängt anschließend ausschließlich
+`Kairos Passwort.lnk` an. Der Resolver-Integrationstest prüft den echten Ordner
+nur lesend auf Existenz und einen absoluten Pfad; er legt dort nichts an.
 
 Alle drei zusätzlichen Bibliotheken `tray-icon`, dessen `muda` und `winresource`
 sind reguläre permissive Build-/Laufzeitabhängigkeiten; Windows-COM verwendet

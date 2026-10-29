@@ -1,10 +1,10 @@
 use super::*;
 use ::windows::{
-    core::{Interface, PCWSTR},
+    core::{Interface, PCWSTR, PWSTR},
     Win32::{
         System::Com::{
-            CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
-            COINIT_APARTMENTTHREADED, STGM_READ,
+            CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, IPersistFile,
+            CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, STGM_READ,
         },
         UI::Shell::{IShellLinkW, ShellLink, SLGP_RAWPATH},
     },
@@ -13,7 +13,56 @@ use std::{ffi::OsStr, os::windows::ffi::OsStrExt, ptr};
 use windows_sys::Win32::{
     Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS},
     System::Registry::*,
+    UI::Shell::{FOLDERID_Programs, SHGetKnownFolderPath, KF_FLAG_DEFAULT},
 };
+
+struct KnownFolderPath {
+    value: PWSTR,
+}
+impl Drop for KnownFolderPath {
+    fn drop(&mut self) {
+        // The Shell contract requires freeing the output even on failure;
+        // CoTaskMemFree also accepts a null pointer.
+        unsafe { CoTaskMemFree(Some(self.value.0.cast())) };
+    }
+}
+
+/// Resolve the current user's Programs folder, including Windows redirection.
+/// Only a failed Shell API call falls back to APPDATA's conventional subpath.
+/// KF_FLAG_DEFAULT reads the configured folder without creating it.
+pub fn programs_dir() -> io::Result<PathBuf> {
+    let mut path = KnownFolderPath {
+        value: PWSTR::null(),
+    };
+    // Use the raw windows-rs binding: the higher-level windows wrapper hides
+    // the output pointer on HRESULT failure, preventing its required cleanup.
+    let result = unsafe {
+        SHGetKnownFolderPath(
+            &FOLDERID_Programs,
+            KF_FLAG_DEFAULT as u32,
+            ptr::null_mut(),
+            &mut path.value.0,
+        )
+    };
+    let programs = if result < 0 {
+        let appdata = std::env::var_os("APPDATA")
+            .map(PathBuf::from)
+            .filter(|p| p.is_absolute())
+            .ok_or_else(|| io::Error::other("Programs lookup failed and APPDATA is unavailable"))?;
+        appdata.join("Microsoft/Windows/Start Menu/Programs")
+    } else {
+        if path.value.is_null() {
+            return Err(io::Error::other("Programs lookup returned no path"));
+        }
+        // On success the Shell supplies a NUL-terminated UTF-16 path. Copy it
+        // before the guard frees it; OsString preserves all Windows path units.
+        PathBuf::from(unsafe { std::ffi::OsString::from_wide(path.value.as_wide()) })
+    };
+    if !programs.is_absolute() {
+        return Err(io::Error::other("Programs must be an absolute directory"));
+    }
+    Ok(programs)
+}
 
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const APPROVAL_KEY: &str =

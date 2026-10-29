@@ -94,8 +94,6 @@ impl KairosApp {
             }
         }
         self.lifecycle.exe = std::env::current_exe().ok();
-        self.lifecycle.shortcut = std::env::var_os("APPDATA")
-            .and_then(|p| integration::start_menu_path(&PathBuf::from(p)).ok());
         self.refresh_integration();
         match kairos_platform::visibility::WindowVisibility::attach(
             creation,
@@ -228,6 +226,9 @@ impl KairosApp {
                 }
             }
         }
+        self.lifecycle.shortcut = integration::programs_dir()
+            .and_then(|p| integration::start_menu_path(&p))
+            .ok();
         self.lifecycle.shortcut_exists =
             self.lifecycle.shortcut.as_ref().is_some_and(|p| p.exists());
         if let Some(tray) = &self.lifecycle.tray {
@@ -406,7 +407,7 @@ impl KairosApp {
             help::info(ui, "Startmenü-Eintrag", "Erstellt oder entfernt ausschließlich Kairos Passwort.lnk im persönlichen Windows-Startmenü. Ziel, Arbeitsverzeichnis und Icon verwenden diese EXE. Eine vorhandene fremde Verknüpfung wird nicht überschrieben. Nach dem Verschieben der EXE den eigenen Eintrag entfernen und neu anlegen. --remove-integration entfernt Autostart und den eigenen Startmenü-Eintrag ohne Fenster.");
         });
         if self.lifecycle.shortcut.is_none() {
-            ui.label("APPDATA/Startmenü-Pfad nicht verfügbar.");
+            ui.label("Persönlicher Startmenü-Pfad nicht verfügbar.");
         }
     }
 }

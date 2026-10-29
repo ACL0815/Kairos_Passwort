@@ -1,6 +1,16 @@
 #![cfg(windows)]
-//! Real HKCU and COM calls, restricted to a unique test value and TempDir.
-use kairos_platform::integration::{read_run, remove_run, run_command, set_run, Shortcut};
+//! Writes are restricted to a unique HKCU test value and TempDir.
+//! The real Programs directory is resolved and inspected read-only.
+use kairos_platform::integration::{
+    programs_dir, read_run, remove_run, run_command, set_run, Shortcut,
+};
+
+#[test]
+fn programs_resolver_returns_an_existing_absolute_directory_without_writes() {
+    let programs = programs_dir().unwrap();
+    assert!(programs.is_absolute(), "Programs must be absolute");
+    assert!(programs.is_dir(), "Programs must be an existing directory");
+}
 
 struct RunCleanup(String);
 impl Drop for RunCleanup {

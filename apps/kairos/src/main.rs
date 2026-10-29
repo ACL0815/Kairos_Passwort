@@ -11,12 +11,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let arguments = Arguments::parse(std::env::args_os().skip(1));
     #[cfg(windows)]
     if arguments.remove_integration {
-        use kairos_platform::integration::{remove_run, start_menu_path, Shortcut, RUN_VALUE};
+        use kairos_platform::integration::{
+            programs_dir, remove_run, start_menu_path, Shortcut, RUN_VALUE,
+        };
         // Attempt both removals even if one fails. Never touch StartupApproved.
         let run = remove_run(RUN_VALUE);
-        let shortcut = std::env::var_os("APPDATA")
-            .ok_or_else(|| std::io::Error::other("APPDATA unavailable"))
-            .and_then(|p| start_menu_path(&std::path::PathBuf::from(p)))
+        let shortcut = programs_dir()
+            .and_then(|p| start_menu_path(&p))
             .and_then(|p| Shortcut::remove(&p));
         run?;
         shortcut?;
