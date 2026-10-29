@@ -16,6 +16,22 @@ für F10 oder Tray-Kopieren. Erst F9/F11/Öffnen fordert Sichtbarkeit und Fokus 
 einschließlich Ausschlussformaten und unabhängigem Timer. App-/Hotkey-/Tray-
 Integration bleibt eigener Code; keine lizenzabhängige Anwendungscodeübernahme.
 
+Beim Quellenlesen zusätzlich gefunden: eframes
+[`post_rendering`](https://github.com/emilk/egui/blob/0.37.0/crates/eframe/src/native/epi_integration.rs#L439-L453)
+ruft nach dem ersten Rendern unbedingt `set_visible(true)` auf (ursprünglich als
+Schutz vor weißem Startblitz, [PR 2279](https://github.com/emilk/egui/pull/2279)).
+Ein anfängliches `with_visible(false)` plus späterer Hide-Befehl allein kann
+deshalb eine vorübergehende Anzeige erzeugen. Kairos verwendet zusätzlich eine
+GUI-threadgebundene Root-Subclass nach
+[SetWindowSubclass](https://learn.microsoft.com/en-us/windows/win32/api/commctrl/nf-commctrl-setwindowsubclass)
+und [WM_WINDOWPOSCHANGING](https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-windowposchanging)
+(Microsoft-Dokumentation, CC-BY-4.0; Abruf 29.10.2026). Solange verborgen,
+entfernt sie SWP_SHOWWINDOW und setzt SWP_HIDEWINDOW vor der Anzeige. Nur
+explizites Öffnen gibt den Show-Pfad wieder frei. Der Native-Test verwendet
+ein Toolwindow ohne Aktivierung bei -32000/-32000, prüft die tatsächliche
+Sichtbarkeit, Affinität nach Hide/Show und beide Aufräumpfade (Guard-Drop und
+WM_NCDESTROY). Kein eframe-Fork nötig.
+
 Das eigene Icon wurde geometrisch aus den Farben von UI-STYLE.md entworfen.
 `node tools/generate-icon.cjs` erzeugt deterministisch ICO-Größen 16/24/32/48/64/
 128/256, das 64px-RGBA für Fenster/Tray und das README-SVG, nur mit Node-Built-ins.

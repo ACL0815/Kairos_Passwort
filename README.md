@@ -78,6 +78,12 @@ Ungültige/unlesbare Datei: Rotation aus und sichtbarer Hinweis, kein stilles
 sichtbar, die Auswahl gilt dann nur für den laufenden Start. Eine Instanz pro
 Einstellungsdatei verwenden.
 
+Tray-Änderungen und das Bestätigen des Tray-Hinweises überschreiben eine beim
+Start ungültige/unlesbare Einstellungsdatei nicht. Sie gelten dann nur für den
+laufenden Prozess, bis die Datei korrigiert oder eine neue Rotationsauswahl
+bewusst gespeichert wird. Ältere Kairos-Versionen können das neue `desktop`-Feld
+als unbekannt ablehnen; vor einem Downgrade die Einstellungsdatei sichern.
+
 ## Installation und Build
 
 Noch kein veröffentlichter Installer. Mit Rust stable/MSVC (mindestens Rust 1.95

@@ -97,9 +97,16 @@ Shortcuts sind aus. Kein vollständiger Lösch-/Dump-Schutz.
 
 ## Desktop, Browser und Schutzgrenzen
 
+`WindowVisibility` unterbindet native Show-Anforderungen an den Root, solange
+dieser absichtlich im Tray ist. Das verhindert auch eframes automatische erste
+Anzeige in `post_rendering`. Eine Subclass ändert nur die eigenen WINDOWPOS-Flags;
+Öffnen gibt sie vor Visible(true) frei. GUI-Threadbindung und getrennte Rc-Referenz
+für den Callback schützen die Lebensdauer; Drop/WM_NCDESTROY entfernen ihn.
+
 Die Windows-Lebensdauer liegt in `apps/kairos/src/lifecycle.rs`: Tray und
-`muda`-Menü werden auf dem eframe-GUI-Thread erzeugt, native Handler stellen nur
-AppEvents zu und rufen `request_repaint`. `App::logic` verarbeitet diese sowie
+`muda`-Menü werden auf dem eframe-GUI-Thread erzeugt. Native Handler stellen
+AppEvents zu und rufen `request_repaint`; vor dem synchron geöffneten Tray-Menü
+wird dessen Autostart-Haken direkt aus der Registry aktualisiert. `App::logic` verarbeitet diese sowie
 den bereits vorhandenen Hotkey-Dienst auch ohne `App::ui`; eframe 0.37.0 führt
 dafür ausdrücklich `Context::run_logic` aus. Kein Timer zum Hotkey-Polling,
 keine vorübergehende Fensteranzeige für F10/Kopieren. Der Clipboard-Timer ist

@@ -16,6 +16,8 @@ mod hotkeys;
 pub mod instance;
 pub mod integration;
 #[cfg(windows)]
+pub mod visibility;
+#[cfg(windows)]
 mod windows;
 
 pub use capture::{

@@ -224,6 +224,11 @@ impl KairosApp {
         {
             self.notice =
                 "KeePassXC-Auftrag zuerst im offenen Dialog abschließen oder nach dem Ergebnis schließen.";
+            if action == Action::GenerateTypeCopy {
+                self.set_background_notice(Some(
+                    "F10: KeePassXC-Auftrag zuerst abschließen. Kairos öffnen.",
+                ));
+            }
             return;
         }
         self.keepass.flow = None;
@@ -237,10 +242,14 @@ impl KairosApp {
                 self.show_popup(ctx);
             }
             Action::GenerateTypeCopy => {
+                self.set_background_notice(None);
                 // A background action must not retain a previous editor destination.
                 self.target = Destination::Unavailable;
                 self.regenerate(ctx);
                 if self.password.secret.is_empty() {
+                    self.set_background_notice(Some(
+                        "F10: Generierung fehlgeschlagen. Kairos öffnen.",
+                    ));
                     self.notice = self.password.message;
                     ctx.send_viewport_cmd(egui::ViewportCommand::Title(
                         "Kairos Passwort · Generierung fehlgeschlagen".into(),
@@ -253,6 +262,9 @@ impl KairosApp {
                 match target.and_then(|target| target.type_text(&self.password.secret, false)) {
                     Ok(()) => {
                         if !self.copy(ctx, false) {
+                            self.set_background_notice(Some(
+                                "F10: Eingabe erfolgt, Kopieren fehlgeschlagen. Kairos öffnen.",
+                            ));
                             ctx.send_viewport_cmd(egui::ViewportCommand::Title(
                                 "Kairos Passwort · Kopieren fehlgeschlagen, Eingabe erfolgt".into(),
                             ));
@@ -263,6 +275,9 @@ impl KairosApp {
                         }
                     }
                     Err(error) => {
+                        self.set_background_notice(Some(
+                            "F10: Eingabe abgebrochen. Kairos öffnen.",
+                        ));
                         self.notice = input_error(error);
                         ctx.send_viewport_cmd(egui::ViewportCommand::Title(
                             "Kairos Passwort · Eingabe abgebrochen".into(),

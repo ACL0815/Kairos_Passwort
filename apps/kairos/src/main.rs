@@ -30,7 +30,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             InstanceRequest::Show
         };
-        let Some(instance) = SingleInstance::acquire(&session_name()?, request)? else {
+        let acquired = session_name().and_then(|name| SingleInstance::acquire(&name, request));
+        let acquired = match acquired {
+            Ok(instance) => instance,
+            Err(error) => {
+                // Fail closed instead of registering a duplicate set of hotkeys.
+                // The release GUI subsystem has no stderr console to show this.
+                unsafe {
+                    windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(
+                        std::ptr::null_mut(),
+                        windows_sys::core::w!("Kairos kann die Einzelinstanz nicht öffnen. Eine laufende Instanz beenden oder Kairos mit denselben Windows-Rechten erneut starten. Es wurden keine Hotkeys oder Integrationseinträge angelegt."),
+                        windows_sys::core::w!("Kairos Passwort – Start nicht möglich"),
+                        windows_sys::Win32::UI::WindowsAndMessaging::MB_OK | windows_sys::Win32::UI::WindowsAndMessaging::MB_ICONERROR,
+                    );
+                }
+                return Err(error.into());
+            }
+        };
+        let Some(instance) = acquired else {
             return Ok(());
         };
         instance
@@ -50,6 +67,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .with_title("Kairos Passwort"),
         persist_window: false,
         clipboard_shortcuts: false,
+        window_builder: Some(Box::new(move |builder| {
+            builder.with_active(!arguments.tray)
+        })),
         ..Default::default()
     };
     #[cfg(all(feature = "demo", debug_assertions))]
@@ -74,7 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             app.connect_capture_protection(capture);
             app.connect_desktop(&creation.egui_ctx, target);
             #[cfg(windows)]
-            app.connect_lifecycle(&creation.egui_ctx, instance, arguments.tray);
+            app.connect_lifecycle(creation, instance, arguments.tray);
             Ok(Box::new(app))
         }),
     )?;

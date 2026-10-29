@@ -36,6 +36,9 @@ pub(crate) struct Lifecycle {
     pub(crate) tray_available: bool,
     show_hint: bool,
     pub(crate) error: Option<String>,
+    integration_error: Option<String>,
+    registry_error: bool,
+    background_notice: Option<&'static str>,
     exe: Option<PathBuf>,
     shortcut: Option<PathBuf>,
     #[cfg(windows)]
@@ -45,16 +48,19 @@ pub(crate) struct Lifecycle {
     tray: Option<crate::tray::Tray>,
     #[cfg(windows)]
     instance: Option<kairos_platform::instance::SingleInstance>,
+    #[cfg(windows)]
+    visibility: Option<kairos_platform::visibility::WindowVisibility>,
 }
 
 impl KairosApp {
     #[cfg(windows)]
     pub fn connect_lifecycle(
         &mut self,
-        ctx: &egui::Context,
+        creation: &eframe::CreationContext<'_>,
         mut instance: kairos_platform::instance::SingleInstance,
         start_hidden: bool,
     ) {
+        let ctx = &creation.egui_ctx;
         let (tx, receiver) = mpsc::channel();
         let sender = EventSender {
             tx,
@@ -91,7 +97,17 @@ impl KairosApp {
         self.lifecycle.shortcut = std::env::var_os("APPDATA")
             .and_then(|p| integration::start_menu_path(&PathBuf::from(p)).ok());
         self.refresh_integration();
-        if start_hidden && self.lifecycle.tray_available {
+        match kairos_platform::visibility::WindowVisibility::attach(
+            creation,
+            start_hidden && self.lifecycle.tray_available,
+        ) {
+            Ok(guard) => self.lifecycle.visibility = Some(guard),
+            Err(_) => {
+                self.lifecycle.error =
+                    Some("Verborgener Start nicht verfügbar. Kairos bleibt sichtbar.".into())
+            }
+        }
+        if start_hidden && self.lifecycle.tray_available && self.lifecycle.visibility.is_some() {
             self.hide_window(ctx);
         } else if start_hidden {
             self.show_window(ctx);
@@ -100,6 +116,10 @@ impl KairosApp {
 
     pub(crate) fn show_window(&mut self, ctx: &egui::Context) {
         self.lifecycle.hidden = false;
+        #[cfg(windows)]
+        if let Some(guard) = &self.lifecycle.visibility {
+            guard.set_hidden(false);
+        }
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
@@ -108,6 +128,10 @@ impl KairosApp {
     }
     fn hide_window(&mut self, ctx: &egui::Context) {
         self.lifecycle.hidden = true;
+        #[cfg(windows)]
+        if let Some(guard) = &self.lifecycle.visibility {
+            guard.set_hidden(true);
+        }
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
     }
     pub(crate) fn background_logic(&mut self, ctx: &egui::Context) {
@@ -188,17 +212,19 @@ impl KairosApp {
     }
     fn save_desktop_preferences(&mut self) {
         self.rotation_settings
-            .save(self.rotate_profiles, &self.rotation_selection);
+            .save_desktop(self.rotate_profiles, &self.rotation_selection);
     }
     #[cfg(windows)]
     fn refresh_integration(&mut self) {
         if let Some(exe) = &self.lifecycle.exe {
             match integration::read_run(RUN_VALUE, exe) {
-                Ok(state) => self.lifecycle.run = Some(state),
+                Ok(state) => {
+                    self.lifecycle.run = Some(state);
+                    self.lifecycle.registry_error = false;
+                }
                 Err(_) => {
                     self.lifecycle.run = None;
-                    self.lifecycle.error =
-                        Some("Autostart-Status konnte nicht gelesen werden.".into());
+                    self.lifecycle.registry_error = true;
                 }
             }
         }
@@ -259,11 +285,11 @@ impl KairosApp {
     fn toggle_startup(&mut self, _ctx: &egui::Context) {}
     #[cfg(windows)]
     fn integration_result(&mut self, ctx: &egui::Context, result: std::io::Result<()>) {
-        self.lifecycle.error = result
+        self.lifecycle.integration_error = result
             .err()
             .map(|e| format!("Windows-Integration fehlgeschlagen: {e}"));
         self.refresh_integration();
-        if self.lifecycle.error.is_some() {
+        if self.lifecycle.integration_error.is_some() {
             self.show_window(ctx);
         }
     }
@@ -271,7 +297,19 @@ impl KairosApp {
         if let Some(error) = &self.lifecycle.error {
             ui.colored_label(egui::Color32::YELLOW, error);
         }
-        egui::CollapsingHeader::new("Windows und Tray").show(ui, |ui| {
+        if let Some(error) = &self.lifecycle.integration_error {
+            ui.colored_label(egui::Color32::YELLOW, error);
+        }
+        if self.lifecycle.registry_error {
+            ui.colored_label(
+                egui::Color32::YELLOW,
+                "Autostart-Status konnte nicht gelesen werden.",
+            );
+        }
+        if let Some(notice) = self.lifecycle.background_notice {
+            ui.colored_label(egui::Color32::YELLOW, notice);
+        }
+        let response = egui::CollapsingHeader::new("Windows und Tray").show(ui, |ui| {
             if !self.lifecycle.tray_available { ui.label("Tray in diesem Lauf nicht verfügbar."); }
             ui.horizontal_wrapped(|ui| {
                 if ui.checkbox(&mut self.rotation_settings.desktop.close_to_tray, "Beim Schließen in den Tray").changed() { self.save_desktop_preferences(); }
@@ -281,6 +319,10 @@ impl KairosApp {
             #[cfg(windows)]
             self.integration_controls(ui);
         });
+        if response.header_response.clicked() {
+            self.refresh_integration();
+            ui.ctx().request_repaint();
+        }
     }
     pub(crate) fn lifecycle_hint(&mut self, ctx: &egui::Context) {
         if self.lifecycle.show_hint {
@@ -296,9 +338,18 @@ impl KairosApp {
             });
         }
     }
+    pub(crate) fn set_background_notice(&mut self, message: Option<&'static str>) {
+        self.lifecycle.background_notice = message;
+        #[cfg(windows)]
+        if let Some(tray) = &self.lifecycle.tray {
+            tray.set_status(message);
+        }
+    }
     #[cfg(windows)]
     fn integration_controls(&mut self, ui: &mut egui::Ui) {
-        self.refresh_integration();
+        if ui.small_button("Status aktualisieren").clicked() {
+            self.refresh_integration();
+        }
         let ctx = ui.ctx().clone();
         if let Some(state) = &self.lifecycle.run {
             let mut enabled = state.command.is_some();
@@ -405,6 +456,40 @@ mod tests {
             },
             copies,
         )
+    }
+    #[test]
+    fn f10_failure_has_a_tray_status_without_showing_or_focusing_the_window() {
+        let ctx = egui::Context::default();
+        let (mut app, _, copied) = fixture(&ctx);
+        app.lifecycle.hidden = true;
+        let output = ctx.run_logic(&egui::RawInput::default(), |ctx| {
+            app.handle_action(
+                ctx,
+                kairos_platform::Action::GenerateTypeCopy,
+                Err(kairos_platform::PlatformError::TargetUnavailable),
+            );
+        });
+        assert!(app.lifecycle.background_notice.is_some());
+        assert!(copied.borrow().is_empty() && app.lifecycle.hidden);
+        assert!(output
+            .viewport_commands
+            .values()
+            .flatten()
+            .all(|cmd| !matches!(
+                cmd,
+                egui::ViewportCommand::Visible(true) | egui::ViewportCommand::Focus
+            )));
+    }
+    #[cfg(windows)]
+    #[test]
+    fn successful_integration_does_not_erase_a_tray_or_ipc_failure() {
+        let ctx = egui::Context::default();
+        let (mut app, _, _) = fixture(&ctx);
+        app.lifecycle.error = Some("PUBLIC TRAY FAILURE".into());
+        app.lifecycle.integration_error = Some("PUBLIC WRITE FAILURE".into());
+        app.integration_result(&ctx, Ok(()));
+        assert_eq!(app.lifecycle.error.as_deref(), Some("PUBLIC TRAY FAILURE"));
+        assert!(app.lifecycle.integration_error.is_none());
     }
     #[test]
     fn hidden_logic_handles_tray_copy_show_popup_and_quit_without_drawing() {

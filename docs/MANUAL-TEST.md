@@ -112,6 +112,13 @@ Alle F-Tasten unten mit **Strg+Umschalt** drücken.
     Rotation und Filter; Win+V ausgeschlossen, nach 30 s eigene Kopie leer,
     späterer fremder Text bleibt. Generierungs-/Clipboard-Fehler öffnen das
     Fenster; laufender/angenommener F11-Auftrag verhindert Ersetzung.
+    Bei einem absichtlich ungültigen F10-Ziel darf Kairos keinen Fokus nehmen:
+    Tray-Tooltip meldet den Fehler, Öffnen zeigt den Hinweis. Nach einem
+    erfolgreichen F10-Auftrag wieder normaler Tooltip. Registry extern ändern,
+    Maus über dem Tray belassen und direkt rechtsklicken: Menü-Haken muss schon
+    beim ersten Öffnen stimmen. Status der aufgeklappten Einstellungen per
+    „Status aktualisieren“ neu lesen. Ungültige Einstellungs-Testdatei bleibt
+    bei Tray-Checkbox und Hinweisbestätigung unverändert.
 17. **Capture nach Verbergen (manuell offen).** Mit Schutz X/Tray/erneutes Öffnen
     mehrfach; Snipping Tool und Teams nach Schritten 7/8. F9/F11 aus `--tray`
     ebenfalls geschützt. Separater Start mit `--tray --allow-screencapture`:

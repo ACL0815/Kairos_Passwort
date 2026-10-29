@@ -111,6 +111,7 @@ pub struct SettingsFile {
     pub path: Option<PathBuf>,
     pub notice: Option<&'static str>,
     pub desktop: DesktopPreferences,
+    pub load_failed: bool,
 }
 
 impl SettingsFile {
@@ -122,11 +123,13 @@ impl SettingsFile {
             ),
             notice: None,
             desktop: DesktopPreferences::default(),
+            load_failed: false,
         }
     }
 
     /// Invalid data leaves rotation disabled and the default selection intact.
     pub fn load(&mut self) -> (bool, Selection) {
+        self.load_failed = false;
         let loaded = (|| -> io::Result<(bool, Selection)> {
             use std::io::Read;
             let path = self
@@ -155,6 +158,7 @@ impl SettingsFile {
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => (false, Selection::default()),
             Err(_) => {
+                self.load_failed = true;
                 self.notice = Some("Rotationseinstellungen nicht lesbar oder ungültig. Rotation ist aus; neue Auswahl wird erst bei einer bewussten Änderung gespeichert.");
                 (false, Selection::default())
             }
@@ -163,10 +167,19 @@ impl SettingsFile {
 
     pub fn save(&mut self, enabled: bool, selection: &Selection) {
         self.notice = if self.write(enabled, selection).is_ok() {
+            self.load_failed = false;
             None
         } else {
             Some("Rotationsauswahl gilt für diesen Start. Speichern fehlgeschlagen; Einstellungsdatei und Schreibrechte prüfen.")
         };
+    }
+
+    pub fn save_desktop(&mut self, enabled: bool, selection: &Selection) {
+        if self.load_failed {
+            self.notice = Some("Tray-Auswahl gilt für diesen Start. Ungültige/unlesbare Einstellungen bleiben unverändert. Datei korrigieren oder zuerst eine neue Rotationsauswahl bewusst speichern.");
+        } else {
+            self.save(enabled, selection);
+        }
     }
 
     fn write(&self, enabled: bool, selection: &Selection) -> io::Result<()> {
@@ -316,6 +329,28 @@ mod tests {
         assert!(settings.load().0);
         assert!(!settings.desktop.close_to_tray);
         assert!(settings.desktop.tray_notice_seen);
+    }
+
+    #[test]
+    fn desktop_changes_and_hint_acknowledgment_preserve_invalid_settings() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("settings.json");
+        let invalid = r#"{"version":99,"rotation_profiles":[2,4],"retain":"PUBLIC"}"#;
+        std::fs::write(&path, invalid).unwrap();
+        let mut settings = SettingsFile {
+            path: Some(path.clone()),
+            ..Default::default()
+        };
+        settings.load();
+        settings.desktop.close_to_tray = false;
+        settings.desktop.tray_notice_seen = true;
+        settings.save_desktop(false, &Selection::default());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), invalid);
+        assert!(settings.notice.is_some() && settings.load_failed);
+        settings.save(true, &Selection::new(vec![2, 4]).unwrap());
+        assert!(!settings.load_failed);
+        assert!(settings.load().0);
+        assert!(!settings.desktop.close_to_tray);
     }
 
     struct OneWord(&'static str);
