@@ -16,6 +16,8 @@ Das [Grundkonzept](docs/Grundkonzept.md) bleibt die unveränderte Konzeptquelle.
 - Eigene Sperrliste mit Wortschaltflächen und Verwaltung. Nur ausdrücklich gewählte Wörter werden gespeichert, keine Passwörter.
 - KeePassXC-Eintrag nach Bestätigung und optionale Violentmonkey-Kontextvorschläge mit bewusster Kopplung.
 - Frühe Prozesshärtung mit Sicherheitsreport; standardmäßig aktiver Windows-Bildschirmaufnahmeschutz.
+- System-Tray mit Öffnen, frisch generieren und geschützt kopieren, Autostart und Beenden. Globale Hotkeys bleiben bei verborgenem Fenster aktiv.
+- Optionaler Autostart und persönlicher Windows-Startmenü-Eintrag ohne Administratorrechte; Einzelinstanz je Windows-Konto und Sitzung.
 
 Eigene Profile, externe Listen in SQLCipher/DPAPI und Integritätsmanifeste sind
 als Bibliotheks-APIs vorhanden. Eine GUI zum Bearbeiten eigener Profile oder zum
@@ -69,12 +71,18 @@ im Konzept setzen 16 solche Profile voraus (+4 Bit); die 13 vorhandenen
 erlauben allein nach ihrer Anzahl höchstens +3,7 Bit.
 
 Aktivierung und Profilnummern stehen in `%APPDATA%\Kairos\settings.json`
-(Schema-Version 1), ohne Passwörter. `KAIROS_SETTINGS_FILE` legt für Tests einen
+(Schema-Version 1, zusätzlich `desktop.close_to_tray` und `desktop.tray_notice_seen`), ohne Passwörter. `KAIROS_SETTINGS_FILE` legt für Tests einen
 anderen Dateipfad fest. Fehlende Datei: Rotation aus, alle Profile vorausgewählt.
 Ungültige/unlesbare Datei: Rotation aus und sichtbarer Hinweis, kein stilles
 Überschreiben; erst eine bewusste Änderung speichert neu. Schreibfehler sind
 sichtbar, die Auswahl gilt dann nur für den laufenden Start. Eine Instanz pro
 Einstellungsdatei verwenden.
+
+Tray-Änderungen und das Bestätigen des Tray-Hinweises überschreiben eine beim
+Start ungültige/unlesbare Einstellungsdatei nicht. Sie gelten dann nur für den
+laufenden Prozess, bis die Datei korrigiert oder eine neue Rotationsauswahl
+bewusst gespeichert wird. Ältere Kairos-Versionen können das neue `desktop`-Feld
+als unbekannt ablehnen; vor einem Downgrade die Einstellungsdatei sichern.
 
 ## Installation und Build
 
@@ -82,6 +90,9 @@ Noch kein veröffentlichter Installer. Mit Rust stable/MSVC (mindestens Rust 1.9
 für den Workspace), Visual Studio C++ Build Tools und Windows SDK bauen.
 SQLCipher/OpenSSL benötigt zusätzlich vollständiges natives Perl, etwa Strawberry
 Perl; Git-Perl genügt nicht. Kein Wortlisten-Download zur Laufzeit.
+Für die eingebettete Icon-Ressource wird der Ressourcencompiler `rc.exe` des
+Windows SDK benötigt. `winresource` findet eine reguläre SDK-Installation;
+bei separat entpacktem SDK `RC_PATH` auf dessen vollständigen `rc.exe`-Pfad setzen.
 
 Im betreuten Windows-Build die vorhandene Umgebung laden, nicht verändern:
 
@@ -123,6 +134,53 @@ und zeigt dauerhaft „Bildschirmaufnahme erlaubt“.
 Die [Violentmonkey-Anleitung](browser/README.md) beschreibt Installation,
 Pairing, KeePassXC-Testdatenbank und Wiederherstellung. Vorschläge werden bewusst
 übernommen. Kairos sendet keine Formulare und betreibt keinen Cloud-Sync.
+
+## Tray, Autostart und Startmenü
+
+Ein Klick oder Doppelklick auf das K im Infobereich öffnet Kairos und fordert
+den Vordergrund an. Windows kann die Fokusübernahme verweigern. Im Rechtsklick-
+Menü stehen „Kairos öffnen“, „Neues Passwort kopieren“, „Mit Windows starten“
+und „Beenden“. Neues Passwort kopieren verwendet das aktuelle Profil bzw. die
+aktuelle Rotation, dieselben Clipboard-Ausschlüsse und dieselbe 30-s-Leerung
+wie der Kopieren-Button. Während eines laufenden/angenommenen KeePassXC-Auftrags
+wird kein neues Passwort erzeugt. Bei Fehlern wird das Fenster sichtbar.
+
+Das Fenster-X verbirgt Kairos standardmäßig im Tray. Beim ersten Mal erscheint
+ein einmaliger Hinweis mit ausdrücklicher Schaltfläche zum Verbergen. Unter
+„Windows und Tray“ lässt sich „Beim Schließen in den Tray“ abschalten; dann
+beendet das X die App. Ohne verfügbares Tray bleibt das Fenster sichtbar und X
+beendet die App. Tray → Beenden beendet wirklich; eine laufende KeePassXC-Anfrage
+wird zuerst abgeschlossen. F9/F10/F11 funktionieren auch bei verborgenem Fenster;
+F10 fordert keinen Kairos-Fokus an. Der Capture-Schutz bleibt beim Wiederöffnen
+aktiv. Der Opt-out gilt weiterhin nur für die zuerst gestartete Instanz.
+
+„Mit Windows starten“ liest und schreibt nur den Wert `Kairos Passwort` unter
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`: `"<voller EXE-Pfad>" --tray`.
+Es gibt keine automatische Registrierung beim Programmstart. Ein anderer Pfad
+oder andere Argumente werden angezeigt; „Pfad aktualisieren“ ist ausdrücklich
+zu wählen. Eine Task-Manager-Deaktivierung bzw. unbekannte `StartupApproved`-
+Markierung wird angezeigt und sperrt Änderungen in der App. Dort wieder
+aktivieren; Kairos schreibt oder löscht `StartupApproved` niemals.
+
+„Startmenü-Eintrag“ erstellt/entfernt nur
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Kairos Passwort.lnk`, mit
+Ziel, Arbeitsverzeichnis, Beschreibung und Icon der aktuellen EXE. Vorhandene
+Dateien werden nicht überschrieben; entfernt werden nur Verknüpfungen mit
+Kairos-Beschreibung. Nach einem EXE-Umzug den eigenen Link entfernen und neu anlegen.
+
+| Startparameter | Verhalten |
+|---|---|
+| `--tray` | Ohne sichtbares Fenster direkt im Tray starten, Hotkeys aktiv. Mit `--popup` bleibt der Start verborgen, der Editor ist kompakt. |
+| `--popup` | Kompakteditor. Eine zweite Instanz öffnet den vorhandenen Editor kompakt, ohne neues Passwort oder Einfügeberechtigung. |
+| `--allow-screencapture` | Aufnahmen nur für diesen ersten Prozess erlauben. Ein zweiter Aufruf ändert die laufende Policy nicht. |
+| `--remove-integration` | Run-Wert und eigenen Startmenü-Link ohne Fenster entfernen; Vorrang vor allen anderen Flags. Erfolg: Exitcode 0, Fehler: ungleich 0. Vor dem Löschen der portablen EXE ausführen. |
+
+Ein sitzungsbezogener, nach Benutzer-SID benannter Mutex verhindert doppelte
+Hotkey-Registrierungen. Ein zweiter normaler Start (auch `--tray`) signalisiert
+„Fenster zeigen“ und endet mit 0. `--popup` wird als separates Ereignis
+weitergereicht. Der ursprüngliche Zielauftrag und das Passwort bleiben erhalten.
+Die lokale Registry und Startmenü-Ziele werden erst auf ausdrücklichen Wunsch
+geändert; für eine portable Nutzung sind beide optional.
 
 ## Sperrliste und lokale Dateien
 

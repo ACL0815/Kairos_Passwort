@@ -86,12 +86,32 @@ struct Preferences {
     version: u8,
     rotate_profiles: bool,
     rotation_profiles: Vec<u8>,
+    #[serde(default)]
+    desktop: DesktopPreferences,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DesktopPreferences {
+    pub close_to_tray: bool,
+    pub tray_notice_seen: bool,
+}
+
+impl Default for DesktopPreferences {
+    fn default() -> Self {
+        Self {
+            close_to_tray: true,
+            tray_notice_seen: false,
+        }
+    }
 }
 
 #[derive(Default)]
 pub struct SettingsFile {
     pub path: Option<PathBuf>,
     pub notice: Option<&'static str>,
+    pub desktop: DesktopPreferences,
+    pub load_failed: bool,
 }
 
 impl SettingsFile {
@@ -102,11 +122,14 @@ impl SettingsFile {
                 std::env::var_os("APPDATA"),
             ),
             notice: None,
+            desktop: DesktopPreferences::default(),
+            load_failed: false,
         }
     }
 
     /// Invalid data leaves rotation disabled and the default selection intact.
     pub fn load(&mut self) -> (bool, Selection) {
+        self.load_failed = false;
         let loaded = (|| -> io::Result<(bool, Selection)> {
             use std::io::Read;
             let path = self
@@ -125,6 +148,7 @@ impl SettingsFile {
                 return Err(io::Error::other("unsupported settings version"));
             }
             let selection = Selection::new(data.rotation_profiles).map_err(io::Error::other)?;
+            self.desktop = data.desktop;
             Ok((data.rotate_profiles, selection))
         })();
         match loaded {
@@ -134,6 +158,7 @@ impl SettingsFile {
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => (false, Selection::default()),
             Err(_) => {
+                self.load_failed = true;
                 self.notice = Some("Rotationseinstellungen nicht lesbar oder ungültig. Rotation ist aus; neue Auswahl wird erst bei einer bewussten Änderung gespeichert.");
                 (false, Selection::default())
             }
@@ -142,10 +167,19 @@ impl SettingsFile {
 
     pub fn save(&mut self, enabled: bool, selection: &Selection) {
         self.notice = if self.write(enabled, selection).is_ok() {
+            self.load_failed = false;
             None
         } else {
             Some("Rotationsauswahl gilt für diesen Start. Speichern fehlgeschlagen; Einstellungsdatei und Schreibrechte prüfen.")
         };
+    }
+
+    pub fn save_desktop(&mut self, enabled: bool, selection: &Selection) {
+        if self.load_failed {
+            self.notice = Some("Tray-Auswahl gilt für diesen Start. Ungültige/unlesbare Einstellungen bleiben unverändert. Datei korrigieren oder zuerst eine neue Rotationsauswahl bewusst speichern.");
+        } else {
+            self.save(enabled, selection);
+        }
     }
 
     fn write(&self, enabled: bool, selection: &Selection) -> io::Result<()> {
@@ -166,6 +200,7 @@ impl SettingsFile {
                 version: 1,
                 rotate_profiles: enabled,
                 rotation_profiles: selection.ids().to_vec(),
+                desktop: self.desktop,
             },
         )?;
         file.write_all(b"\n")?;
@@ -211,6 +246,7 @@ mod tests {
         let mut file = SettingsFile {
             path: Some(path.clone()),
             notice: None,
+            ..Default::default()
         };
         assert_eq!(file.load(), (false, Selection::default()));
         let selection = Selection::new(vec![2, 8, 10, 12]).unwrap();
@@ -219,7 +255,7 @@ mod tests {
         assert_eq!(file.load(), (true, selection.clone()));
         let data: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(data.as_object().unwrap().len(), 3);
+        assert_eq!(data.as_object().unwrap().len(), 4);
         assert_eq!(data["rotation_profiles"], serde_json::json!([2, 8, 10, 12]));
         file.save(false, &selection);
         assert_eq!(file.load(), (false, selection));
@@ -232,6 +268,7 @@ mod tests {
         let mut file = SettingsFile {
             path: Some(path.clone()),
             notice: None,
+            ..Default::default()
         };
         for text in [
             r#"{"version":1,"rotate_profiles":true,"rotation_profiles":[4]}"#,
@@ -264,6 +301,56 @@ mod tests {
             Some(PathBuf::from("root/Kairos/settings.json"))
         );
         assert_eq!(configured_path(None, None), None);
+    }
+
+    #[test]
+    fn old_settings_default_to_tray_and_desktop_preferences_survive_rotation_changes() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{"version":1,"rotate_profiles":true,"rotation_profiles":[2,4]}"#,
+        )
+        .unwrap();
+        let mut settings = SettingsFile {
+            path: Some(path),
+            ..Default::default()
+        };
+        assert!(settings.load().0);
+        assert!(settings.desktop.close_to_tray);
+        assert!(!settings.desktop.tray_notice_seen);
+        settings.desktop.close_to_tray = false;
+        settings.desktop.tray_notice_seen = true;
+        settings.save(false, &Selection::default());
+        assert!(!settings.load().0);
+        assert!(!settings.desktop.close_to_tray);
+        assert!(settings.desktop.tray_notice_seen);
+        settings.save(true, &Selection::new(vec![4, 8]).unwrap());
+        assert!(settings.load().0);
+        assert!(!settings.desktop.close_to_tray);
+        assert!(settings.desktop.tray_notice_seen);
+    }
+
+    #[test]
+    fn desktop_changes_and_hint_acknowledgment_preserve_invalid_settings() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("settings.json");
+        let invalid = r#"{"version":99,"rotation_profiles":[2,4],"retain":"PUBLIC"}"#;
+        std::fs::write(&path, invalid).unwrap();
+        let mut settings = SettingsFile {
+            path: Some(path.clone()),
+            ..Default::default()
+        };
+        settings.load();
+        settings.desktop.close_to_tray = false;
+        settings.desktop.tray_notice_seen = true;
+        settings.save_desktop(false, &Selection::default());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), invalid);
+        assert!(settings.notice.is_some() && settings.load_failed);
+        settings.save(true, &Selection::new(vec![2, 4]).unwrap());
+        assert!(!settings.load_failed);
+        assert!(settings.load().0);
+        assert!(!settings.desktop.close_to_tray);
     }
 
     struct OneWord(&'static str);

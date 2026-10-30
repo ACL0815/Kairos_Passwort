@@ -12,6 +12,7 @@ mod clipboard;
 mod desktop;
 mod help;
 mod keepass;
+mod lifecycle;
 mod model;
 mod profile_view;
 mod rotation;
@@ -19,8 +20,18 @@ mod security;
 mod source;
 mod strength;
 mod theme;
+#[cfg(windows)]
+mod tray;
 
 pub use source::german_source;
+
+pub fn icon_data() -> egui::IconData {
+    egui::IconData {
+        rgba: include_bytes!("../assets/kairos-64.rgba").to_vec(),
+        width: 64,
+        height: 64,
+    }
+}
 
 #[cfg(all(feature = "demo", debug_assertions))]
 mod demo;
@@ -68,6 +79,7 @@ pub struct KairosApp {
     copy_on_insert: bool,
     capture_protection: Option<kairos_platform::CaptureProtection>,
     keepass: keepass::Integration,
+    lifecycle: lifecycle::Lifecycle,
 }
 
 impl KairosApp {
@@ -117,6 +129,7 @@ impl KairosApp {
             copy_on_insert: true,
             capture_protection: None,
             keepass: keepass::Integration::default(),
+            lifecycle: lifecycle::Lifecycle::default(),
         };
         #[cfg(all(feature = "demo", debug_assertions))]
         {
@@ -211,6 +224,11 @@ impl KairosApp {
         {
             self.notice =
                 "KeePassXC-Auftrag zuerst im offenen Dialog abschließen oder nach dem Ergebnis schließen.";
+            if action == Action::GenerateTypeCopy {
+                self.set_background_notice(Some(
+                    "F10: KeePassXC-Auftrag zuerst abschließen. Kairos öffnen.",
+                ));
+            }
             return;
         }
         self.keepass.flow = None;
@@ -224,10 +242,14 @@ impl KairosApp {
                 self.show_popup(ctx);
             }
             Action::GenerateTypeCopy => {
+                self.set_background_notice(None);
                 // A background action must not retain a previous editor destination.
                 self.target = Destination::Unavailable;
                 self.regenerate(ctx);
                 if self.password.secret.is_empty() {
+                    self.set_background_notice(Some(
+                        "F10: Generierung fehlgeschlagen. Kairos öffnen.",
+                    ));
                     self.notice = self.password.message;
                     ctx.send_viewport_cmd(egui::ViewportCommand::Title(
                         "Kairos Passwort · Generierung fehlgeschlagen".into(),
@@ -240,6 +262,9 @@ impl KairosApp {
                 match target.and_then(|target| target.type_text(&self.password.secret, false)) {
                     Ok(()) => {
                         if !self.copy(ctx, false) {
+                            self.set_background_notice(Some(
+                                "F10: Eingabe erfolgt, Kopieren fehlgeschlagen. Kairos öffnen.",
+                            ));
                             ctx.send_viewport_cmd(egui::ViewportCommand::Title(
                                 "Kairos Passwort · Kopieren fehlgeschlagen, Eingabe erfolgt".into(),
                             ));
@@ -250,6 +275,9 @@ impl KairosApp {
                         }
                     }
                     Err(error) => {
+                        self.set_background_notice(Some(
+                            "F10: Eingabe abgebrochen. Kairos öffnen.",
+                        ));
                         self.notice = input_error(error);
                         ctx.send_viewport_cmd(egui::ViewportCommand::Title(
                             "Kairos Passwort · Eingabe abgebrochen".into(),
@@ -281,8 +309,7 @@ impl KairosApp {
     /// Shows the same editor without replacing the destination captured by the caller.
     pub fn show_popup(&mut self, ctx: &egui::Context) {
         self.compact = true;
-        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        self.show_window(ctx);
         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(720.0, 640.0)));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         ctx.memory_mut(|memory| memory.request_focus(egui::Id::unique("password")));
@@ -502,6 +529,7 @@ impl KairosApp {
             .vscroll(true)
             .show(ui.ctx(), |ui| security::view(ui, self.hardening.as_ref()));
         self.keepass_poll();
+        self.lifecycle_hint(ui.ctx());
         if self.keepass.flow.is_some() {
             egui::ScrollArea::vertical().show(ui, |ui| self.keepass_view(ui));
             return;
@@ -600,6 +628,7 @@ impl KairosApp {
                     if self.blocked.error.is_some() { ui.colored_label(Color32::from_rgb(251, 191, 36), "Sperrliste prüfen"); }
                 });
                 self.bridge_controls(ui);
+                self.lifecycle_view(ui);
                 ui.horizontal_wrapped(|ui| {
                     ui.label(RichText::new("Strg+Umschalt+F9: Editor · F10: Tippen + Kopieren · F11: KeePassXC-Eintrag").color(theme::MUTED).size(12.0));
                     help::info(ui, "Hotkeys F9/F10/F11", help::HOTKEYS);
@@ -757,12 +786,7 @@ impl KairosApp {
 
 impl eframe::App for KairosApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.keepass_poll();
-        self.poll_hotkeys(ctx);
-        if self.keepass.flow.is_some() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(200));
-        }
-        self.keepass_guard_close(ctx);
+        self.background_logic(ctx);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {

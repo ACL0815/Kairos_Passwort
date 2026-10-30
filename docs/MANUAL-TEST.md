@@ -88,12 +88,68 @@ Alle F-Tasten unten mit **Strg+Umschalt** drücken.
     Überlappung, Mehrquellen-Grenze und bedingte +4 Bit aus dem Konzept.
     Auf zwei reduzieren: letzten beiden Haken nicht entfernbar. Wieder auf vier
     erweitern. Neustart: Aktivierung und genau diese vier Profile bleiben.
-    Datei enthält ausschließlich Version, Aktivierung und Profilnummern.
+    Datei enthält ausschließlich Version, Aktivierung, Profilnummern und die
+    beiden Tray-Einstellungen (`desktop`); keine Passwörter.
     Mit 9/12 Minus ausschließen: gültig; zusätzlich 0 aktivieren: sichtbarer
     Generierungsfehler, keine stille Ersatzwahl. Deutsch-Override für alle.
     Fehlende, ungültige, zu große und unlesbare Testdatei sowie Schreibfehler
     testen; Hinweis und dokumentierter Fallback, kein automatisches
     Überschreiben ungültiger Daten. Aktivierung aus/an erhält die Auswahl.
+
+15. **Tray und Schließen (manuell offen).** Normal starten, Tooltip „Kairos
+    Passwort“, K-Icon, Linksklick und Doppelklick prüfen. X: einmaligen Hinweis
+    bestätigen, Fenster verschwindet aus Taskleiste, Tray bleibt. Wieder öffnen,
+    erneut X: kein Hinweis. Neustart mit eigenem Einstellungs-Testpfad: Verhalten
+    bleibt. Haken „Beim Schließen in den Tray“ aus → X beendet. Tray → Beenden
+    beendet auch bei Haken an. Während einer KeePassXC-Anfrage wartet Beenden
+    auf das Ergebnis. Tray-Ausfall darf kein unerreichbares Fenster hinterlassen.
+16. **Hotkeys im Tray (manuell offen).** `--tray` ohne sichtbaren Fensterblitz
+    starten. Im leeren Testeditor F9: frisch, kompakt, Originalziel; nach bewusstem
+    Klick einfügen. X zum Verbergen, im Testeditor F10: frisch tippen + geschützt
+    kopieren, Kairos bleibt verborgen und stiehlt keinen Fokus. X/F11: sichtbare
+    KeePassXC-Bestätigung, kein automatisches Speichern/Tippen. Hotkey-Konflikte
+    und Dienstfehler prüfen. Tray → Neues Passwort kopieren: aktuelles Profil/
+    Rotation und Filter; Win+V ausgeschlossen, nach 30 s eigene Kopie leer,
+    späterer fremder Text bleibt. Generierungs-/Clipboard-Fehler öffnen das
+    Fenster; laufender/angenommener F11-Auftrag verhindert Ersetzung.
+    Bei einem absichtlich ungültigen F10-Ziel darf Kairos keinen Fokus nehmen:
+    Tray-Tooltip meldet den Fehler, Öffnen zeigt den Hinweis. Nach einem
+    erfolgreichen F10-Auftrag wieder normaler Tooltip. Registry extern ändern,
+    Maus über dem Tray belassen und direkt rechtsklicken: Menü-Haken muss schon
+    beim ersten Öffnen stimmen. Status der aufgeklappten Einstellungen per
+    „Status aktualisieren“ neu lesen. Ungültige Einstellungs-Testdatei bleibt
+    bei Tray-Checkbox und Hinweisbestätigung unverändert.
+17. **Capture nach Verbergen (manuell offen).** Mit Schutz X/Tray/erneutes Öffnen
+    mehrfach; Snipping Tool und Teams nach Schritten 7/8. F9/F11 aus `--tray`
+    ebenfalls geschützt. Separater Start mit `--tray --allow-screencapture`:
+    weiterhin aufnehmbar, Dauerbanner beim Öffnen. Zweite Instanz mit anderem
+    Opt-out ändert die Policy der ersten nicht.
+18. **Autostart und Startmenü (manuell offen, isoliertes Windows-Testkonto).**
+    Keine Einträge im produktiven Benutzerkonto für diese Abnahme erstellen.
+    „Mit Windows starten“ in App/Tray wechselseitig an/aus, Registry-Zeile mit
+    Leerzeichen und Umlauten/`--tray` prüfen. Ab-/Anmelden: verborgen, Hotkeys
+    aktiv. Im Task-Manager deaktivieren: Hinweis/gesperrte Änderung, Bytes bleiben
+    unverändert; dort wieder aktivieren. EXE verschieben: anderer Pfad sichtbar,
+    erst „Pfad aktualisieren“ ersetzt ihn. Startmenü-Haken: .lnk-Ziel,
+    Arbeitsverzeichnis, Beschreibung, Icon; öffnen, entfernen. Eine fremde Datei
+    am gleichen Testpfad muss unberührt bleiben. ⓘ aller drei Einstellungen prüfen.
+19. **Einzelinstanz und Entfernen (manuell offen, isoliertes Testkonto).**
+    Verborgene erste Instanz, zweiter normaler/`--tray`-Start → erstes Fenster
+    sichtbar, zweite endet 0, keine Hotkey-Konflikte. Zweiter `--popup`-Start →
+    bestehender Editor kompakt, kein neues Passwort, keine neue Einfügefreigabe.
+    Gleichzeitige Starts und Neustart nach Absturz prüfen. `--remove-integration`
+    (auch zusammen mit anderen Flags) ohne Fenster: nur Run-Wert und eigene .lnk
+    weg, Exitcode 0; erneut idempotent. Fremde .lnk nicht entfernen; Fehler liefert
+    ungleich 0. `StartupApproved` bleibt unverändert. Eigene Testeinträge abschließend
+    entfernen und kontrollieren; keine produktiven Integrationseinträge anfassen.
+
+Automatisiert: `desktop_integration` arbeitet ausschließlich mit
+`KairosTest-<pid>-run` und `.lnk`/EXE in TempDir, RAII-Aufräumen auch bei Panik.
+`--nocapture` gibt die bereinigten Namen/Pfade aus. Der Einzelinstanz-Test nutzt
+`Local\KairosTest-<pid>-instance`, schließt alle Kernel-Handles und prüft, dass
+der Mutex danach nicht mehr geöffnet werden kann. App-Tests verwenden eguis
+`run_logic` ohne Fenster und eine Fake-Zwischenablage. Sie belegen den verborgenen
+Aktionspfad, ersetzen die oben markierten Desktop-Prüfungen aber nicht.
 
 SendInput bestätigt Windows-Annahme, keine Feldzustellung. Clipboard-/Capture-
 Schutz hängt von beachtender Software ab. Kameras, privilegierte Tools, bestehende
