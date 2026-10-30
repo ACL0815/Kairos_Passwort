@@ -162,8 +162,11 @@ zu wählen. Eine Task-Manager-Deaktivierung bzw. unbekannte `StartupApproved`-
 Markierung wird angezeigt und sperrt Änderungen in der App. Dort wieder
 aktivieren; Kairos schreibt oder löscht `StartupApproved` niemals.
 
-„Startmenü-Eintrag“ erstellt/entfernt nur
-`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Kairos Passwort.lnk`, mit
+„Startmenü-Eintrag“ erstellt/entfernt nur `Kairos Passwort.lnk` im persönlichen
+Programme-Ordner des Startmenüs (Known Folder `FOLDERID_Programs`, per
+`SHGetKnownFolderPath` ermittelt, berücksichtigt also Umleitungen). Üblich ist
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs`; dieser Pfad dient nur als
+Fallback, wenn die Windows-API fehlschlägt. Die Verknüpfung entsteht mit
 Ziel, Arbeitsverzeichnis, Beschreibung und Icon der aktuellen EXE. Vorhandene
 Dateien werden nicht überschrieben; entfernt werden nur Verknüpfungen mit
 Kairos-Beschreibung. Nach einem EXE-Umzug den eigenen Link entfernen und neu anlegen.
